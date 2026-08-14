@@ -1431,7 +1431,7 @@ const App = {
   },
   // connect the shared backend when configured (no-op otherwise)
   initCloud(u) {
-    if (!window.SOCIAL_API || typeof Cloud === "undefined") return;
+    if (typeof Cloud === "undefined" || !Cloud.active()) return;
     Cloud.init(u, Store.state.profile);
     let last = "";
     Cloud.start((s) => {

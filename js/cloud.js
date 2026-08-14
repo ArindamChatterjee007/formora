@@ -1,78 +1,89 @@
 /* ============================================================
-   CLOUD: shared social backend via Pantry (free keyless JSON store).
-   One basket holds { users, posts, requests } — the members directory,
-   connect requests and shared feed. Active when window.SOCIAL_API (a
-   Pantry basket URL) is set. Personal workout/food/weight logs stay
-   in localStorage only and are never uploaded.
+   CLOUD: shared social backend via Supabase (free Postgres + REST).
+   Tables profiles/posts/requests hold the members directory, the
+   shared feed and connect requests. A single get_state() RPC returns
+   { users, posts, requests } ready for the UI. Active when
+   window.SUPABASE_URL and window.SUPABASE_ANON_KEY are set. Personal
+   workout/food/weight logs stay in localStorage and are never uploaded.
    ============================================================ */
 const Cloud = {
   base: null,
+  key: null,
   me: null,
   _timer: null,
   _cb: null,
+  _paused: true,
+  _busy: false,
 
-  active() { return !!window.SOCIAL_API; },
+  active() { return !!(window.SUPABASE_URL && window.SUPABASE_ANON_KEY); },
   uidFor(email) { return (email || "guest").toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 60); },
+
+  _headers(extra) {
+    return Object.assign({ apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": "application/json" }, extra || {});
+  },
 
   init(account, profile) {
     if (!this.active()) return false;
-    this.base = window.SOCIAL_API;
+    this.base = window.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
+    this.key = window.SUPABASE_ANON_KEY;
     this.me = this.uidFor(account && account.email);
     this.registerMe(profile);
     return true;
   },
 
+  // one RPC returns the whole shared state already shaped as { users, posts, requests }
   async _get() {
     try {
-      const r = await fetch(this.base, { headers: { Accept: "application/json" } });
-      if (r.status === 404) return { users: {}, posts: {}, requests: {} };
+      const r = await fetch(this.base + "/rpc/get_state", { method: "POST", headers: this._headers(), body: "{}" });
       if (!r.ok) return null;
       const s = await r.json();
-      s.users = s.users || {}; s.posts = s.posts || {}; s.requests = s.requests || {};
-      return s;
+      return { users: (s && s.users) || {}, posts: (s && s.posts) || {}, requests: (s && s.requests) || {} };
     } catch (e) { return null; }
   },
-  // single-request DEEP-MERGE write (Pantry PUT merges objects) — no read, no race
-  async _merge(patch) {
-    try { const r = await fetch(this.base, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }); return r.ok; }
+  async _write(path, body, extra) {
+    try { const r = await fetch(this.base + path, { method: "POST", headers: this._headers(extra), body: JSON.stringify(body) }); return r.ok; }
     catch (e) { return false; }
   },
 
   registerMe(profile) {
     if (!this.active()) return;
     const p = profile || (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
-    return this._merge({ users: { [this.me]: {
-      uid: this.me, username: p.username || "", name: p.name || "", avatar: p.avatar || "",
+    const data = {
+      username: p.username || "", name: p.name || "", avatar: p.avatar || "",
       physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
-      updated: Date.now(),
-    } } });
+    };
+    return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
   addPost(post) {
     if (!this.active()) return;
     const id = "p" + Date.now() + Math.floor(Math.random() * 999);
-    return this._merge({ posts: { [id]: { id, author: this.me, likes: {}, ...post, ts: Date.now() } } });
+    const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex" };
+    return this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
   },
   likeCloud(postId) {
     if (!this.active()) return;
-    return this._merge({ posts: { [postId]: { likes: { [this.me]: true } } } });
+    return this._write("/rpc/like_post", { p_id: postId, p_uid: this.me });
   },
   sendRequest(toUid) {
     if (!this.active()) return;
-    return this._merge({ requests: { [this.me + "__" + toUid]: { id: this.me + "__" + toUid, from: this.me, to: toUid, ts: Date.now(), status: "pending" } } });
+    const id = this.me + "__" + toUid;
+    return this._write("/requests", { id, from_uid: this.me, to_uid: toUid, status: "pending" }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
-  acceptRequest(fromUid) {
+  async acceptRequest(fromUid) {
     if (!this.active()) return;
-    return this._merge({ requests: { [fromUid + "__" + this.me]: { status: "accepted" } } });
+    const id = fromUid + "__" + this.me;
+    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ status: "accepted" }) }); return r.ok; }
+    catch (e) { return false; }
   },
 
-  // poll the shared basket (only while the Feed is open) and push updates to the UI
+  // poll the shared state (only while the Feed is open) and push updates to the UI
   start(cb) {
     if (!this.active()) return;
     this._cb = cb;
     this._paused = true;
     clearInterval(this._timer);
-    this._timer = setInterval(() => { if (!this._paused) this._tick(); }, 25000);
+    this._timer = setInterval(() => { if (!this._paused) this._tick(); }, 12000);
   },
   async _tick() {
     if (this._busy) return;

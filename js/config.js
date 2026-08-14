@@ -26,9 +26,11 @@ window.SHEETS_API = "";
    Paste the Client ID below. Empty = simulated Google login (default).   */
 window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
 
-/* ---- Shared social backend (Pantry basket): real members / connect requests /
-   shared feed sync through this URL. Empty = local-only. ---- */
-window.SOCIAL_API = "https://getpantry.cloud/apiv1/pantry/88e06c30-c16e-489b-8fe9-1d495d54008e/basket/formora";
+/* ---- Shared social backend (Supabase: free Postgres + REST) — real members,
+   connect requests and shared feed sync across devices. Empty = local-only. ---- */
+window.SUPABASE_URL = "https://ptukgtxpigdkdzsewuvz.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0dWtndHhwaWdka2R6c2V3dXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MTUwNDEsImV4cCI6MjEwMjI5MTA0MX0.nlm6efF_qABMFaB3BgLk0RMCPbbmiiWd00BdSSJPYfA";
+window.SOCIAL_API = "";
 
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
