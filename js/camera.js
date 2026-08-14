@@ -5,23 +5,41 @@
    Filters are baked into the capture via canvas ctx.filter.
    ============================================================ */
 const Camera = {
-  // curated pro filter set (CSS filter strings, baked on capture)
+  // big curated filter set (CSS filter strings, baked on capture) — Snapchat-level variety
   FILTERS: [
     { id: "normal", name: "Normal", css: "" },
     { id: "gym", name: "Gym", css: "contrast(1.16) saturate(1.35) brightness(1.03)" },
+    { id: "vivid", name: "Vivid", css: "saturate(1.6) contrast(1.15)" },
+    { id: "pop", name: "Pop", css: "saturate(1.9) contrast(1.25) brightness(1.02)" },
+    { id: "clarity", name: "Clarity", css: "contrast(1.25) brightness(1.05) saturate(1.15)" },
     { id: "warm", name: "Warm", css: "sepia(.32) saturate(1.5) brightness(1.05) contrast(1.05)" },
-    { id: "cool", name: "Cool", css: "saturate(1.15) hue-rotate(-12deg) brightness(1.05) contrast(1.06)" },
-    { id: "pop", name: "Pop", css: "saturate(1.85) contrast(1.22)" },
+    { id: "sunset", name: "Sunset", css: "sepia(.25) saturate(1.6) hue-rotate(-15deg) brightness(1.06)" },
+    { id: "gold", name: "Gold", css: "sepia(.5) saturate(1.7) hue-rotate(-8deg) brightness(1.08) contrast(1.05)" },
+    { id: "peach", name: "Peach", css: "sepia(.25) saturate(1.45) hue-rotate(-18deg) brightness(1.08)" },
+    { id: "rose", name: "Rose", css: "sepia(.2) saturate(1.5) hue-rotate(-25deg) brightness(1.05) contrast(1.03)" },
+    { id: "blush", name: "Blush", css: "sepia(.15) saturate(1.35) hue-rotate(-22deg) brightness(1.06) contrast(1.02)" },
+    { id: "ember", name: "Ember", css: "sepia(.4) saturate(1.8) hue-rotate(-20deg) contrast(1.1) brightness(1.02)" },
+    { id: "cool", name: "Cool", css: "contrast(1.05) brightness(1.05) saturate(1.2) hue-rotate(12deg)" },
+    { id: "chill", name: "Chill", css: "brightness(1.05) contrast(1.02) saturate(1.1) hue-rotate(16deg)" },
+    { id: "mint", name: "Mint", css: "saturate(1.3) hue-rotate(25deg) brightness(1.05) contrast(1.03)" },
+    { id: "aqua", name: "Aqua", css: "saturate(1.45) hue-rotate(40deg) brightness(1.04)" },
+    { id: "frost", name: "Frost", css: "brightness(1.12) contrast(.95) saturate(.9) hue-rotate(10deg)" },
+    { id: "cyber", name: "Cyber", css: "contrast(1.3) saturate(1.6) hue-rotate(-30deg) brightness(1.02)" },
+    { id: "neon", name: "Neon", css: "saturate(2) contrast(1.3) brightness(1.05)" },
     { id: "drama", name: "Drama", css: "contrast(1.42) saturate(1.1) brightness(.96)" },
+    { id: "dusk", name: "Dusk", css: "brightness(.92) contrast(1.15) saturate(1.2) hue-rotate(-10deg)" },
+    { id: "velvet", name: "Velvet", css: "contrast(1.15) saturate(1.25) brightness(.98) sepia(.1)" },
     { id: "fade", name: "Fade", css: "contrast(.9) brightness(1.09) saturate(.82)" },
+    { id: "retro", name: "Retro", css: "sepia(.4) contrast(1.1) saturate(1.2) brightness(1.02) hue-rotate(-5deg)" },
     { id: "vintage", name: "Vintage", css: "sepia(.5) contrast(.96) brightness(1.05) saturate(1.3)" },
-    { id: "sunset", name: "Sunset", css: "sepia(.22) saturate(1.6) hue-rotate(-15deg) brightness(1.06)" },
+    { id: "sepia", name: "Sepia", css: "sepia(.8) contrast(1.05) brightness(1.05)" },
     { id: "glow", name: "Glow", css: "brightness(1.14) saturate(1.22) contrast(.97)" },
     { id: "mono", name: "Mono", css: "grayscale(1) contrast(1.16)" },
     { id: "noir", name: "Noir", css: "grayscale(1) contrast(1.55) brightness(.9)" },
+    { id: "invert", name: "X-Ray", css: "invert(1) hue-rotate(180deg) contrast(1.1)" },
   ],
   PAINT_COLORS: ["#ff3d7f", "#ff6b3d", "#ffd23d", "#3dff88", "#3dd0ff", "#8b5cff", "#ffffff", "#101014"],
-  stream: null, facing: "user", filterIdx: 0, target: "story",
+  stream: null, facing: "user", filterIdx: 0, target: "story", mode: "photo",
   recorder: null, chunks: [], recording: false, recTimer: null, recRAF: null,
   paintOn: false, paintColor: "#ff3d7f", _draft: null,
 
@@ -32,6 +50,7 @@ const Camera = {
     if (!this.supported()) { alert("Your browser doesn't support the in-app camera — use the gallery option instead."); return false; }
     this.target = target || "story";
     this.paintOn = false;
+    this.mode = "photo";
     this.buildUI();
     try {
       await this.start();
@@ -70,7 +89,7 @@ const Camera = {
     ov.innerHTML = `
       <div class="cam-stage">
         <video id="cam-video" playsinline autoplay muted></video>
-        <canvas id="cam-canvas" class="cam-canvas hidden"></canvas>
+        <canvas id="cam-canvas" class="cam-canvas"></canvas>
         <div class="cam-top">
           <button class="cam-ic" onclick="Camera.close()">✕</button>
           <div class="cam-rec-time" id="cam-rec-time"></div>
@@ -80,19 +99,39 @@ const Camera = {
           ${this.FILTERS.map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
         </div>
         <div class="cam-bottom">
-          <div class="cam-hint">Tap for photo · hold for video</div>
+          <div class="cam-hint" id="cam-hint">Tap to take a photo</div>
+          <div class="cam-modes">
+            <button class="cam-mode active" id="cam-mode-photo" onclick="Camera.setMode('photo')">Photo</button>
+            <button class="cam-mode" id="cam-mode-video" onclick="Camera.setMode('video')">Video</button>
+          </div>
           <button class="cam-shutter" id="cam-shutter"><span></span></button>
         </div>
       </div>`;
     const sh = document.getElementById("cam-shutter");
     let held = false, timer = null;
-    const startHold = (e) => { e.preventDefault(); held = false; timer = setTimeout(() => { held = true; this.startRec(); }, 260); };
-    const endHold = (e) => { e.preventDefault(); clearTimeout(timer); if (held && this.recording) this.stopRec(); else if (!held) this.snapPhoto(); held = false; };
-    sh.addEventListener("touchstart", startHold, { passive: false });
-    sh.addEventListener("touchend", endHold);
-    sh.addEventListener("mousedown", startHold);
-    sh.addEventListener("mouseup", endHold);
+    const startHold = (e) => { if (e.cancelable) e.preventDefault(); held = false; clearTimeout(timer); if (this.mode === "photo") timer = setTimeout(() => { held = true; this.startRec(); }, 280); };
+    const endHold = (e) => {
+      if (e && e.cancelable) e.preventDefault();
+      clearTimeout(timer);
+      if (this.recording) this.stopRec();
+      else if (this.mode === "video") this.startRec();
+      else if (!held) this.snapPhoto();
+      held = false;
+    };
+    // Pointer Events unify mouse + touch → no double-fire (the old touch+mouse binding could accidentally start recording)
+    sh.addEventListener("pointerdown", (e) => { try { sh.setPointerCapture(e.pointerId); } catch (er) {} startHold(e); });
+    sh.addEventListener("pointerup", endHold);
+    sh.addEventListener("pointercancel", () => { clearTimeout(timer); if (this.recording) this.stopRec(); held = false; });
     const v = document.getElementById("cam-video"); if (v) v.style.filter = this.cssFilter();
+  },
+  setMode(m) {
+    if (this.recording) return;
+    this.mode = m;
+    const ph = document.getElementById("cam-mode-photo"), vd = document.getElementById("cam-mode-video"), hint = document.getElementById("cam-hint");
+    if (ph) ph.classList.toggle("active", m === "photo");
+    if (vd) vd.classList.toggle("active", m === "video");
+    if (hint) hint.textContent = m === "video" ? "Tap to start · tap again to stop" : "Tap to take a photo";
+    const sh = document.getElementById("cam-shutter"); if (sh) sh.classList.toggle("video-mode", m === "video");
   },
 
   _frameCanvas() {
@@ -168,7 +207,7 @@ const Camera = {
     this._draft = { blob, isVid, url: URL.createObjectURL(blob) };
     const ov = document.getElementById("camera-ov");
     if (!ov) return;
-    const shareLabel = this.target === "story" ? "Next → Story" : "Use " + (isVid ? "reel" : "photo") + " →";
+    const shareLabel = this.target === "story" ? "Next → Story" : "Use " + (isVid ? "Flex" : "photo") + " →";
     const media = isVid
       ? `<video id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" playsinline autoplay loop></video>`
       : `<img id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" alt="capture" draggable="false"><canvas id="paint-canvas" class="paint-canvas"></canvas>`;

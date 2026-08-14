@@ -1062,6 +1062,10 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .cam-shutter:active { transform: scale(.94); }
 .cam-shutter.recording { border-color: var(--accent2); }
 .cam-shutter.recording span { width: 30px; height: 30px; border-radius: 9px; background: var(--accent2); }
+.cam-shutter.video-mode span { background: var(--accent2); }
+.cam-modes { display: flex; gap: 6px; background: rgba(0,0,0,.38); border-radius: 999px; padding: 4px; backdrop-filter: blur(6px); }
+.cam-mode { padding: 7px 20px; border-radius: 999px; border: none; background: none; color: rgba(255,255,255,.72); font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; letter-spacing: .3px; }
+.cam-mode.active { background: #fff; color: #111; }
 .cam-share { min-width: 220px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: 999px; padding: 15px; font-weight: 800; font-size: 15px; box-shadow: 0 8px 22px rgba(255,61,127,.42); }
 .paint-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
 .paint-colors { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 5; }

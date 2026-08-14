@@ -182,7 +182,7 @@ const Social = {
         ${this.pendingVideo ? `<div class="composer-video"><video src="${this.pendingVideo}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
         <div class="composer-actions">
           <button class="photo-btn" onclick="Social.pickPhotos()">📷 Photo</button>
-          <button class="photo-btn" onclick="Social.pickReel()">🎬 Reel</button>
+          <button class="photo-btn" onclick="Social.pickReel()">🎬 Flex</button>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
@@ -242,7 +242,7 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video"><video src="${p.video}" controls playsinline preload="metadata" loop></video><span class="reel-badge">▶ Reel</span></div>`
+      ? `<div class="post-media video"><video src="${p.video}" controls playsinline preload="metadata" loop></video><span class="reel-badge">💪 Flex</span></div>`
       : pics.length
       ? (pics.length > 1
         ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${src}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
@@ -287,7 +287,7 @@ const Social = {
   removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); this.render(); } },
   async postVideo(e) {
     const f = e.target && e.target.files && e.target.files[0]; if (!f) return;
-    if (!this.cloudActive()) { alert("Video reels need you to be signed in and online."); return; }
+    if (!this.cloudActive()) { alert("Flex videos need you to be signed in and online."); return; }
     if (f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
     this.pendingVideoUploading = true; this.render();
     const url = await Cloud.uploadMedia(f, "videos");
@@ -361,7 +361,7 @@ const Social = {
     this.sub = "feed"; this.pendingVideo = null; this.pendingVideoUploading = true; this.render();
     Cloud.uploadMedia(file, "videos").then((u) => {
       this.pendingVideoUploading = false;
-      if (!u) { alert("Couldn't upload that reel — check your connection and try again."); this.render(); return; }
+      if (!u) { alert("Couldn't upload that Flex — check your connection and try again."); this.render(); return; }
       this.pendingVideo = u; this.render();
     });
   },
@@ -384,7 +384,7 @@ const Social = {
     ov.innerHTML = `<div class="sv-card">
       <div class="sv-head"><button class="sv-x" onclick="Social.cancelStory()">✕</button><div class="sv-name" style="margin-left:4px">New story</div><button class="sp-redo" onclick="Social.cancelStory();Social.addStoryPick()">↻ Retake</button></div>
       ${media}
-      <div class="sp-bar"><button class="sp-share" onclick="Social.shareStory()">${d.isVid ? "Share reel to your story" : "Share to your story"} →</button></div>
+      <div class="sp-bar"><button class="sp-share" onclick="Social.shareStory()">${d.isVid ? "Share Flex to your story" : "Share to your story"} →</button></div>
     </div>`;
   },
   cancelStory() { const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; const ov = document.getElementById("story-preview"); if (ov) ov.remove(); },
@@ -397,7 +397,7 @@ const Social = {
       if (d.isVid) url = await Cloud.uploadMedia(d.file, "stories");
       else { const dataUrl = await resizeImage(d.file, 1280, 0.82); const blob = await (await fetch(dataUrl)).blob(); url = await Cloud.uploadMedia(new File([blob], "s.jpg", { type: "image/jpeg" }), "stories"); }
     } catch (err) { url = null; }
-    if (!url) { alert("Couldn't upload your story — check your connection and try again."); if (btn) { btn.textContent = (d.isVid ? "Share reel to your story" : "Share to your story") + " →"; btn.disabled = false; } return; }
+    if (!url) { alert("Couldn't upload your story — check your connection and try again."); if (btn) { btn.textContent = (d.isVid ? "Share Flex to your story" : "Share to your story") + " →"; btn.disabled = false; } return; }
     const st = Cloud.addStory(url, d.isVid ? "video" : "photo");
     if (st) this.cloud.stories.push(st);
     this.cancelStory();
@@ -417,7 +417,7 @@ const Social = {
     if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("post") });
     else opts.push({ label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.postVideo(e) });
     opts.push({ label: "🖼️ Choose from gallery", accept: "video/*", cb: (e) => this.postVideo(e) });
-    this.mediaSheet("Add a reel", opts);
+    this.mediaSheet("Add a Flex", opts);
   },
   openStory(authorUid) {
     const groups = this.storyGroups();
@@ -480,12 +480,12 @@ const Social = {
     const text = t ? t.value.trim() : "";
     const photos = this.pendingPhotos || [];
     const video = this.pendingVideo || null;
-    if (!text && !photos.length && !video) { alert("Write something, add a photo or a reel to post."); return; }
+    if (!text && !photos.length && !video) { alert("Write something, add a photo or a Flex to post."); return; }
     if (this.cloudActive()) {
       const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex" });
       if (np) this.cloud.feed.unshift(np);
       this.pendingPhotos = []; this.pendingVideo = null;
-      if (typeof App !== "undefined" && App.toast) App.toast(video ? "Reel posted 🎬" : "Posted to the feed 🎉");
+      if (typeof App !== "undefined" && App.toast) App.toast(video ? "Flex posted 💪" : "Posted to the feed 🎉");
       const el = document.getElementById("post-text"); if (el) el.value = "";
       this.render();
       return;
