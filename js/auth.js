@@ -41,7 +41,24 @@ const Auth = {
   genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); },
 
   // ---- email/password ----
+  // ---- cloud backend (Google Sheets) when configured ----
+  remote() { return !!window.SHEETS_API; },
+  async postSheet(payload) {
+    // no Content-Type header => text/plain => avoids CORS preflight on Apps Script
+    const res = await fetch(window.SHEETS_API, { method: "POST", body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error("Backend unreachable (" + res.status + ").");
+    return res.json();
+  },
+
   async signup({ name, email, phone, password }) {
+    if (this.remote()) {
+      const res = await this.postSheet({ action: "signup", name, email, phone, password });
+      if (!res.ok) throw new Error(res.error || "Sign-up failed.");
+      const acc = { id: "u" + Date.now(), name, email, phone, salt: "", hash: "", phoneVerified: true, provider: "email", remote: true };
+      if (!this.findByEmail(email)) this.data.accounts.push(acc);
+      this.setCurrent(acc.id);
+      return { direct: true };
+    }
     if (this.findByEmail(email)) throw new Error("An account with this email already exists. Try logging in.");
     const salt = this.randHex(16);
     const hash = await this.hash(password, salt);
@@ -52,10 +69,24 @@ const Auth = {
     };
     // hold the account aside until the phone OTP is confirmed
     this.pending = { account, otp: this.genOtp(), needsPhone: false, origin: "signup" };
-    return this.pending.otp;
+    return { direct: false, otp: this.pending.otp };
   },
 
   async login({ email, password }) {
+    if (this.remote()) {
+      const res = await this.postSheet({ action: "login", email, password });
+      if (!res.ok) throw new Error(res.error || "Login failed.");
+      let acc = this.findByEmail(email);
+      if (!acc) {
+        acc = { id: "u" + Date.now(), name: res.user.name, email, phone: res.user.phone, salt: "", hash: "", phoneVerified: true, provider: "email", remote: true };
+        this.data.accounts.push(acc);
+      } else {
+        acc.name = res.user.name || acc.name;
+        acc.phone = res.user.phone || acc.phone;
+      }
+      this.setCurrent(acc.id);
+      return acc;
+    }
     const acc = this.findByEmail(email);
     if (!acc || acc.provider !== "email") throw new Error("No email account found. Please sign up first.");
     const hash = await this.hash(password, acc.salt);

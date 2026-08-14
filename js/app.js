@@ -153,8 +153,11 @@ const App = {
     if (!Auth.validPhone(phone)) return this.authErr("Enter a valid phone number.");
     if (pass.length < 6) return this.authErr("Password must be at least 6 characters.");
     if (pass !== pass2) return this.authErr("Passwords don't match.");
-    try { await Auth.signup({ name, email, phone, password: pass }); this.showAuth("otp"); }
-    catch (e) { this.authErr(e.message); }
+    try {
+      const r = await Auth.signup({ name, email, phone, password: pass });
+      if (r && r.direct) this.enterApp();     // cloud backend: signed in
+      else this.showAuth("otp");              // local: verify phone OTP
+    } catch (e) { this.authErr(e.message); }
   },
 
   async doLogin() {
