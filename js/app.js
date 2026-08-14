@@ -50,6 +50,42 @@ const App = {
     this.showAuth("login");
   },
 
+  // ---- Backup & Restore (move account + data across devices, no backend) ----
+  exportData() {
+    const u = Auth.currentUser();
+    const blob = { app: "formora", v: 1, exported: new Date().toISOString(), account: u, data: Store.state };
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(blob)], { type: "application/json" }));
+    a.download = `formora-backup-${(u && u.email ? u.email.split("@")[0] : "me")}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  },
+  restorePrompt() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "application/json,.json";
+    inp.onchange = (e) => this.importFile(e);
+    inp.click();
+  },
+  importFile(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { try { this.importData(r.result); } catch { alert("That doesn't look like a valid Formora backup file."); } };
+    r.readAsText(f);
+  },
+  importData(text) {
+    const blob = JSON.parse(text);
+    if (!blob || !blob.account || !blob.data) throw new Error("bad backup");
+    const acc = blob.account;
+    Auth.load();
+    const i = Auth.data.accounts.findIndex((a) => a.id === acc.id ||
+      (a.email && acc.email && a.email.toLowerCase() === acc.email.toLowerCase()));
+    if (i >= 0) Auth.data.accounts[i] = acc; else Auth.data.accounts.push(acc);
+    Auth.setCurrent(acc.id);
+    localStorage.setItem("gymcoach_v1_" + acc.id, JSON.stringify(blob.data));
+    this.enterApp();
+  },
+
   showAuth(view = "login") {
     document.getElementById("app-shell").classList.add("hidden");
     document.getElementById("auth-overlay").classList.remove("hidden");
@@ -85,7 +121,8 @@ const App = {
         <div class="field"><label>Password</label><input id="a-pass" type="password" placeholder="••••••••"></div>
         ${err}
         <button class="btn wide" onclick="App.doLogin()">Log in</button>
-        <div class="auth-switch">New here? <a onclick="App.showAuth('signup')">Create an account</a></div>`;
+        <div class="auth-switch">New here? <a onclick="App.showAuth('signup')">Create an account</a></div>
+        <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>`;
     } else if (this.authView === "signup") {
       body = `${gbtn}
         <div class="auth-or"><span>or sign up with details</span></div>
@@ -1045,6 +1082,14 @@ const App = {
           </div>
         </div>
         <button class="btn wide" style="margin-top:14px" onclick="App.saveProfile()">Save profile</button>
+      </div>
+      <div class="card">
+        <h2>Backup &amp; move devices</h2>
+        <div class="sub">Cross-device login needs the Google Sheet deploy. Until then: download your backup here, then use “Restore a backup” on the login screen of any other device.</div>
+        <button class="btn wide" onclick="App.exportData()">⬇️ Download my backup</button>
+        <label class="photo-btn" style="margin-top:10px">📂 Restore from a backup file
+          <input type="file" accept="application/json,.json" onchange="App.importFile(event)" hidden>
+        </label>
       </div>
       <div class="card">
         <h2 class="danger">Reset</h2>
