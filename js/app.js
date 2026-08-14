@@ -54,6 +54,7 @@ const App = {
     Social.load(u.id);
     this.ensureUsername();
     if (!Store.state.profile.onboarded) { this.onboardMode = "login"; return this.showAuth("details"); }
+    this.initCloud(u);
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
@@ -1426,6 +1427,18 @@ const App = {
     t.textContent = msg; t.classList.add("show");
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => t.classList.remove("show"), 2200);
+  },
+  // connect the shared backend when configured (no-op otherwise)
+  initCloud(u) {
+    if (!window.FIREBASE_CONFIG || typeof Cloud === "undefined") return;
+    Cloud.init().then((okc) => {
+      if (!okc) return;
+      Cloud.registerMe(Store.state.profile, u);
+      const refresh = () => { const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); };
+      Cloud.onUsers((users) => { Social.cloud.users = users; refresh(); });
+      Cloud.onRequests((reqs) => { Social.cloud.requests = reqs; refresh(); });
+      Cloud.onFeed((posts) => { Social.cloud.feed = posts; refresh(); });
+    });
   },
   uploadAvatar(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;

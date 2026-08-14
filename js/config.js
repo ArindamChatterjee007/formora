@@ -26,6 +26,10 @@ window.SHEETS_API = "";
    Paste the Client ID below. Empty = simulated Google login (default).   */
 window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
 
+/* ---- Shared social backend (Firestore): paste your Firebase web config to turn
+   on real members / connect requests / shared feed. null = local-only. */
+window.FIREBASE_CONFIG = null;
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {
