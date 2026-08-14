@@ -25,6 +25,7 @@ const DEFAULT_PROFILE = {
   bio: "",                    // short social bio
   socials: { instagram: "", linkedin: "", facebook: "" },
   username: "",               // unique @handle (auto-generated, editable)
+  privacy: "public",          // "public" | "friends" — who can see profile & posts
   onboarded: false,           // true once the user completes the details step
 };
 

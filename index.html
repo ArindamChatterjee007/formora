@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 35;
+      var V = 36;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=35" />
+  <link rel="stylesheet" href="css/styles.css?v=36" />
 </head>
 <body>
   <!-- animated background -->
@@ -49,11 +49,17 @@
       </div>
     </div>
     <div class="topbar-right">
+      <button class="notif-bell" id="notif-bell" onclick="App.toggleNotifPanel()" title="Notifications">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
       <span class="chip sky" id="sky-chip"></span>
       <span class="chip" id="chip-weight">— kg</span>
       <span class="chip" id="chip-streak">🔥 0d</span>
     </div>
   </header>
+
+  <div class="notif-panel hidden" id="notif-panel">
+    <div class="notif-head"><h3>Notifications</h3><button class="icon-btn" onclick="App.toggleNotifPanel()">✕</button></div>
+    <div class="notif-list" id="notif-list"></div>
+  </div>
 
   <nav class="tabbar" id="tabbar">
     <button class="tab active" data-tab="home"><span>Home</span></button>
@@ -79,7 +85,7 @@
     <section class="view" id="view-profile"></section>
   </main>
 
-  <footer class="foot">Built for Arindam · data stays private on this device</footer>
+  <footer class="foot">Formora · Train. Track. Connect.</footer>
   </div><!-- /app-shell -->
 
   <!-- ===== MODAL (physique picker) ===== -->
@@ -87,15 +93,15 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=35"></script>
-  <script src="js/data.js?v=35"></script>
-  <script src="js/storage.js?v=35"></script>
-  <script src="js/engine.js?v=35"></script>
-  <script src="js/charts.js?v=35"></script>
-  <script src="js/nutrition.js?v=35"></script>
-  <script src="js/auth.js?v=35"></script>
-  <script src="js/social.js?v=35"></script>
-  <script src="js/cloud.js?v=35"></script>
-  <script src="js/app.js?v=35"></script>
+  <script src="js/config.js?v=36"></script>
+  <script src="js/data.js?v=36"></script>
+  <script src="js/storage.js?v=36"></script>
+  <script src="js/engine.js?v=36"></script>
+  <script src="js/charts.js?v=36"></script>
+  <script src="js/nutrition.js?v=36"></script>
+  <script src="js/auth.js?v=36"></script>
+  <script src="js/social.js?v=36"></script>
+  <script src="js/cloud.js?v=36"></script>
+  <script src="js/app.js?v=36"></script>
 </body>
 </html>

@@ -40,8 +40,18 @@ const App = {
     this.spawnParticles();
     this.applySky();
     setInterval(() => this.applySky(), 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => this.onVisibility());
     if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
+  },
+  // pause cloud polling + background animations when the tab is hidden (saves CPU/battery)
+  onVisibility() {
+    const hidden = document.hidden;
+    document.body.classList.toggle("bg-paused", hidden);
+    if (typeof Cloud !== "undefined" && Cloud.active && Cloud.active()) {
+      if (hidden) Cloud.setPaused(true);
+      else { const f = document.getElementById("view-feed"); if (f && f.classList.contains("active")) Cloud.setPaused(false); }
+    }
   },
 
   /* ---------------- AUTH GATE ---------------- */
@@ -379,7 +389,7 @@ const App = {
     const c = document.querySelector(".bg-particles");
     if (!c) return;
     const colors = ["255,107,61", "255,61,127", "61,139,255", "34,197,94"];
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 10; i++) {
       const s = document.createElement("span");
       const size = 4 + Math.random() * 11;
       const col = colors[i % colors.length];
@@ -1364,6 +1374,12 @@ const App = {
         <div class="ph-bio-field field"><label>Bio</label>
           <input id="p-bio" maxlength="120" placeholder="Add a short bio — e.g. Lean-bulk szn · chasing the shelf" value="${esc(p.bio || "")}">
         </div>
+        <div class="ph-bio-field field"><label>Who can see your profile &amp; posts</label>
+          <select id="p-privacy">
+            <option value="public" ${(p.privacy || "public") === "public" ? "selected" : ""}>🌍 Public — anyone on Formora</option>
+            <option value="friends" ${p.privacy === "friends" ? "selected" : ""}>👥 Friends only — just your crew</option>
+          </select>
+        </div>
         <div class="ph-socials">
           <div class="soc"><span class="soc-ic ig">📷</span><input id="soc-ig" placeholder="Instagram username" value="${esc((p.socials && p.socials.instagram) || "")}"></div>
           <div class="soc"><span class="soc-ic li">in</span><input id="soc-li" placeholder="LinkedIn profile URL" value="${esc((p.socials && p.socials.linkedin) || "")}"></div>
@@ -1476,12 +1492,54 @@ const App = {
       Social.cloud.sent = Object.values(s.requests || {}).filter((r) => r.from === Cloud.me).map((r) => r.to);
       Social.cloud.connections = Object.values(s.requests || {}).filter((r) => r.status === "accepted" && (r.from === Cloud.me || r.to === Cloud.me)).map((r) => (r.from === Cloud.me ? r.to : r.from));
       Social.cloud.feed = Object.values(s.posts || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      Social.cloud.comments = Object.values(s.comments || {});
+      this.pollNotifs();
       const sig = JSON.stringify(s);
       if (sig === last) return;
       last = sig;
       const v = document.getElementById("view-feed");
       if (v && v.classList.contains("active")) Social.render();
     });
+    this.pollNotifs();
+  },
+  async pollNotifs() {
+    if (typeof Cloud === "undefined" || !Cloud.active()) return;
+    const list = await Cloud.getNotifications();
+    Social.cloud.notifs = list || [];
+    const unread = (list || []).filter((n) => !n.read).length;
+    this.updateNotifBadge(unread);
+    if (this.notifOpen) this.renderNotifPanel();
+  },
+  updateNotifBadge(n) {
+    const b = document.getElementById("notif-badge");
+    if (!b) return;
+    b.textContent = n > 9 ? "9+" : String(n);
+    b.style.display = n > 0 ? "flex" : "none";
+    if (n > (this._lastUnread || 0)) { const bell = document.getElementById("notif-bell"); if (bell) { bell.classList.remove("shake"); void bell.offsetWidth; bell.classList.add("shake"); } }
+    this._lastUnread = n;
+  },
+  toggleNotifPanel() {
+    this.notifOpen = !this.notifOpen;
+    const p = document.getElementById("notif-panel");
+    if (!p) return;
+    if (this.notifOpen) { p.classList.remove("hidden"); this.renderNotifPanel(); if (typeof Cloud !== "undefined" && Cloud.markNotifsRead) Cloud.markNotifsRead(); this.updateNotifBadge(0); }
+    else p.classList.add("hidden");
+  },
+  notifText(n) {
+    const who = (Social.cloudUser(n.actor) || {}).name || "Someone";
+    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request" };
+    return `<b>${esc(who)}</b> ${map[n.type] || esc(n.type)}${n.body ? ` — “${esc((n.body || "").slice(0, 40))}”` : ""}`;
+  },
+  renderNotifPanel() {
+    const list = Social.cloud.notifs || [];
+    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : `<div class="sub" style="padding:20px;text-align:center">No notifications yet.</div>`;
+    const el = document.getElementById("notif-list");
+    if (el) el.innerHTML = body;
+  },
+  openNotif(actor, type) {
+    this.toggleNotifPanel();
+    if (type === "connect" || type === "accept") { this.goTab("feed"); Social.feedTab("crew"); }
+    else if (actor) { Social.viewProfile(actor); }
   },
   uploadAvatar(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -1504,6 +1562,8 @@ const App = {
         p.username = un;
       }
     }
+    const privEl = document.getElementById("p-privacy");
+    if (privEl) p.privacy = privEl.value;
     p.socials = {
       instagram: (document.getElementById("soc-ig").value || "").trim(),
       linkedin: (document.getElementById("soc-li").value || "").trim(),

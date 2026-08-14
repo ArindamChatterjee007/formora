@@ -129,13 +129,20 @@ const Social = {
   sub: "feed",
   pendingPost: null,
   chatWith: null,
-  cloud: { users: [], requests: [], feed: [], sent: [], connections: [] },
+  cloud: { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [] },
   cloudActive() { return typeof Cloud !== "undefined" && Cloud.active(); },
   cloudUser(uid) {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {} };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public" };
+  },
+  // friends-only posts are hidden from non-connected viewers (UI-level privacy)
+  _canSeePost(p) {
+    if (typeof Cloud === "undefined" || p.author === Cloud.me) return true;
+    const a = this.cloudUser(p.author);
+    if (a && a.privacy === "friends") return (this.cloud.connections || []).includes(p.author) || this.inCrew(p.author);
+    return true;
   },
 
   render() {
@@ -177,8 +184,9 @@ const Social = {
         </div>
       </div>`;
     if (this.cloudActive()) {
-      const posts = this.cloud.feed.map((p) => this.postCard(this._cloudPost(p))).join("");
-      return composer + (this.cloud.feed.length ? posts
+      const visible = this.cloud.feed.filter((p) => this._canSeePost(p));
+      const posts = visible.map((p) => this.postCard(this._cloudPost(p))).join("");
+      return composer + (visible.length ? posts
         : `<div class="card"><div class="sub" style="text-align:center;padding:22px 6px">No posts yet — share your first update above and your crew will see it 💪</div></div>`);
     }
     return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
@@ -247,14 +255,14 @@ const Social = {
         ${media}
         <div class="post-actions">
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${p.likedByMe ? "❤️" : "🤍"} <span>${p.likes}</span></button>
-          <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${(p.comments || []).length}</span></button>
+          <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
           <button class="pa" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
-        <div class="post-comments" id="cmts-${p.id}" style="display:none">
-          ${comments}
+        <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
+          ${this.cloudActive() ? this.renderCommentThread(p.id) : comments}
           <div class="cmt-add">
-            <input id="ci-${p.id}" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')Social.submitComment('${p.id}')">
+            <input id="ci-${p.id}" placeholder="Add a comment… @ to mention" onkeydown="if(event.key==='Enter')Social.submitComment('${p.id}')">
             <button class="btn ghost" onclick="Social.submitComment('${p.id}')">Send</button>
           </div>
         </div>
@@ -286,16 +294,57 @@ const Social = {
       if (post) {
         post.likes = post.likes || {};
         if (post.likes[Cloud.me]) { delete post.likes[Cloud.me]; Cloud.unlikeCloud(id); }
-        else { post.likes[Cloud.me] = true; Cloud.likeCloud(id); }
+        else { post.likes[Cloud.me] = true; Cloud.likeCloud(id); if (Cloud.notify && post.author !== Cloud.me) Cloud.notify(post.author, "like", id, post.text || ""); }
         this.render();
         return;
       }
     }
     this.toggleLike(id); this.render();
   },
-  toggleComments(id) { const c = document.getElementById("cmts-" + id); if (c) c.style.display = c.style.display === "none" ? "block" : "none"; },
+  toggleComments(id) { const c = document.getElementById("cmts-" + id); if (c) { const show = c.style.display === "none"; c.style.display = show ? "block" : "none"; this._openCmt = show ? id : null; } },
+  // ---- cloud comments: threaded + @mentions ----
+  commentsFor(postId) { return (this.cloud.comments || []).filter((c) => c.post_id === postId).sort((a, b) => (a.ts || 0) - (b.ts || 0)); },
+  commentCount(postId) { return this.commentsFor(postId).length; },
+  _commenter(uid) { return (typeof Cloud !== "undefined" && uid === Cloud.me) ? this.me() : (this.cloudUser(uid) || { id: uid, name: "Member", handle: "member", avatar: null, colors: ["#8b93a7", "#262c3a"] }); },
+  _renderMentions(body) { return esc(body || "").replace(/@([a-z0-9._]+)/gi, (m, h) => `<span class="mention">@${esc(h)}</span>`); },
+  _parseMentions(body) {
+    const handles = (body.match(/@([a-z0-9._]+)/gi) || []).map((s) => s.slice(1).toLowerCase());
+    const uids = [];
+    handles.forEach((h) => { const u = (this.cloud.users || []).find((x) => (x.username || "").toLowerCase() === h); if (u && !uids.includes(u.uid)) uids.push(u.uid); });
+    return uids;
+  },
+  renderCommentThread(postId) {
+    const all = this.commentsFor(postId);
+    const tops = all.filter((c) => !c.parent_id);
+    if (!tops.length) return `<div class="sub" style="padding:6px 2px 10px">No comments yet — be the first 👋</div>`;
+    return tops.map((c) => this.commentNode(c, all)).join("");
+  },
+  commentNode(c, all) {
+    const replies = all.filter((r) => r.parent_id === c.id);
+    const who = this._commenter(c.author);
+    const rep = replies.map((r) => { const rw = this._commenter(r.author); return `<div class="cmt2 reply"><span class="cmt2-av" onclick="Social.viewProfile('${r.author}')">${this.avatar(rw, 26)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${r.author}')">${esc(rw.name)}</b> ${this._renderMentions(r.body)} <span class="cmt2-time">${this.timeAgo(r.ts)}</span></div></div>`; }).join("");
+    return `<div class="cmt2"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button></div>${rep}</div>`;
+  },
+  startReply(postId, parentId, parentAuthor) {
+    this._replyTo = { postId, parentId, parentAuthor };
+    const i = document.getElementById("ci-" + postId);
+    if (i) { i.value = "@" + this._commenter(parentAuthor).handle + " "; i.focus(); }
+  },
   submitComment(id) {
     const i = document.getElementById("ci-" + id); if (!i || !i.value.trim()) return;
+    const body = i.value.trim();
+    if (this.cloudActive()) {
+      const post = this.cloud.feed.find((p) => p.id === id);
+      const mentions = this._parseMentions(body);
+      const reply = (this._replyTo && this._replyTo.postId === id) ? this._replyTo : null;
+      const nc = Cloud.addComment(id, body, reply ? reply.parentId : null, mentions, post ? post.author : null, reply ? reply.parentAuthor : null);
+      if (nc) { if (!this.cloud.comments) this.cloud.comments = []; this.cloud.comments.push(nc); }
+      this._replyTo = null; this._openCmt = id;
+      if (typeof App !== "undefined" && App.toast) App.toast("Comment posted");
+      this.render();
+      const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
+      return;
+    }
     this.addComment(id, i.value); this._openCmt = id; this.render();
     const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
   },
@@ -321,9 +370,13 @@ const Social = {
         const p = this.cloudUser(r.from) || { id: r.from, name: r.from, handle: r.from, colors: ["#8b93a7", "#262c3a"] };
         return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${r.from}')">${this.avatar(p, 48)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)} wants to connect</div></div></div><div class="crew-cta"><button class="btn sm" onclick="event.stopPropagation();Social.acceptReq('${r.from}')">Accept</button><button class="btn ghost sm" onclick="event.stopPropagation();Social.declineReq('${r.from}')">Decline</button></div></div>`;
       }).join("");
-      const members = this.cloud.users.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
+      const q = (this._memberQuery || "").toLowerCase();
+      const filtered = this.cloud.users.filter((u) => !q || (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q));
+      const members = filtered.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
       return `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}
-        <div class="card"><div class="card-head"><h2>Members</h2><span class="tag">${this.cloud.users.length}</span></div>${this.cloud.users.length ? `<div class="crew-list">${members}</div>` : `<div class="sub">No one else has joined yet — share Formora and have a friend log in on their phone. When they do, they'll appear here to connect.</div>`}</div>`;
+        <div class="card"><div class="card-head"><h2>Members</h2><span class="tag">${this.cloud.users.length}</span></div>
+          <div class="member-search"><span>🔎</span><input id="member-search" placeholder="Search people by name or @handle" value="${esc(this._memberQuery || "")}" oninput="Social.searchMembers(this.value)"></div>
+          ${this.cloud.users.length ? (filtered.length ? `<div class="crew-list">${members}</div>` : `<div class="sub" style="padding:8px 2px">No one matches your search.</div>`) : `<div class="sub">No one else has joined yet — share Formora and have a friend log in on their phone. When they do, they'll appear here to connect.</div>`}</div>`;
     }
     const crew = this.crewList(), sugg = this.suggestions();
     return `
@@ -345,15 +398,21 @@ const Social = {
     if ((this.cloud.sent || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.cancelRequest('${uid}')">Requested · Cancel</button>`;
     return `<button class="btn sm" onclick="event.stopPropagation();Social.requestMember('${uid}')">Connect</button>`;
   },
+  searchMembers(q) {
+    this._memberQuery = q;
+    this.render();
+    const el = document.getElementById("member-search");
+    if (el) { el.focus(); const v = el.value.length; el.setSelectionRange(v, v); }
+  },
   requestMember(uid) {
-    if (typeof Cloud !== "undefined") Cloud.sendRequest(uid);
+    if (typeof Cloud !== "undefined") { Cloud.sendRequest(uid); if (Cloud.notify) Cloud.notify(uid, "connect", null, ""); }
     if (!this.cloud.sent) this.cloud.sent = [];
     if (!this.cloud.sent.includes(uid)) this.cloud.sent.push(uid);
     if (typeof App !== "undefined" && App.toast) App.toast("Connect request sent ✓");
     this.render();
   },
   acceptReq(fromUid) {
-    if (typeof Cloud !== "undefined") Cloud.acceptRequest(fromUid);
+    if (typeof Cloud !== "undefined") { Cloud.acceptRequest(fromUid); if (Cloud.notify) Cloud.notify(fromUid, "accept", null, ""); }
     this.addCrew(fromUid);
     if (!this.cloud.connections) this.cloud.connections = [];
     if (!this.cloud.connections.includes(fromUid)) this.cloud.connections.push(fromUid);
@@ -375,11 +434,14 @@ const Social = {
   },
   _urlify(s) { s = (s || "").trim(); if (!s) return "#"; return /^https?:\/\//i.test(s) ? s : "https://" + s; },
   viewProfile(uid) {
+    if (this._vpUid !== uid) { this._vpUid = uid; this._vpTab = "posts"; }
+    const tab = this._vpTab || "posts";
     const isMe = (typeof Cloud !== "undefined" && uid === Cloud.me) || uid === "me";
     let u, socials;
     if (isMe) { u = this.me(); socials = (Store.state.profile && Store.state.profile.socials) || {}; }
     else { u = this.cloudUser(uid); if (!u) { u = SOCIAL_PERSONAS.find((x) => x.id === uid); if (!u) return; } socials = u.socials || {}; }
     const posts = this.cloudActive() ? this.cloud.feed.filter((x) => x.author === uid) : this.feed().filter((x) => x.author === (isMe ? "me" : uid));
+    const clips = posts.filter((p) => p.photo);
     const links = [
       socials.instagram ? `<a class="soc-link" href="https://instagram.com/${esc((socials.instagram || "").replace(/^@/, ""))}" target="_blank" rel="noopener">📷 Instagram</a>` : "",
       socials.linkedin ? `<a class="soc-link" href="${esc(this._urlify(socials.linkedin))}" target="_blank" rel="noopener">💼 LinkedIn</a>` : "",
@@ -390,6 +452,13 @@ const Social = {
     const cta = isMe ? "" : connected ? `<button class="btn ghost wide" disabled>Connected ✓</button>`
       : requested ? `<button class="btn ghost wide" onclick="Social.cancelRequest('${uid}');App.closeModal()">Requested · Tap to cancel</button>`
       : `<button class="btn wide" onclick="Social.requestMember('${uid}');App.closeModal()">Connect</button>`;
+    const isFriend = this.inCrew(uid) || (this.cloud.connections || []).includes(uid);
+    const locked = !isMe && u.privacy === "friends" && !isFriend;
+    let tabHtml;
+    if (locked) tabHtml = `<div class="vp-locked"><div class="vp-lock-ic">🔒</div><div><b>Friends only</b><br>Connect with ${esc(u.name)} to see their posts &amp; clips.</div></div>`;
+    else if (tab === "clips") tabHtml = clips.length ? `<div class="vp-clips">${clips.map((p) => `<div class="vp-clip"><img src="${p.photo}" alt="clip"></div>`).join("")}</div>` : `<div class="sub" style="text-align:center;padding:16px 0">No clips yet — posts with a photo show here 🎬</div>`;
+    else if (tab === "stats") tabHtml = `<div class="vp-stats"><div><b>${posts.length}</b><span>Posts</span></div><div><b>${u.streak || 0}</b><span>Day streak</span></div>${u.physique ? `<div><b>🎯</b><span>${esc(u.physique)}</span></div>` : ""}</div>${isMe ? `<button class="btn ghost wide" onclick="App.closeModal();App.goTab('progress')">Open my progress graph →</button>` : `<div class="sub" style="padding:10px 0;text-align:center">Detailed progress stays private to each member.</div>`}`;
+    else tabHtml = posts.length ? posts.map((x) => this.postCard(this.cloudActive() ? this._cloudPost(x) : x)).join("") : `<div class="sub" style="text-align:center;padding:16px 0">No posts yet.</div>`;
     const card = document.getElementById("modal-card");
     card.innerHTML = `
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
@@ -401,13 +470,18 @@ const Social = {
           </div>
         </div>
         ${u.bio ? `<div class="vp-bio">${esc(u.bio)}</div>` : ""}
-        <div class="vp-stats"><div><b>${posts.length}</b><span>Posts</span></div><div><b>${u.streak || 0}</b><span>Day streak</span></div></div>
         ${links ? `<div class="vp-socials">${links}</div>` : ""}
         ${cta}
-        <div class="vp-posts">${posts.length ? posts.map((x) => this.postCard(this.cloudActive() ? this._cloudPost(x) : x)).join("") : `<div class="sub" style="text-align:center;padding:16px 0">No posts yet.</div>`}</div>
+        ${locked ? "" : `<div class="vp-tabs">
+          <button class="vp-tab ${tab === "posts" ? "active" : ""}" onclick="Social.vpTab('${uid}','posts')">📝 Posts</button>
+          <button class="vp-tab ${tab === "clips" ? "active" : ""}" onclick="Social.vpTab('${uid}','clips')">🎬 Clips</button>
+          <button class="vp-tab ${tab === "stats" ? "active" : ""}" onclick="Social.vpTab('${uid}','stats')">📊 Stats</button>
+        </div>`}
+        <div class="vp-content">${tabHtml}</div>
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
+  vpTab(uid, tab) { this._vpTab = tab; this.viewProfile(uid); },
   crewAdd(id) { this.addCrew(id); this.render(); },
   requestConnect(id) {
     if (this.inCrew(id)) { this.render(); return; }

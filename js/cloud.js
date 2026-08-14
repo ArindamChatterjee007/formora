@@ -41,7 +41,7 @@ const Cloud = {
       const r = await fetch(this.base + "/rpc/get_state", { method: "POST", headers: this._headers(), body: "{}" });
       if (!r.ok) return null;
       const s = await r.json();
-      return { users: (s && s.users) || {}, posts: (s && s.posts) || {}, requests: (s && s.requests) || {} };
+      return { users: (s && s.users) || {}, posts: (s && s.posts) || {}, requests: (s && s.requests) || {}, comments: (s && s.comments) || {} };
     } catch (e) { return null; }
   },
   async _write(path, body, extra) {
@@ -56,7 +56,7 @@ const Cloud = {
       username: p.username || "", name: p.name || "", avatar: p.avatar || "",
       physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
-      socials: p.socials || {},
+      socials: p.socials || {}, privacy: p.privacy || "public",
     };
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
@@ -109,6 +109,38 @@ const Cloud = {
     const id = this.me + "__" + toUid;
     try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
     catch (e) { return false; }
+  },
+
+  // ---- comments (threaded), mentions & notifications ----
+  addComment(postId, body, parentId, mentions, postAuthor, parentAuthor) {
+    if (!this.active()) return null;
+    const id = "c" + Date.now() + Math.floor(Math.random() * 99999);
+    const m = mentions || [];
+    this._write("/comments", { id, post_id: postId, author: this.me, body, parent_id: parentId || null, mentions: m }, { Prefer: "return=minimal" });
+    if (parentId && parentAuthor && parentAuthor !== this.me) this.notify(parentAuthor, "reply", postId, body);
+    else if (postAuthor && postAuthor !== this.me) this.notify(postAuthor, "comment", postId, body);
+    m.forEach((u) => { if (u && u !== this.me && u !== postAuthor) this.notify(u, "mention", postId, body); });
+    return { id, post_id: postId, author: this.me, body, parent_id: parentId || null, mentions: m, ts: Date.now() };
+  },
+  notify(uid, type, postId, body) {
+    if (!this.active() || !uid || uid === this.me) return;
+    const id = "n" + Date.now() + Math.floor(Math.random() * 99999);
+    return this._write("/notifications", { id, uid, type, actor: this.me, post_id: postId || null, body: (body || "").slice(0, 140) }, { Prefer: "return=minimal" });
+  },
+  async getNotifications() {
+    if (!this.active() || !this.me) return [];
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(this.base + "/notifications?uid=eq." + encodeURIComponent(this.me) + "&order=ts.desc&limit=60", { headers: this._headers(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return [];
+      return await r.json();
+    } catch (e) { return []; }
+  },
+  async markNotifsRead() {
+    if (!this.active() || !this.me) return;
+    try { await fetch(this.base + "/notifications?uid=eq." + encodeURIComponent(this.me) + "&read=eq.false", { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ read: true }) }); } catch (e) {}
   },
 
   // ---- per-account personal data sync (streak/logs/weight follow the user across devices) ----
