@@ -1436,8 +1436,8 @@ const App = {
     let last = "";
     Cloud.start((s) => {
       Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
-      Social.cloud.requests = (s.requests || []).filter((r) => r.to === Cloud.me && r.status === "pending");
-      Social.cloud.feed = s.posts || [];
+      Social.cloud.requests = Object.values(s.requests || {}).filter((r) => r.to === Cloud.me && r.status === "pending");
+      Social.cloud.feed = Object.values(s.posts || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0));
       const sig = JSON.stringify(s);
       if (sig === last) return;
       last = sig;

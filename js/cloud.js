@@ -25,65 +25,45 @@ const Cloud = {
   async _get() {
     try {
       const r = await fetch(this.base, { headers: { Accept: "application/json" } });
-      if (r.status === 404) return { users: {}, posts: [], requests: [] };
+      if (r.status === 404) return { users: {}, posts: {}, requests: {} };
       if (!r.ok) return null;
       const s = await r.json();
-      s.users = s.users || {}; s.posts = s.posts || []; s.requests = s.requests || [];
+      s.users = s.users || {}; s.posts = s.posts || {}; s.requests = s.requests || {};
       return s;
     } catch (e) { return null; }
   },
-  async _put(s) {
-    try { const r = await fetch(this.base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ users: s.users, posts: s.posts, requests: s.requests }) }); return r.ok; }
+  // single-request DEEP-MERGE write (Pantry PUT merges objects) — no read, no race
+  async _merge(patch) {
+    try { const r = await fetch(this.base, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }); return r.ok; }
     catch (e) { return false; }
   },
-  // read -> mutate -> write, with retries to survive concurrent writers
-  async _update(mutate) {
-    for (let i = 0; i < 2; i++) {
-      const s = await this._get();
-      if (!s) { await this._sleep(1200); continue; }
-      mutate(s);
-      if (await this._put(s)) { if (this._cb) this._cb(s); return true; }
-      await this._sleep(1200);
-    }
-    return false;
-  },
-  _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); },
 
   registerMe(profile) {
     if (!this.active()) return;
     const p = profile || (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
-    return this._update((s) => {
-      s.users[this.me] = {
-        uid: this.me, username: p.username || "", name: p.name || "", avatar: p.avatar || "",
-        physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
-        bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
-        updated: Date.now(),
-      };
-    });
+    return this._merge({ users: { [this.me]: {
+      uid: this.me, username: p.username || "", name: p.name || "", avatar: p.avatar || "",
+      physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
+      bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
+      updated: Date.now(),
+    } } });
   },
   addPost(post) {
     if (!this.active()) return;
-    return this._update((s) => {
-      s.posts.unshift({ id: "p" + Date.now() + Math.floor(Math.random() * 999), author: this.me, likedBy: [], ...post, ts: Date.now() });
-      s.posts = s.posts.slice(0, 80);
-    });
+    const id = "p" + Date.now() + Math.floor(Math.random() * 999);
+    return this._merge({ posts: { [id]: { id, author: this.me, likes: {}, ...post, ts: Date.now() } } });
   },
-  toggleLike(postId) {
+  likeCloud(postId) {
     if (!this.active()) return;
-    return this._update((s) => {
-      const p = s.posts.find((x) => x.id === postId); if (!p) return;
-      p.likedBy = p.likedBy || [];
-      const i = p.likedBy.indexOf(this.me);
-      if (i >= 0) p.likedBy.splice(i, 1); else p.likedBy.push(this.me);
-    });
+    return this._merge({ posts: { [postId]: { likes: { [this.me]: true } } } });
   },
   sendRequest(toUid) {
     if (!this.active()) return;
-    return this._update((s) => { if (!s.requests.find((r) => r.from === this.me && r.to === toUid)) s.requests.push({ from: this.me, to: toUid, ts: Date.now(), status: "pending" }); });
+    return this._merge({ requests: { [this.me + "__" + toUid]: { id: this.me + "__" + toUid, from: this.me, to: toUid, ts: Date.now(), status: "pending" } } });
   },
   acceptRequest(fromUid) {
     if (!this.active()) return;
-    return this._update((s) => { const r = s.requests.find((x) => x.from === fromUid && x.to === this.me); if (r) r.status = "accepted"; });
+    return this._merge({ requests: { [fromUid + "__" + this.me]: { status: "accepted" } } });
   },
 
   // poll the shared basket (only while the Feed is open) and push updates to the UI
@@ -92,7 +72,7 @@ const Cloud = {
     this._cb = cb;
     this._paused = true;
     clearInterval(this._timer);
-    this._timer = setInterval(() => { if (!this._paused) this._tick(); }, 12000);
+    this._timer = setInterval(() => { if (!this._paused) this._tick(); }, 25000);
   },
   async _tick() {
     if (this._busy) return;

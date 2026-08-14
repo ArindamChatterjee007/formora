@@ -174,14 +174,15 @@ const Social = {
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
-    return composer + this.suggestStrip() + (this.cloudActive()
+    const useCloud = this.cloudActive() && this.cloud.feed.length;
+    return composer + this.suggestStrip() + (useCloud
       ? this.cloud.feed.map((p) => this.postCard(this._cloudPost(p))).join("")
       : this.feed().map((p) => this.postCard(p)).join(""));
   },
   _cloudPost(p) {
-    const likedBy = p.likedBy || [];
+    const likes = p.likes || {};
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: likedBy.length, likedByMe: !!(meId && likedBy.includes(meId)), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
   },
   suggestStrip() {
     const s = this.suggestions().slice(0, 8);
@@ -252,7 +253,7 @@ const Social = {
   },
   removePost(id) { this.deletePost(id); this.render(); },
   likePost(id) {
-    if (this.cloudActive() && this.cloud.feed.find((p) => p.id === id)) { Cloud.toggleLike(id); this.render(); return; }
+    if (this.cloudActive() && this.cloud.feed.find((p) => p.id === id)) { Cloud.likeCloud(id); this.render(); return; }
     this.toggleLike(id); this.render();
   },
   toggleComments(id) { const c = document.getElementById("cmts-" + id); if (c) c.style.display = c.style.display === "none" ? "block" : "none"; },
