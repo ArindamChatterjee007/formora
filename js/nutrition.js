@@ -89,12 +89,30 @@ const FoodEstimator = {
    from a free-text preference, the user's diet, and targets.
    ============================================================ */
 const MealPlanner = {
+  // how the day's calories are split across meals (sums to 1.0)
+  slotShare: { Breakfast: 0.27, Lunch: 0.34, Snack: 0.13, Dinner: 0.26 },
+  // diet-aware protein top-ups, used to reach the protein goal
+  boosters: {
+    nonveg: { name: "Grilled chicken (100g)", kcal: 165, protein: 31 },
+    egg:    { name: "3 boiled eggs",          kcal: 234, protein: 18 },
+    veg:    { name: "Whey shake (1 scoop)",   kcal: 120, protein: 24 },
+    vegan:  { name: "Soya chunks (50g dry)",  kcal: 173, protein: 26 },
+  },
+  // diet-aware calorie top-ups, used to reach the calorie goal
+  calAddon: {
+    nonveg: { name: "Peanut butter (2 tbsp)", kcal: 190, protein: 8 },
+    egg:    { name: "Peanut butter (2 tbsp)", kcal: 190, protein: 8 },
+    veg:    { name: "Nuts & trail mix (40g)", kcal: 230, protein: 7 },
+    vegan:  { name: "Nuts & trail mix (40g)", kcal: 230, protein: 6 },
+  },
+
   generate(prefText, diet, target, seed = 0) {
     const prefs = (prefText || "").toLowerCase();
-    const wantProtein = /high.?protein|protein|gym|muscle|bulk|gain/.test(prefs);
-    const plan = [];
-    let totalK = 0, totalP = 0;
+    const wantProtein = /high.?protein|protein|gym|muscle|bulk|gain|lean/.test(prefs);
+    const targetK = (target && (target.calTarget || target.kcal)) || 2200;
+    const targetP = (target && (target.proteinG || target.protein)) || 130;
 
+    const plan = [];
     for (const slot of MEAL_SLOTS) {
       const cands = MEAL_LIBRARY[slot].filter((m) => dietAllows(m.diet, diet));
       if (!cands.length) continue;
@@ -103,16 +121,41 @@ const MealPlanner = {
         for (const tag of m.tags) if (prefs.includes(tag)) score += 3;
         for (const w of m.name.toLowerCase().split(/[^a-z]+/))
           if (w.length > 3 && prefs.includes(w)) score += 2;
-        if (wantProtein) score += m.protein * 0.15;
-        score += ((i + seed * 7) % 5) * 0.6; // variety on regenerate
-        return { m, score };
-      }).sort((a, b) => b.score - a.score);
+        if (wantProtein) score += m.protein * 0.12;
+        score += ((i + seed * 3) % cands.length) * 0.45; // deterministic variety on regenerate
+        return { m, i, score };
+      }).sort((a, b) => b.score - a.score || a.i - b.i);
 
-      const pick = scored[0].m;
-      plan.push({ slot, meal: pick });
-      totalK += pick.kcal;
-      totalP += pick.protein;
+      const base = scored[0].m;
+      // scale the portion so this meal covers its share of the day's calories
+      let factor = (targetK * (this.slotShare[slot] || 0.25)) / base.kcal;
+      factor = Math.max(0.75, Math.min(2, Math.round(factor * 4) / 4)); // 0.75–2.0, quarter steps
+      plan.push({
+        slot,
+        meal: {
+          name: base.name, diet: base.diet, portion: factor,
+          kcal: Math.round(base.kcal * factor),
+          protein: Math.round(base.protein * factor),
+        },
+      });
     }
-    return { plan, totalK, totalP, target };
+
+    let totalK = plan.reduce((n, x) => n + x.meal.kcal, 0);
+    let totalP = plan.reduce((n, x) => n + x.meal.protein, 0);
+
+    // close the protein gap first, then the calorie gap, with diet-aware add-ons
+    const addons = [];
+    let guard = 0;
+    while (totalP < targetP - 6 && guard++ < 4) {
+      const b = this.boosters[diet] || this.boosters.veg;
+      addons.push({ ...b }); totalP += b.protein; totalK += b.kcal;
+    }
+    guard = 0;
+    while (totalK < targetK - 130 && guard++ < 4) {
+      const a = this.calAddon[diet] || this.calAddon.veg;
+      addons.push({ ...a }); totalK += a.kcal; totalP += a.protein;
+    }
+
+    return { plan, addons, totalK, totalP, target, targetK, targetP };
   },
 };

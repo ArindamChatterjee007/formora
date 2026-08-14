@@ -872,16 +872,23 @@ const App = {
     const rows = p.plan.map((x) => `
       <div class="plan-row">
         <div class="plan-slot">${x.slot}</div>
-        <div class="plan-meal"><div class="pm-name">${esc(x.meal.name)}</div>
+        <div class="plan-meal"><div class="pm-name">${esc(x.meal.name)}${x.meal.portion && x.meal.portion !== 1 ? ` <span class="pm-portion">×${x.meal.portion}</span>` : ""}</div>
           <div class="pm-macros">${x.meal.kcal} kcal · ${x.meal.protein}g · <span class="mi-diet ${x.meal.diet}">${x.meal.diet}</span></div></div>
         <button class="mi-add" title="Log ${x.slot}" onclick="App.logPlanMeal('${x.slot}')">＋</button>
       </div>`).join("");
+    const addonRows = (p.addons || []).map((a) => `
+      <div class="plan-row addon">
+        <div class="plan-slot">＋</div>
+        <div class="plan-meal"><div class="pm-name">${esc(a.name)} <span class="pm-portion">top-up</span></div>
+          <div class="pm-macros">${a.kcal} kcal · ${a.protein}g</div></div>
+      </div>`).join("");
     const pPct = Math.round((p.totalP / s.proteinG) * 100);
+    const kPct = Math.round((p.totalK / s.calTarget) * 100);
     return `<div class="day-plan">
-      ${rows}
+      ${rows}${addonRows}
       <div class="plan-total">
         <span>Day total</span>
-        <span><b>${p.totalK}</b> kcal · <b>${p.totalP}g</b> protein <small>· goal ${s.calTarget} / ${s.proteinG}g (${pPct}%)</small></span>
+        <span><b>${p.totalK}</b> kcal (${kPct}%) · <b>${p.totalP}g</b> protein (${pPct}%) <small>· goal ${s.calTarget} / ${s.proteinG}g</small></span>
       </div>
       <div class="plan-actions">
         <button class="btn ghost" onclick="App.generatePlan()">↻ Regenerate</button>
@@ -898,7 +905,9 @@ const App = {
   logWholeDay() {
     if (!this.dayPlan) return;
     for (const x of this.dayPlan.plan)
-      Store.logFood({ text: `${x.slot}: ${x.meal.name}`, kcal: x.meal.kcal, protein: x.meal.protein, estimated: true });
+      Store.logFood({ text: `${x.slot}: ${x.meal.name}${x.meal.portion && x.meal.portion !== 1 ? ` (×${x.meal.portion})` : ""}`, kcal: x.meal.kcal, protein: x.meal.protein, estimated: true });
+    for (const a of (this.dayPlan.addons || []))
+      Store.logFood({ text: `Add-on: ${a.name}`, kcal: a.kcal, protein: a.protein, estimated: true });
     this.dayPlan = null;
     this.renderNutrition();
   },

@@ -97,8 +97,8 @@ const Auth = {
 
   // ---- simulated Google sign-in ----
   googleStart({ name, email }) {
-    let acc = this.data.accounts.find(
-      (a) => a.provider === "google" && a.email.toLowerCase() === (email || "").toLowerCase());
+    const key = (email || "").toLowerCase();
+    let acc = this.data.accounts.find((a) => a.email && a.email.toLowerCase() === key);
     if (!acc) {
       acc = {
         id: "u" + Date.now(), name, email, phone: "", salt: "", hash: "",
@@ -111,11 +111,15 @@ const Auth = {
 
   // ---- real Google sign-in (verified email from Google ID token) ----
   loginWithGoogle({ name, email }) {
-    let acc = this.data.accounts.find(
-      (a) => a.provider === "google" && a.email.toLowerCase() === (email || "").toLowerCase());
+    const key = (email || "").toLowerCase();
+    // reuse ANY existing account with this email so data (diet, logs) follows the person
+    let acc = this.data.accounts.find((a) => a.email && a.email.toLowerCase() === key);
     if (!acc) {
       acc = { id: "u" + Date.now(), name: name || email, email, phone: "", salt: "", hash: "", phoneVerified: true, provider: "google" };
       this.data.accounts.push(acc);
+    } else {
+      acc.phoneVerified = true;
+      if (name && !acc.name) acc.name = name;
     }
     this.setCurrent(acc.id);
     return acc;
