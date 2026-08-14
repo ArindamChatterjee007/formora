@@ -24,7 +24,7 @@ window.SHEETS_API = "";
    Authorised JavaScript origins:
      https://arindamchatterjee007.github.io
    Paste the Client ID below. Empty = simulated Google login (default).   */
-window.GOOGLE_CLIENT_ID = "";
+window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
 
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
