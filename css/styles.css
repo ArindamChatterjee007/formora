@@ -687,6 +687,8 @@ input, select { font-family: inherit; }
 .soc-link { padding: 7px 12px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--text); font-size: 13px; text-decoration: none; }
 .soc-link:hover { border-color: var(--accent); }
 .vp-posts { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.post-likers { padding: 8px 2px 0; font-size: 13px; color: var(--muted); cursor: pointer; }
+.post-likers:hover { color: var(--text); }
 .post-actions { display: flex; gap: 8px; margin-top: 12px; }
 .pa { flex: 1; padding: 9px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s ease; }
 .pa:hover { border-color: var(--accent); transform: translateY(-1px); }

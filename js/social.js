@@ -186,7 +186,26 @@ const Social = {
   _cloudPost(p) {
     const likes = p.likes || {};
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+  },
+  _likerName(id) { const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || null); return u ? (u.name || ("@" + u.handle)) : ("@" + id); },
+  _likerNames(uids) {
+    const names = uids.slice(0, 2).map((id) => this._likerName(id));
+    let s = names.join(", ");
+    if (uids.length > 2) s += ` and ${uids.length - 2} other${uids.length - 2 > 1 ? "s" : ""}`;
+    return esc(s);
+  },
+  showLikers(postId) {
+    const post = this.cloud.feed.find((p) => p.id === postId);
+    if (!post) return;
+    const uids = Object.keys(post.likes || {});
+    const rows = uids.map((id) => {
+      const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || { id, name: id, handle: id, avatar: null, colors: ["#8b93a7", "#262c3a"] });
+      return `<div class="crew-card"><div class="crew-click" onclick="App.closeModal();Social.viewProfile('${id}')">${this.avatar(u, 44)}<div class="crew-info"><div class="crew-name">${esc(u.name)}</div><div class="crew-sub">@${esc(u.handle)}</div></div></div></div>`;
+    }).join("");
+    const card = document.getElementById("modal-card");
+    card.innerHTML = `<div class="modal-head"><h2>Liked by ${uids.length}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div><div class="crew-list">${rows || `<div class="sub">No likes yet.</div>`}</div>`;
+    document.getElementById("modal").classList.remove("hidden");
   },
   suggestStrip() {
     const s = this.suggestions().slice(0, 8);
@@ -231,6 +250,7 @@ const Social = {
           <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${(p.comments || []).length}</span></button>
           <button class="pa" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
         </div>
+        ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:none">
           ${comments}
           <div class="cmt-add">
@@ -299,7 +319,7 @@ const Social = {
     if (this.cloudActive()) {
       const reqs = this.cloud.requests.map((r) => {
         const p = this.cloudUser(r.from) || { id: r.from, name: r.from, handle: r.from, colors: ["#8b93a7", "#262c3a"] };
-        return `<div class="crew-card">${this.avatar(p, 48)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)} wants to connect</div></div><div class="crew-cta"><button class="btn sm" onclick="Social.acceptReq('${r.from}')">Accept</button></div></div>`;
+        return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${r.from}')">${this.avatar(p, 48)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)} wants to connect</div></div></div><div class="crew-cta"><button class="btn sm" onclick="event.stopPropagation();Social.acceptReq('${r.from}')">Accept</button><button class="btn ghost sm" onclick="event.stopPropagation();Social.declineReq('${r.from}')">Decline</button></div></div>`;
       }).join("");
       const members = this.cloud.users.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
       return `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}
@@ -322,7 +342,7 @@ const Social = {
   },
   memberCta(uid) {
     if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" disabled>Connected ✓</button>`;
-    if ((this.cloud.sent || []).includes(uid)) return `<button class="btn ghost sm" disabled>Requested ✓</button>`;
+    if ((this.cloud.sent || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.cancelRequest('${uid}')">Requested · Cancel</button>`;
     return `<button class="btn sm" onclick="event.stopPropagation();Social.requestMember('${uid}')">Connect</button>`;
   },
   requestMember(uid) {
@@ -332,7 +352,27 @@ const Social = {
     if (typeof App !== "undefined" && App.toast) App.toast("Connect request sent ✓");
     this.render();
   },
-  acceptReq(fromUid) { if (typeof Cloud !== "undefined") Cloud.acceptRequest(fromUid); this.addCrew(fromUid); if (!this.cloud.connections) this.cloud.connections = []; if (!this.cloud.connections.includes(fromUid)) this.cloud.connections.push(fromUid); if (typeof App !== "undefined" && App.toast) App.toast("Connected 🎉"); this.render(); },
+  acceptReq(fromUid) {
+    if (typeof Cloud !== "undefined") Cloud.acceptRequest(fromUid);
+    this.addCrew(fromUid);
+    if (!this.cloud.connections) this.cloud.connections = [];
+    if (!this.cloud.connections.includes(fromUid)) this.cloud.connections.push(fromUid);
+    this.cloud.requests = (this.cloud.requests || []).filter((r) => r.from !== fromUid);
+    if (typeof App !== "undefined" && App.toast) App.toast("Connected 🎉");
+    this.render();
+  },
+  declineReq(fromUid) {
+    if (typeof Cloud !== "undefined" && Cloud.declineRequest) Cloud.declineRequest(fromUid);
+    this.cloud.requests = (this.cloud.requests || []).filter((r) => r.from !== fromUid);
+    if (typeof App !== "undefined" && App.toast) App.toast("Request declined");
+    this.render();
+  },
+  cancelRequest(uid) {
+    if (typeof Cloud !== "undefined" && Cloud.cancelRequest) Cloud.cancelRequest(uid);
+    this.cloud.sent = (this.cloud.sent || []).filter((x) => x !== uid);
+    if (typeof App !== "undefined" && App.toast) App.toast("Request cancelled");
+    this.render();
+  },
   _urlify(s) { s = (s || "").trim(); if (!s) return "#"; return /^https?:\/\//i.test(s) ? s : "https://" + s; },
   viewProfile(uid) {
     const isMe = (typeof Cloud !== "undefined" && uid === Cloud.me) || uid === "me";
@@ -348,7 +388,7 @@ const Social = {
     const connected = this.inCrew(uid) || (this.cloud.connections || []).includes(uid);
     const requested = (this.cloud.sent || []).includes(uid);
     const cta = isMe ? "" : connected ? `<button class="btn ghost wide" disabled>Connected ✓</button>`
-      : requested ? `<button class="btn ghost wide" disabled>Requested ✓</button>`
+      : requested ? `<button class="btn ghost wide" onclick="Social.cancelRequest('${uid}');App.closeModal()">Requested · Tap to cancel</button>`
       : `<button class="btn wide" onclick="Social.requestMember('${uid}');App.closeModal()">Connect</button>`;
     const card = document.getElementById("modal-card");
     card.innerHTML = `

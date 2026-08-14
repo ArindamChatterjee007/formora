@@ -194,7 +194,7 @@ const App = {
       body = `<div class="auth-sub">A few details so your plan fits <b>you</b> — you can change these anytime.</div>
         <div class="form-grid">
           <div class="field"><label>Sex</label>
-            <select id="d-gender">
+            <select id="d-gender" onchange="App.onDetailsGender()">
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select></div>
@@ -211,6 +211,10 @@ const App = {
           <div class="field"><label>Diet preference</label>
             <select id="d-diet">
               ${Object.keys(DIETS).map((k) => `<option value="${k}">${DIETS[k]}</option>`).join("")}
+            </select></div>
+          <div class="field"><label>Your goal physique <span class="inline-hint">(change anytime)</span></label>
+            <select id="d-physique">
+              ${PHYSIQUES[this.detailsGender || "male"].map((ph) => `<option value="${ph.id}">${esc(ph.name)} — ${esc(ph.tagline)}</option>`).join("")}
             </select></div>
         </div>
         ${err}
@@ -301,6 +305,12 @@ const App = {
     this.showAuth("details");
   },
 
+  onDetailsGender() {
+    const g = (document.getElementById("d-gender") || {}).value || "male";
+    this.detailsGender = g;
+    const sel = document.getElementById("d-physique");
+    if (sel) sel.innerHTML = PHYSIQUES[g].map((ph) => `<option value="${ph.id}">${esc(ph.name)} — ${esc(ph.tagline)}</option>`).join("");
+  },
   // read + validate the onboarding details form -> profile patch (or null)
   _readDetails() {
     const g = document.getElementById("d-gender").value;
@@ -313,9 +323,10 @@ const App = {
     if (!dob) { this.authErr("Please enter your date of birth."); return null; }
     if (!h || h < 90 || h > 250) { this.authErr("Enter a valid height in cm."); return null; }
     if (!w || w < 25 || w > 400) { this.authErr("Enter a valid current weight in kg."); return null; }
+    const physEl = document.getElementById("d-physique");
     const patch = {
       gender: g, dob, heightCm: h, startWeightKg: w,
-      activityFactor: act, diet, physique: PHYSIQUES[g][0].id, physiqueChosen: false, onboarded: true,
+      activityFactor: act, diet, physique: (physEl && physEl.value) || PHYSIQUES[g][0].id, physiqueChosen: true, onboarded: true,
       age: Math.max(13, Math.floor(daysBetween(dob, todayISO()) / 365.25)),
     };
     if (tw && tw >= 25 && tw <= 400) patch.targetWeightKg = tw;

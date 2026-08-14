@@ -98,6 +98,18 @@ const Cloud = {
     try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ status: "accepted" }) }); return r.ok; }
     catch (e) { return false; }
   },
+  async declineRequest(fromUid) {
+    if (!this.active()) return;
+    const id = fromUid + "__" + this.me;
+    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
+    catch (e) { return false; }
+  },
+  async cancelRequest(toUid) {
+    if (!this.active()) return;
+    const id = this.me + "__" + toUid;
+    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
+    catch (e) { return false; }
+  },
 
   // ---- per-account personal data sync (streak/logs/weight follow the user across devices) ----
   async pushAccount(state) {
