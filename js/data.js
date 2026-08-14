@@ -24,6 +24,7 @@ const DEFAULT_PROFILE = {
   avatar: null,               // profile photo (dataURL)
   bio: "",                    // short social bio
   socials: { instagram: "", linkedin: "", facebook: "" },
+  username: "",               // unique @handle (auto-generated, editable)
   onboarded: false,           // true once the user completes the details step
 };
 

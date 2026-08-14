@@ -47,11 +47,14 @@ const Store = {
   },
 
   save() {
-    try {
-      localStorage.setItem(this.key, JSON.stringify(this.state));
-    } catch (e) {
-      alert("Storage is full — remove some meal or reference photos to free space.");
-    }
+    const put = () => localStorage.setItem(this.key, JSON.stringify(this.state));
+    try { put(); return; } catch (e) {}
+    // out of space: protect the user's LOGS by shedding heavy on-device images, then retry
+    try { if (this.state.profile) this.state.profile.avatar = null; put();
+      alert("Your device storage was full, so your profile photo couldn't be saved on-device — but all your logs are safe. (Online photos are coming.)"); return; } catch (e) {}
+    try { if (this.state.profile) this.state.profile.lookPhotos = {}; put();
+      alert("Your device storage was full — on-device reference photos were cleared to protect your logs."); return; } catch (e) {}
+    alert("Your device storage is full; the latest change couldn't be saved. Your existing logs are safe.");
   },
 
   // ---- weight ----

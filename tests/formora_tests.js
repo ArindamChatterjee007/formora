@@ -82,6 +82,30 @@ window.runFormoraTests = async function () {
     Social.toggleFollow("p2"); ok("follow works", Social.isFollowing("p2"));
     Social.sendMessage("p1", "yo"); ok("chat auto-replies", Social.messages("p1").length === 2);
     Social.createChallenge({ withId: "p1", title: "t", days: 7 }); ok("createChallenge", Social.state.challenges.length === 1);
+    Social.requestConnect("p3"); ok("requestConnect adds to crew", Social.inCrew("p3"));
+
+    // DATA SAFETY: onboarding must NEVER erase existing logs (the reported bug)
+    Store.load("gymcoach_v1_TEST_SAFE_" + Date.now());
+    Store.state.workoutLog = [{ date: todayISO(), split: "push", exercises: [{ id: "bench_press", name: "x", muscle: "Chest", sets: [{ reps: 10, weight: 40 }] }], volume: 400 }];
+    Store.state.foodLog = [{ date: todayISO(), items: [{ text: "eggs", kcal: 200, protein: 18 }] }];
+    Store.state.profile.onboarded = false; Store.state.profile.name = "";
+    App.onboardMode = "login";
+    const f2 = document.createElement("div");
+    f2.innerHTML = '<select id="d-gender"><option value="male" selected>m</option></select><input id="d-dob" value="1995-01-01"><input id="d-h" value="180"><input id="d-w" value="80"><input id="d-tw" value=""><select id="d-act"><option value="1.55" selected>m</option></select><select id="d-diet"><option value="nonveg" selected>n</option></select>';
+    document.body.appendChild(f2);
+    const realEnter = App.enterApp; App.enterApp = function () {};
+    App.finishOnboarding();
+    App.enterApp = realEnter;
+    document.body.removeChild(f2);
+    ok("onboarding keeps workout log", Store.state.workoutLog.length === 1, "wk=" + Store.state.workoutLog.length);
+    ok("onboarding keeps food log", Store.state.foodLog.length === 1, "food=" + Store.state.foodLog.length);
+    ok("onboarding sets weight without wiping history", Store.latestWeight() === 80, "w=" + Store.latestWeight());
+
+    // unique username (avoids demo-crew handle collision)
+    Store.load("gymcoach_v1_TEST_UN_" + Date.now());
+    Store.state.profile.username = ""; Store.state.profile.email = "vikstrong@x.com";
+    App.ensureUsername();
+    ok("ensureUsername avoids persona-handle collision", Store.state.profile.username !== "vikstrong" && !!Store.state.profile.username, "un=" + Store.state.profile.username);
 
     // workout edit lifecycle (no duplicate on re-finish)
     Store.load("gymcoach_v1_TEST_WK_" + Date.now());

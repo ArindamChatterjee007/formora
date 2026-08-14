@@ -52,7 +52,7 @@ const Social = {
     const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
     const phys = (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "Lean Aesthetic";
     const streak = (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0;
-    return { id: "me", name: p.name || "You", handle: (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null };
+    return { id: "me", name: p.name || "You", handle: p.username || (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null };
   },
   persona(id) {
     if (id === "me") return this.me();
@@ -177,7 +177,7 @@ const Social = {
           <div class="sg-name">${esc(p.name.split(" ")[0])}</div>
           <div class="sg-sub">${esc(p.physique)}</div>
           <div class="sg-cta">
-            <button class="btn sm" onclick="Social.crewAdd('${p.id}')">Connect</button>
+            <button class="btn sm" onclick="Social.requestConnect('${p.id}')">Connect</button>
             <button class="chip-btn ${this.isFollowing(p.id) ? "on" : ""}" title="Follow" onclick="Social.toggleFollow('${p.id}')">${this.isFollowing(p.id) ? "\u2713" : "+"}</button>
           </div>
         </div>`).join("")}
@@ -246,7 +246,7 @@ const Social = {
       <div class="crew-cta">
         ${inCrew
           ? `<button class="btn ghost sm" onclick="Social.crewRemove('${p.id}')">Connected ✓</button><button class="chip-btn" title="Message" onclick="Social.openChat('${p.id}')">💬</button>`
-          : `<button class="btn sm" onclick="Social.crewAdd('${p.id}')">Connect</button><button class="btn ghost sm" onclick="Social.toggleFollow('${p.id}')">${this.isFollowing(p.id) ? "Following" : "Follow"}</button>`}
+          : `<button class="btn sm" onclick="Social.requestConnect('${p.id}')">Connect</button><button class="btn ghost sm" onclick="Social.toggleFollow('${p.id}')">${this.isFollowing(p.id) ? "Following" : "Follow"}</button>`}
       </div>
     </div>`;
   },
@@ -264,6 +264,12 @@ const Social = {
       </div>`;
   },
   crewAdd(id) { this.addCrew(id); this.render(); },
+  requestConnect(id) {
+    if (this.inCrew(id)) { this.render(); return; }
+    this.addCrew(id);
+    if (typeof App !== "undefined" && App.toast) App.toast("Request sent · " + this.persona(id).name.split(" ")[0] + " accepted 🎉");
+    this.render();
+  },
   crewRemove(id) { this.removeCrew(id); this.render(); },
 
   // ---- chat UI ----

@@ -699,6 +699,8 @@ input, select { font-family: inherit; }
 .sg-name { font-weight: 700; font-size: 13px; margin-top: 6px; }
 .sg-sub { font-size: 11px; color: var(--muted); min-height: 28px; display: flex; align-items: center; }
 .sg-cta { display: flex; gap: 6px; margin-top: 6px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--card2); border: 1px solid var(--line); color: var(--text); padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 9999; max-width: 88vw; text-align: center; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .chat-card { padding: 0; overflow: hidden; }
 .chat-people { display: flex; gap: 8px; padding: 12px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }

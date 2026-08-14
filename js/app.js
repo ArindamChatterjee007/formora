@@ -52,6 +52,7 @@ const App = {
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();
     Social.load(u.id);
+    this.ensureUsername();
     if (!Store.state.profile.onboarded) { this.onboardMode = "login"; return this.showAuth("details"); }
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
@@ -74,7 +75,7 @@ const App = {
     const o = this.onboardProfile; this.onboardProfile = null;
     if (!o) return;
     Object.assign(Store.state.profile, o.patch);
-    if (o.weightKg) Store.state.weightLog = [{ date: todayISO(), kg: o.weightKg }];
+    if (o.weightKg) Store.logWeight(o.weightKg); // set today's weight without erasing history
     Store.save();
   },
 
@@ -309,7 +310,7 @@ const App = {
   finishOnboarding() {
     const patch = this._readDetails(); if (!patch) return;
     Object.assign(Store.state.profile, patch);
-    Store.state.weightLog = [{ date: todayISO(), kg: patch.startWeightKg }];
+    Store.logWeight(patch.startWeightKg); // never wipe existing weight history
     Store.save();
     this.enterApp();
   },
@@ -1315,7 +1316,7 @@ const App = {
           </label>
           <div class="ph-id">
             <div class="ph-name">${esc(p.name || "User")} <span class="lvl">${esc(Social.me().level)}</span></div>
-            <div class="ph-handle">@${esc((u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
+            <div class="ph-handle">@${esc(p.username || (u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
           </div>
           <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
         </div>
@@ -1324,6 +1325,9 @@ const App = {
           <div><b>${Social.feed().filter((x) => x.author === "me").length}</b><span>Posts</span></div>
           <div><b>${Engine.streak()}</b><span>Streak</span></div>
           <div><b>${s.calTarget}</b><span>Target kcal</span></div>
+        </div>
+        <div class="ph-bio-field field"><label>Username <span class="inline-hint">(your unique @handle)</span></label>
+          <input id="p-username" maxlength="20" value="${esc(p.username || "")}" placeholder="e.g. arindam.fit">
         </div>
         <div class="ph-bio-field field"><label>Bio</label>
           <input id="p-bio" maxlength="120" placeholder="Add a short bio — e.g. Lean-bulk szn · chasing the shelf" value="${esc(p.bio || "")}">
@@ -1406,6 +1410,23 @@ const App = {
       </div>`;
   },
 
+  // give every member a unique @handle (unique vs the demo crew; global uniqueness needs the backend)
+  ensureUsername() {
+    const p = Store.state.profile;
+    if (p.username) return;
+    const base = ((p.email || p.name || "user").split("@")[0] || "user").toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 18) || "user";
+    const taken = new Set(SOCIAL_PERSONAS.map((x) => x.handle.toLowerCase()));
+    let u = base, n = 1;
+    while (taken.has(u)) u = base + (++n);
+    p.username = u; Store.save();
+  },
+  toast(msg) {
+    let t = document.getElementById("toast");
+    if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => t.classList.remove("show"), 2200);
+  },
   uploadAvatar(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     resizeImage(f, 256, 0.85).then((data) => {
@@ -1418,6 +1439,12 @@ const App = {
     const p = Store.state.profile;
     const bio = document.getElementById("p-bio");
     if (bio) p.bio = bio.value.trim();
+    const unEl = document.getElementById("p-username");
+    if (unEl) {
+      const un = unEl.value.trim().toLowerCase().replace(/[^a-z0-9._]/g, "");
+      if (un && SOCIAL_PERSONAS.some((x) => x.handle.toLowerCase() === un)) { alert("That username is taken — try another."); return; }
+      if (un) p.username = un;
+    }
     p.socials = {
       instagram: (document.getElementById("soc-ig").value || "").trim(),
       linkedin: (document.getElementById("soc-li").value || "").trim(),
