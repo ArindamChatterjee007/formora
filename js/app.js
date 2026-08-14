@@ -28,6 +28,7 @@ const App = {
     Store.load("gymcoach_v1_" + u.id);
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();
+    Social.load(u.id);
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
@@ -346,6 +347,7 @@ const App = {
 
   renderTab(tab) {
     if (tab === "home") this.renderHome();
+    if (tab === "feed") Social.render();
     if (tab === "today") this.renderToday();
     if (tab === "progress") this.renderProgress();
     if (tab === "nutrition") this.renderNutrition();
@@ -912,6 +914,24 @@ const App = {
     this.renderProgress();
   },
 
+  // diet-safe example text — never suggest non-veg foods to veg/vegan users
+  dietExample(kind) {
+    const d = Store.state.profile.diet || "nonveg";
+    const plan = {
+      vegan: "South Indian, high protein, tofu & chana",
+      veg: "Bengali, high protein, paneer & dal",
+      egg: "high protein, eggs, paneer & dal",
+      nonveg: "Bengali, high protein, chicken & paneer",
+    };
+    const meal = {
+      vegan: "2 rotis, a bowl of dal, tofu curry, tea",
+      veg: "2 rotis, a bowl of dal, paneer curry, curd",
+      egg: "2 rotis, dal, 2 boiled eggs, tea",
+      nonveg: "2 rotis, a bowl of dal, chicken curry, tea",
+    };
+    return (kind === "plan" ? plan : meal)[d] || (kind === "plan" ? plan.veg : meal.veg);
+  },
+
   /* ---------------- NUTRITION ---------------- */
   renderNutrition() {
     const el = document.getElementById("view-nutrition");
@@ -945,7 +965,7 @@ const App = {
       <section class="card">
         <div class="card-head"><h2>Plan my day</h2><span class="tag">${DIETS[diet]}</span></div>
         <div class="sub">Tell me what you feel like — a cuisine, foods, or "high protein" — and I'll build breakfast, lunch, snack &amp; dinner for your ${s.calTarget} kcal / ${s.proteinG}g goal.</div>
-        <textarea id="plan-text" class="food-text" rows="2" placeholder='e.g. "Bengali, high protein, chicken and paneer"'>${esc(this.planText || "")}</textarea>
+        <textarea id="plan-text" class="food-text" rows="2" placeholder='e.g. "${this.dietExample("plan")}"'>${esc(this.planText || "")}</textarea>
         <button class="btn wide" onclick="App.generatePlan()">Generate my menu</button>
         ${this.dayPlan ? this.renderPlan() : ""}
       </section>
@@ -953,7 +973,7 @@ const App = {
       <section class="card">
         <div class="card-head"><h2>Log a meal</h2></div>
         <div class="sub">Just say what you ate — I'll estimate the calories &amp; protein for you. No numbers needed.</div>
-        <textarea id="f-text" class="food-text" rows="2" placeholder='e.g. "2 rotis, a bowl of dal, chicken curry, tea with sugar"'></textarea>
+        <textarea id="f-text" class="food-text" rows="2" placeholder='e.g. "${this.dietExample("meal")}"'></textarea>
         <div class="food-actions">
           <label class="photo-btn">📷 Add photo
             <input type="file" accept="image/*" capture="environment" id="f-photo" onchange="App.onPhoto(event)" hidden>

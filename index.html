@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=20" />
+  <link rel="stylesheet" href="css/styles.css?v=21" />
 </head>
 <body>
   <!-- animated background -->
@@ -40,6 +40,7 @@
 
   <nav class="tabbar" id="tabbar">
     <button class="tab active" data-tab="home"><span>Home</span></button>
+    <button class="tab" data-tab="feed"><span>Feed</span></button>
     <button class="tab" data-tab="today"><span>Today</span></button>
     <button class="tab" data-tab="progress"><span>Progress</span></button>
     <button class="tab" data-tab="nutrition"><span>Nutrition</span></button>
@@ -49,6 +50,8 @@
   <main class="wrap">
     <!-- ===== HOME ===== -->
     <section class="view active" id="view-home"></section>
+    <!-- ===== FEED (social) ===== -->
+    <section class="view" id="view-feed"></section>
     <!-- ===== TODAY ===== -->
     <section class="view" id="view-today"></section>
     <!-- ===== PROGRESS ===== -->
@@ -67,13 +70,14 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=20"></script>
-  <script src="js/data.js?v=20"></script>
-  <script src="js/storage.js?v=20"></script>
-  <script src="js/engine.js?v=20"></script>
-  <script src="js/charts.js?v=20"></script>
-  <script src="js/nutrition.js?v=20"></script>
-  <script src="js/auth.js?v=20"></script>
-  <script src="js/app.js?v=20"></script>
+  <script src="js/config.js?v=21"></script>
+  <script src="js/data.js?v=21"></script>
+  <script src="js/storage.js?v=21"></script>
+  <script src="js/engine.js?v=21"></script>
+  <script src="js/charts.js?v=21"></script>
+  <script src="js/nutrition.js?v=21"></script>
+  <script src="js/auth.js?v=21"></script>
+  <script src="js/social.js?v=21"></script>
+  <script src="js/app.js?v=21"></script>
 </body>
 </html>
