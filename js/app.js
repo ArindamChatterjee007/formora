@@ -110,7 +110,9 @@ const App = {
         </div>`
       : `<div class="auth-brand">⟡ FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
-    const gbtn = `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`;
+    const gbtn = window.GOOGLE_CLIENT_ID
+      ? `<div id="gsi-btn" class="gsi-wrap"></div>`
+      : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`;
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
 
@@ -158,6 +160,29 @@ const App = {
 
     card.innerHTML = `${brand}${body}
       <div class="auth-note">${window.SHEETS_API ? "☁️ Secure cloud login — sign in from any device." : "🔒 Private login — your data is saved on this device."}</div>`;
+    if (window.GOOGLE_CLIENT_ID && isLanding) this.renderGoogleButton();
+  },
+
+  // real Google Sign-In (loads Google Identity Services on demand)
+  renderGoogleButton() {
+    if (!window.GOOGLE_CLIENT_ID) return;
+    const draw = () => {
+      if (!(window.google && google.accounts && google.accounts.id)) return;
+      google.accounts.id.initialize({ client_id: window.GOOGLE_CLIENT_ID, callback: (r) => App.onGoogleCredential(r) });
+      const el = document.getElementById("gsi-btn");
+      if (el) { el.innerHTML = ""; google.accounts.id.renderButton(el, { theme: "filled_black", size: "large", text: "continue_with", shape: "pill", width: 320 }); }
+    };
+    if (window.google && google.accounts && google.accounts.id) return draw();
+    let s = document.getElementById("gsi-lib");
+    if (!s) { s = document.createElement("script"); s.id = "gsi-lib"; s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.defer = true; s.onload = draw; document.head.appendChild(s); }
+    else setTimeout(draw, 300);
+  },
+  onGoogleCredential(r) {
+    try {
+      const p = JSON.parse(atob(r.credential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      Auth.loginWithGoogle({ name: p.name, email: p.email });
+      this.enterApp();
+    } catch (e) { this.authErr("Google sign-in failed. Try again."); }
   },
 
   googleIcon() {

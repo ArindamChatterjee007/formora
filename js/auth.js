@@ -109,6 +109,18 @@ const Auth = {
     return this.pending;
   },
 
+  // ---- real Google sign-in (verified email from Google ID token) ----
+  loginWithGoogle({ name, email }) {
+    let acc = this.data.accounts.find(
+      (a) => a.provider === "google" && a.email.toLowerCase() === (email || "").toLowerCase());
+    if (!acc) {
+      acc = { id: "u" + Date.now(), name: name || email, email, phone: "", salt: "", hash: "", phoneVerified: true, provider: "google" };
+      this.data.accounts.push(acc);
+    }
+    this.setCurrent(acc.id);
+    return acc;
+  },
+
   // ---- phone OTP ----
   sendPhoneOtp(phone) {
     if (this.pending) this.pending.account.phone = phone;

@@ -18,6 +18,14 @@ window.PEXELS_KEY = "";
    Empty = local device-only login (default).                              */
 window.SHEETS_API = "";
 
+/* ---- Real Google Sign-In (optional) ----
+   Create a free OAuth Client ID (Web) at https://console.cloud.google.com
+   → APIs & Services → Credentials → OAuth client ID → Web application.
+   Authorised JavaScript origins:
+     https://arindamchatterjee007.github.io
+   Paste the Client ID below. Empty = simulated Google login (default).   */
+window.GOOGLE_CLIENT_ID = "";
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {

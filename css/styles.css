@@ -401,6 +401,7 @@ input, select { font-family: inherit; }
   font-weight: 700; font-size: 14px; transition: transform .15s;
 }
 .gbtn:hover { transform: translateY(-2px); }
+.gsi-wrap { display: flex; justify-content: center; min-height: 44px; }
 .auth-or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; margin: 16px 0; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .auth-err { color: #ff5c72; font-size: 13px; min-height: 18px; margin: 2px 0 8px; }
