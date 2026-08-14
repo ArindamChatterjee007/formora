@@ -1433,14 +1433,19 @@ const App = {
   },
 
   // give every member a unique @handle (unique vs the demo crew; global uniqueness needs the backend)
-  ensureUsername() {
+  async ensureUsername() {
     const p = Store.state.profile;
     if (p.username) return;
     const base = ((p.email || p.name || "user").split("@")[0] || "user").toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 18) || "user";
     const taken = new Set(SOCIAL_PERSONAS.map((x) => x.handle.toLowerCase()));
     let u = base, n = 1;
     while (taken.has(u)) u = base + (++n);
-    p.username = u; Store.save();
+    p.username = u; Store.save();                 // set immediately so login never blocks
+    if (typeof Cloud !== "undefined" && Cloud.active()) {   // refine for global uniqueness in the background
+      let guard = 0;
+      while ((await Cloud.usernameTaken(u)) && guard++ < 25) u = base + (++n);
+      if (u !== p.username) { p.username = u; Store.save(); Cloud.registerMe(p); }
+    }
   },
   toast(msg) {
     let t = document.getElementById("toast");
@@ -1457,6 +1462,8 @@ const App = {
     Cloud.start((s) => {
       Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
       Social.cloud.requests = Object.values(s.requests || {}).filter((r) => r.to === Cloud.me && r.status === "pending");
+      Social.cloud.sent = Object.values(s.requests || {}).filter((r) => r.from === Cloud.me).map((r) => r.to);
+      Social.cloud.connections = Object.values(s.requests || {}).filter((r) => r.status === "accepted" && (r.from === Cloud.me || r.to === Cloud.me)).map((r) => (r.from === Cloud.me ? r.to : r.from));
       Social.cloud.feed = Object.values(s.posts || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0));
       const sig = JSON.stringify(s);
       if (sig === last) return;
@@ -1473,15 +1480,18 @@ const App = {
       this.renderProfile();
     }).catch(() => alert("Couldn't read that image. Try another one."));
   },
-  saveSocialProfile() {
+  async saveSocialProfile() {
     const p = Store.state.profile;
     const bio = document.getElementById("p-bio");
     if (bio) p.bio = bio.value.trim();
     const unEl = document.getElementById("p-username");
     if (unEl) {
       const un = unEl.value.trim().toLowerCase().replace(/[^a-z0-9._]/g, "");
-      if (un && SOCIAL_PERSONAS.some((x) => x.handle.toLowerCase() === un)) { alert("That username is taken — try another."); return; }
-      if (un) p.username = un;
+      if (un && un !== p.username) {
+        if (SOCIAL_PERSONAS.some((x) => x.handle.toLowerCase() === un)) { alert("That username is taken — try another."); return; }
+        if (typeof Cloud !== "undefined" && Cloud.active() && (await Cloud.usernameTaken(un))) { alert("@" + un + " is already taken — please pick another."); return; }
+        p.username = un;
+      }
     }
     p.socials = {
       instagram: (document.getElementById("soc-ig").value || "").trim(),
@@ -1489,6 +1499,7 @@ const App = {
       facebook: (document.getElementById("soc-fb").value || "").trim(),
     };
     Store.save();
+    if (typeof Cloud !== "undefined" && Cloud.active()) Cloud.registerMe(p);
     this.renderProfile();
   },
 

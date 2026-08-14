@@ -56,6 +56,7 @@ const Cloud = {
       username: p.username || "", name: p.name || "", avatar: p.avatar || "",
       physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
+      socials: p.socials || {},
     };
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
@@ -69,6 +70,22 @@ const Cloud = {
   likeCloud(postId) {
     if (!this.active()) return;
     return this._write("/rpc/like_post", { p_id: postId, p_uid: this.me });
+  },
+  unlikeCloud(postId) {
+    if (!this.active()) return;
+    return this._write("/rpc/unlike_post", { p_id: postId, p_uid: this.me });
+  },
+  async usernameTaken(username) {
+    if (!this.active() || !username) return false;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const r = await fetch(this.base + "/profiles?select=uid&data->>username=eq." + encodeURIComponent(username) + "&uid=neq." + encodeURIComponent(this.me || "_"), { headers: this._headers(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return false;
+      const rows = await r.json();
+      return Array.isArray(rows) && rows.length > 0;
+    } catch (e) { return false; }
   },
   sendRequest(toUid) {
     if (!this.active()) return;
