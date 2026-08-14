@@ -149,7 +149,8 @@ input, select { font-family: inherit; }
   transition: all .2s ease;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.tab i { font-style: normal; font-size: 17px; line-height: 1; }
+.tab i { font-style: normal; font-size: 17px; line-height: 1; display: inline-flex; align-items: center; }
+.tab i svg { width: 19px; height: 19px; display: block; }
 .tab:hover { color: var(--text); transform: translateY(-1px); }
 .tab.active {
   color: #fff; border-color: transparent;
@@ -838,6 +839,7 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
     letter-spacing: .3px; box-shadow: none;
   }
   .tabbar .tab i { font-size: 21px; }
+  .tabbar .tab i svg { width: 24px; height: 24px; }
   .tabbar .tab:hover { transform: none; }
   .tabbar .tab.active { background: none; color: var(--accent); box-shadow: none; transform: none; }
   .tab-badge { top: 1px; right: calc(50% - 22px); box-shadow: 0 0 0 2px rgba(11,13,18,.94); }

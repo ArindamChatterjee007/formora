@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 38;
+      var V = 39;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=38" />
+  <link rel="stylesheet" href="css/styles.css?v=39" />
 </head>
 <body>
   <!-- animated background -->
@@ -55,11 +55,11 @@
   </header>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab active" data-tab="home"><i>🏠</i><span>Home</span></button>
-    <button class="tab" data-tab="search"><i>🔍</i><span>Search</span></button>
-    <button class="tab" data-tab="coach"><i>💪</i><span>Coach</span></button>
-    <button class="tab" data-tab="alerts"><i>🔔</i><span>Alerts</span><b class="tab-badge" id="tab-notif-badge" style="display:none">0</b></button>
-    <button class="tab" data-tab="profile"><i>👤</i><span>Profile</span></button>
+    <button class="tab active" data-tab="home"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 8.8V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.8"/><path d="M9.5 21v-6.5h5V21"/></svg></i><span>Home</span></button>
+    <button class="tab" data-tab="search"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-3.8-3.8"/></svg></i><span>Search</span></button>
+    <button class="tab" data-tab="coach"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/></svg></i><span>Coach</span></button>
+    <button class="tab" data-tab="alerts"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></i><span>Alerts</span><b class="tab-badge" id="tab-notif-badge" style="display:none">0</b></button>
+    <button class="tab" data-tab="profile"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></i><span>Profile</span></button>
   </nav>
 
   <main class="wrap" id="wrap">
@@ -86,15 +86,15 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=38"></script>
-  <script src="js/data.js?v=38"></script>
-  <script src="js/storage.js?v=38"></script>
-  <script src="js/engine.js?v=38"></script>
-  <script src="js/charts.js?v=38"></script>
-  <script src="js/nutrition.js?v=38"></script>
-  <script src="js/auth.js?v=38"></script>
-  <script src="js/social.js?v=38"></script>
-  <script src="js/cloud.js?v=38"></script>
-  <script src="js/app.js?v=38"></script>
+  <script src="js/config.js?v=39"></script>
+  <script src="js/data.js?v=39"></script>
+  <script src="js/storage.js?v=39"></script>
+  <script src="js/engine.js?v=39"></script>
+  <script src="js/charts.js?v=39"></script>
+  <script src="js/nutrition.js?v=39"></script>
+  <script src="js/auth.js?v=39"></script>
+  <script src="js/social.js?v=39"></script>
+  <script src="js/cloud.js?v=39"></script>
+  <script src="js/app.js?v=39"></script>
 </body>
 </html>

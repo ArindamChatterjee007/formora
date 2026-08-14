@@ -392,12 +392,17 @@ const Social = {
         return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${r.from}')">${this.avatar(p, 48)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)} wants to connect</div></div></div><div class="crew-cta"><button class="btn sm" onclick="event.stopPropagation();Social.acceptReq('${r.from}')">Accept</button><button class="btn ghost sm" onclick="event.stopPropagation();Social.declineReq('${r.from}')">Decline</button></div></div>`;
       }).join("");
       const q = (this._memberQuery || "").toLowerCase();
-      const filtered = this.cloud.users.filter((u) => !q || (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q));
-      const members = filtered.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
+      const conns = this.cloud.connections || [];
+      const crewMembers = this.cloud.users.filter((u) => conns.includes(u.uid));
+      const others = this.cloud.users.filter((u) => !conns.includes(u.uid) && (!q || (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q)));
+      const crewCards = crewMembers.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
+      const otherCards = others.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
       return `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}
-        <div class="card"><div class="card-head"><h2>Members</h2><span class="tag">${this.cloud.users.length}</span></div>
+        <div class="card"><div class="card-head"><h2>Your crew</h2><span class="tag">${crewMembers.length}</span></div>
+          ${crewMembers.length ? `<div class="crew-list">${crewCards}</div>` : `<div class="sub" style="padding:8px 2px">No crew yet — connect with people below and they'll appear here the moment you're linked 🤝</div>`}</div>
+        <div class="card"><div class="card-head"><h2>Discover people</h2><span class="tag">${Math.max(0, this.cloud.users.length - crewMembers.length)}</span></div>
           <div class="member-search"><span>🔎</span><input id="member-search" placeholder="Search people by name or @handle" value="${esc(this._memberQuery || "")}" oninput="Social.searchMembers(this.value)"></div>
-          ${this.cloud.users.length ? (filtered.length ? `<div class="crew-list">${members}</div>` : `<div class="sub" style="padding:8px 2px">No one matches your search.</div>`) : `<div class="sub">No one else has joined yet — share Formora and have a friend log in on their phone. When they do, they'll appear here to connect.</div>`}</div>`;
+          ${this.cloud.users.length ? (others.length ? `<div class="crew-list">${otherCards}</div>` : `<div class="sub" style="padding:8px 2px">${q ? "No one matches your search." : "You've connected with everyone here — legend! 🎉"}</div>`) : `<div class="sub">No one else has joined yet — share Formora and have a friend log in on their phone. When they do, they'll appear here to connect.</div>`}</div>`;
     }
     const crew = this.crewList(), sugg = this.suggestions();
     return `
