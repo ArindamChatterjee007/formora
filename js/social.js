@@ -197,7 +197,9 @@ const Social = {
   _cloudPost(p) {
     const likes = p.likes || {};
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+    const reshares = (this.cloud.feed || []).filter((x) => x && x.reshareOf === p.id).length;
+    const resharedByMe = (this.cloud.feed || []).some((x) => x && x.reshareOf === p.id && x.author === meId);
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares, resharedByMe, ts: p.ts || Date.now() };
   },
   _likerName(id) { const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || null); return u ? (u.name || ("@" + u.handle)) : ("@" + id); },
   _likerNames(uids) {
@@ -264,7 +266,7 @@ const Social = {
         <div class="post-actions">
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${p.likedByMe ? "❤️" : "🤍"} <span>${p.likes}</span></button>
           <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
-          <button class="pa" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
+          <button class="pa ${p.resharedByMe ? "on" : ""}" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
@@ -286,7 +288,7 @@ const Social = {
   async postVideo(e) {
     const f = e.target && e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Video reels need you to be signed in and online."); return; }
-    if (f.size > 50 * 1024 * 1024) { alert("That clip is too large (max 50MB). Try a shorter reel."); return; }
+    if (f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
     this.pendingVideoUploading = true; this.render();
     const url = await Cloud.uploadMedia(f, "videos");
     this.pendingVideoUploading = false;
@@ -318,11 +320,11 @@ const Social = {
     return `<div class="stories-row">${yours}${uploading}${others.map(ring).join("")}</div>`;
   },
   addStoryPick() {
-    this.mediaSheet("Add to your story", [
-      { label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.onStoryFile(e) },
-      { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.onStoryFile(e) },
-      { label: "🖼️ Choose from gallery", accept: "image/*,video/*", cb: (e) => this.onStoryFile(e) },
-    ]);
+    const opts = [];
+    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("story") });
+    else opts.push({ label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.onStoryFile(e) }, { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.onStoryFile(e) });
+    opts.push({ label: "🖼️ Choose from gallery", accept: "image/*,video/*", cb: (e) => this.onStoryFile(e) });
+    this.mediaSheet("Add to your story", opts);
   },
   // generic camera/gallery chooser sheet (reused by stories, photos & reels)
   mediaSheet(title, opts) {
@@ -335,6 +337,7 @@ const Social = {
   _sheetPick(i) {
     if (typeof App !== "undefined" && App.closeModal) App.closeModal();
     const o = (this._sheet || [])[i]; if (!o) return;
+    if (o.action) { o.action(); return; }
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = o.accept;
     if (o.capture) inp.setAttribute("capture", "environment");
@@ -344,12 +347,30 @@ const Social = {
     document.body.appendChild(inp);
     inp.click();
   },
+  // hand-off targets used by the Formora Camera
+  attachPhoto(file) {
+    resizeImage(file, 1080, 0.82).then((dataUrl) => {
+      if (!this.pendingPhotos) this.pendingPhotos = [];
+      if (this.pendingPhotos.length < 6) this.pendingPhotos.push(dataUrl);
+      if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
+      this.sub = "feed"; this.render();
+    }).catch(() => alert("Couldn't process that photo."));
+  },
+  attachReel(file, url) {
+    if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
+    this.sub = "feed"; this.pendingVideo = null; this.pendingVideoUploading = true; this.render();
+    Cloud.uploadMedia(file, "videos").then((u) => {
+      this.pendingVideoUploading = false;
+      if (!u) { alert("Couldn't upload that reel — check your connection and try again."); this.render(); return; }
+      this.pendingVideo = u; this.render();
+    });
+  },
   // story: preview the picked media full-screen before sharing (Instagram/Snapchat-style)
   onStoryFile(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return; }
     const isVid = /^video\//.test(f.type);
-    if (isVid && f.size > 50 * 1024 * 1024) { alert("That clip is too large (max 50MB). Try a shorter one."); return; }
+    if (isVid && f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
     if (this._storyDraft && this._storyDraft.url) URL.revokeObjectURL(this._storyDraft.url);
     this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f) };
     this.storyPreview();
@@ -385,16 +406,18 @@ const Social = {
   },
   // composer: camera/gallery choosers for photos & reels
   pickPhotos() {
-    this.mediaSheet("Add a photo", [
-      { label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.postPhoto(e) },
-      { label: "🖼️ Choose from gallery", accept: "image/*", multiple: true, cb: (e) => this.postPhoto(e) },
-    ]);
+    const opts = [];
+    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("post") });
+    else opts.push({ label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.postPhoto(e) });
+    opts.push({ label: "🖼️ Choose from gallery", accept: "image/*", multiple: true, cb: (e) => this.postPhoto(e) });
+    this.mediaSheet("Add a photo", opts);
   },
   pickReel() {
-    this.mediaSheet("Add a reel", [
-      { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.postVideo(e) },
-      { label: "🖼️ Choose from gallery", accept: "video/*", cb: (e) => this.postVideo(e) },
-    ]);
+    const opts = [];
+    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("post") });
+    else opts.push({ label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.postVideo(e) });
+    opts.push({ label: "🖼️ Choose from gallery", accept: "video/*", cb: (e) => this.postVideo(e) });
+    this.mediaSheet("Add a reel", opts);
   },
   openStory(authorUid) {
     const groups = this.storyGroups();
@@ -534,7 +557,7 @@ const Social = {
     if (this.cloudActive()) {
       const src = this.cloud.feed.find((p) => p.id === id);
       if (src) {
-        const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, gradient: src.gradient, tag: src.tag, resharedFrom: src.author });
+        const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, gradient: src.gradient, tag: src.tag, resharedFrom: src.author, reshareOf: src.id });
         if (np) this.cloud.feed.unshift(np);
         if (Cloud.notify && src.author !== Cloud.me) Cloud.notify(src.author, "reshare", id, src.text || "");
         if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
