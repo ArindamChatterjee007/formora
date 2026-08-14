@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 37;
+      var V = 38;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=37" />
+  <link rel="stylesheet" href="css/styles.css?v=38" />
 </head>
 <body>
   <!-- animated background -->
@@ -49,59 +49,52 @@
       </div>
     </div>
     <div class="topbar-right">
-      <button class="notif-bell" id="notif-bell" onclick="App.toggleNotifPanel()" title="Notifications">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
       <span class="chip sky" id="sky-chip"></span>
-      <span class="chip" id="chip-weight">— kg</span>
       <span class="chip" id="chip-streak">🔥 0d</span>
     </div>
   </header>
 
-  <div class="notif-panel hidden" id="notif-panel">
-    <div class="notif-head"><h3>Notifications</h3><button class="icon-btn" onclick="App.toggleNotifPanel()">✕</button></div>
-    <div class="notif-list" id="notif-list"></div>
-  </div>
-
   <nav class="tabbar" id="tabbar">
-    <button class="tab active" data-tab="home"><span>Home</span></button>
-    <button class="tab" data-tab="feed"><span>Feed</span></button>
-    <button class="tab" data-tab="today"><span>Today</span></button>
-    <button class="tab" data-tab="progress"><span>Progress</span></button>
-    <button class="tab" data-tab="nutrition"><span>Nutrition</span></button>
-    <button class="tab" data-tab="profile"><span>Profile</span></button>
+    <button class="tab active" data-tab="home"><i>🏠</i><span>Home</span></button>
+    <button class="tab" data-tab="search"><i>🔍</i><span>Search</span></button>
+    <button class="tab" data-tab="coach"><i>💪</i><span>Coach</span></button>
+    <button class="tab" data-tab="alerts"><i>🔔</i><span>Alerts</span><b class="tab-badge" id="tab-notif-badge" style="display:none">0</b></button>
+    <button class="tab" data-tab="profile"><i>👤</i><span>Profile</span></button>
   </nav>
 
-  <main class="wrap">
-    <!-- ===== HOME ===== -->
-    <section class="view active" id="view-home"></section>
-    <!-- ===== FEED (social) ===== -->
-    <section class="view" id="view-feed"></section>
-    <!-- ===== TODAY ===== -->
-    <section class="view" id="view-today"></section>
-    <!-- ===== PROGRESS ===== -->
-    <section class="view" id="view-progress"></section>
-    <!-- ===== NUTRITION ===== -->
-    <section class="view" id="view-nutrition"></section>
+  <main class="wrap" id="wrap">
+    <!-- ===== HOME = FEED (social) ===== -->
+    <section class="view active" id="view-feed"></section>
+    <!-- ===== COACH HUB (dashboard + today + progress + nutrition) ===== -->
+    <section class="view" id="view-coach">
+      <div class="social-subnav coach-subnav" id="coach-subnav"></div>
+      <div id="view-home"></div>
+      <div id="view-today"></div>
+      <div id="view-progress"></div>
+      <div id="view-nutrition"></div>
+    </section>
+    <!-- ===== ALERTS (notifications) ===== -->
+    <section class="view" id="view-alerts"></section>
     <!-- ===== PROFILE ===== -->
     <section class="view" id="view-profile"></section>
   </main>
 
   <footer class="foot">Formora · Train. Track. Connect.</footer>
   </div><!-- /app-shell -->
-
   <!-- ===== MODAL (physique picker) ===== -->
   <div class="modal-overlay hidden" id="modal">
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=37"></script>
-  <script src="js/data.js?v=37"></script>
-  <script src="js/storage.js?v=37"></script>
-  <script src="js/engine.js?v=37"></script>
-  <script src="js/charts.js?v=37"></script>
-  <script src="js/nutrition.js?v=37"></script>
-  <script src="js/auth.js?v=37"></script>
-  <script src="js/social.js?v=37"></script>
-  <script src="js/cloud.js?v=37"></script>
-  <script src="js/app.js?v=37"></script>
+  <script src="js/config.js?v=38"></script>
+  <script src="js/data.js?v=38"></script>
+  <script src="js/storage.js?v=38"></script>
+  <script src="js/engine.js?v=38"></script>
+  <script src="js/charts.js?v=38"></script>
+  <script src="js/nutrition.js?v=38"></script>
+  <script src="js/auth.js?v=38"></script>
+  <script src="js/social.js?v=38"></script>
+  <script src="js/cloud.js?v=38"></script>
+  <script src="js/app.js?v=38"></script>
 </body>
 </html>

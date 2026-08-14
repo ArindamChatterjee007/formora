@@ -41,9 +41,31 @@ const App = {
     this.applySky();
     setInterval(() => this.applySky(), 5 * 60 * 1000);
     document.addEventListener("visibilitychange", () => this.onVisibility());
-    document.addEventListener("contextmenu", (e) => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+    this.guardImages();
+    this.bindSwipe();
     if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
+  },
+  // ---- image protection: block right-click / drag / copy-paste on photos, blur when window loses focus (screenshot deterrent) ----
+  guardImages() {
+    const isImg = (t) => t && (t.tagName === "IMG" || (t.closest && t.closest(".post-media,.cslide,.vp-clip,.cp-thumb,.story-ring,.av")));
+    document.addEventListener("contextmenu", (e) => { if (isImg(e.target)) e.preventDefault(); });
+    document.addEventListener("dragstart", (e) => { if (isImg(e.target)) e.preventDefault(); });
+    const blockCopy = (e) => {
+      const sel = document.getSelection && document.getSelection();
+      const node = sel && sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+      if (isImg(e.target) || (node && node.closest && node.closest(".post-media,.cslide,.vp-clip"))) {
+        e.preventDefault();
+        if (e.clipboardData) e.clipboardData.setData("text/plain", "");
+      }
+    };
+    document.addEventListener("copy", blockCopy);
+    document.addEventListener("cut", blockCopy);
+    // screenshot deterrent — blur media while the app is backgrounded / loses focus (best-effort; true blocking isn't possible on the web)
+    const shield = (on) => document.body.classList.toggle("shot-guard", on);
+    window.addEventListener("blur", () => shield(true));
+    window.addEventListener("focus", () => shield(false));
+    document.addEventListener("visibilitychange", () => shield(document.hidden));
   },
   // pause cloud polling + background animations when the tab is hidden (saves CPU/battery)
   onVisibility() {
@@ -67,9 +89,8 @@ const App = {
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
-    document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", i === 0));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-home"));
-    this.renderAll();
+    this.renderChips();
+    this.selectTab("home");
   },
 
   applyAccount(u) {
@@ -404,38 +425,96 @@ const App = {
     document.getElementById("tabbar").addEventListener("click", (e) => {
       const btn = e.target.closest(".tab");
       if (!btn) return;
-      document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === btn));
-      const tab = btn.dataset.tab;
-      document.querySelectorAll(".view").forEach((v) =>
-        v.classList.toggle("active", v.id === `view-${tab}`));
-      this.renderTab(tab);
+      this.selectTab(btn.dataset.tab);
     });
+  },
+
+  // maps a top-level tab to the section element it activates
+  _tabView: { home: "feed", search: "feed", coach: "coach", alerts: "alerts", profile: "profile" },
+  _tabOrder: ["home", "search", "coach", "alerts", "profile"],
+
+  selectTab(tab) {
+    if (!this._tabView[tab]) tab = "home";
+    const viewId = "view-" + this._tabView[tab];
+    document.querySelectorAll("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+    document.querySelectorAll("#wrap > .view").forEach((v) => v.classList.toggle("active", v.id === viewId));
+    this.curTab = tab;
+    document.querySelector(".wrap").scrollTo ? window.scrollTo({ top: 0, behavior: "instant" }) : window.scrollTo(0, 0);
+    this.renderTab(tab);
+  },
+
+  renderTab(tab) {
+    if (tab === "home") Social.render("feed");
+    else if (tab === "search") Social.render("crew");
+    else if (tab === "coach") this.renderCoach();
+    else if (tab === "alerts") this.renderAlerts();
+    else if (tab === "profile") this.renderProfile();
+  },
+
+  // route legacy/deep-link targets (feed, today, progress, nutrition, overview) to the new nav
+  goTab(tab) {
+    const coachSubs = { overview: 1, today: 1, progress: 1, nutrition: 1 };
+    if (coachSubs[tab]) { this.selectTab("coach"); this.renderCoach(tab); return; }
+    if (tab === "feed") tab = "home";
+    this.selectTab(tab);
+  },
+
+  // Coach hub — dashboard + workout + progress + nutrition under one sub-nav
+  renderCoach(sub) {
+    this.coachSub = sub || this.coachSub || "overview";
+    const s = this.coachSub;
+    const nav = [["overview", "🏠 Overview"], ["today", "🏋️ Today"], ["progress", "📈 Progress"], ["nutrition", "🍽️ Nutrition"]];
+    const sn = document.getElementById("coach-subnav");
+    if (sn) sn.innerHTML = nav.map(([n, l]) => `<button class="ssub ${n === s ? "active" : ""}" onclick="App.renderCoach('${n}')">${l}</button>`).join("");
+    const views = { overview: "view-home", today: "view-today", progress: "view-progress", nutrition: "view-nutrition" };
+    Object.entries(views).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = k === s ? "block" : "none"; });
+    if (s === "overview") this.renderHome();
+    else if (s === "today") this.renderToday();
+    else if (s === "progress") this.renderProgress();
+    else this.renderNutrition();
+  },
+
+  // Alerts tab — notifications feed (moved out of the top bar)
+  renderAlerts() {
+    const el = document.getElementById("view-alerts");
+    if (!el) return;
+    el.innerHTML = `<div class="alerts-head"><h2>Activity</h2></div><div class="card" style="padding:0;overflow:hidden"><div class="notif-list" id="notif-list"></div></div>`;
+    this.renderNotifPanel();
+    if (typeof Cloud !== "undefined" && Cloud.markNotifsRead) Cloud.markNotifsRead();
+    this.updateNotifBadge(0);
+  },
+
+  // swipe left/right between tabs (Instagram-style)
+  bindSwipe() {
+    const wrap = document.getElementById("wrap");
+    if (!wrap) return;
+    let x0 = null, y0 = null, t0 = 0;
+    wrap.addEventListener("touchstart", (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); }, { passive: true });
+    wrap.addEventListener("touchend", (e) => {
+      if (x0 === null) return;
+      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
+      x0 = null;
+      if (dt > 600 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
+      if (e.target.closest && e.target.closest(".carousel, .chat-thread, .composer-photos, input, textarea, select, .social-subnav, .coach-subnav, .vp-tabs")) return;
+      const i = this._tabOrder.indexOf(this.curTab || "home");
+      if (i < 0) return;
+      const next = dx < 0 ? i + 1 : i - 1;
+      if (next >= 0 && next < this._tabOrder.length) this.selectTab(this._tabOrder[next]);
+    }, { passive: true });
   },
 
   renderAll() {
     this.renderChips();
-    this.renderTab("home");
+    this.selectTab("home");
   },
 
   renderChips() {
-    document.getElementById("chip-weight").textContent = `${Store.latestWeight()} kg`;
-    document.getElementById("chip-streak").textContent = `🔥 ${Engine.streak()}d`;
+    const w = document.getElementById("chip-weight");
+    if (w) w.textContent = `${Store.latestWeight()} kg`;
+    const st = document.getElementById("chip-streak");
+    if (st) st.textContent = `🔥 ${Engine.streak()}d`;
     const sub = document.querySelector(".logo-sub");
     if (sub) sub.textContent = `${Engine.getPhysique().tagline} · coach`.toLowerCase();
-  },
-
-  renderTab(tab) {
-    if (tab === "home") this.renderHome();
-    if (tab === "feed") Social.render();
-    if (tab === "today") this.renderToday();
-    if (tab === "progress") this.renderProgress();
-    if (tab === "nutrition") this.renderNutrition();
-    if (tab === "profile") this.renderProfile();
-  },
-
-  goTab(tab) {
-    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
-    if (btn) btn.click();
   },
 
   /* ---------------- HOME (dashboard) ---------------- */
@@ -1505,23 +1584,17 @@ const App = {
     const list = await Cloud.getNotifications();
     Social.cloud.notifs = list || [];
     const unread = (list || []).filter((n) => !n.read).length;
-    this.updateNotifBadge(unread);
-    if (this.notifOpen) this.renderNotifPanel();
+    if (this.curTab === "alerts") { this.renderNotifPanel(); this.updateNotifBadge(0); if (Cloud.markNotifsRead) Cloud.markNotifsRead(); }
+    else this.updateNotifBadge(unread);
   },
   updateNotifBadge(n) {
-    const b = document.getElementById("notif-badge");
+    const b = document.getElementById("tab-notif-badge");
     if (!b) return;
     b.textContent = n > 9 ? "9+" : String(n);
     b.style.display = n > 0 ? "flex" : "none";
-    if (n > (this._lastUnread || 0)) { const bell = document.getElementById("notif-bell"); if (bell) { bell.classList.remove("shake"); void bell.offsetWidth; bell.classList.add("shake"); } }
+    const tab = document.querySelector('.tab[data-tab="alerts"]');
+    if (tab && n > (this._lastUnread || 0)) { tab.classList.remove("shake"); void tab.offsetWidth; tab.classList.add("shake"); }
     this._lastUnread = n;
-  },
-  toggleNotifPanel() {
-    this.notifOpen = !this.notifOpen;
-    const p = document.getElementById("notif-panel");
-    if (!p) return;
-    if (this.notifOpen) { p.classList.remove("hidden"); this.renderNotifPanel(); if (typeof Cloud !== "undefined" && Cloud.markNotifsRead) Cloud.markNotifsRead(); this.updateNotifBadge(0); }
-    else p.classList.add("hidden");
   },
   notifText(n) {
     const who = (Social.cloudUser(n.actor) || {}).name || "Someone";
@@ -1530,13 +1603,12 @@ const App = {
   },
   renderNotifPanel() {
     const list = Social.cloud.notifs || [];
-    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : `<div class="sub" style="padding:20px;text-align:center">No notifications yet.</div>`;
+    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : `<div class="sub" style="padding:28px;text-align:center">No activity yet. Likes, comments and new connections show up here 🔔</div>`;
     const el = document.getElementById("notif-list");
     if (el) el.innerHTML = body;
   },
   openNotif(actor, type) {
-    this.toggleNotifPanel();
-    if (type === "connect" || type === "accept") { this.goTab("feed"); Social.feedTab("crew"); }
+    if (type === "connect" || type === "accept") { this.selectTab("search"); }
     else if (actor) { Social.viewProfile(actor); }
   },
   uploadAvatar(e) {

@@ -145,14 +145,15 @@ const Social = {
     return true;
   },
 
-  render() {
+  render(sub) {
+    if (sub) this.sub = sub;
     const el = document.getElementById("view-feed");
     if (!el) return;
-    const sub = this.sub || "feed";
+    const sub2 = this.sub || "feed";
     const nav = [["feed", "🔥 Feed"], ["crew", "🤝 Crew"], ["chat", "💬 Chat"], ["challenges", "🏆 Challenges"]];
-    const body = sub === "feed" ? this.feedBody() : sub === "crew" ? this.crewBody() : sub === "chat" ? this.chatBody() : this.challengesBody();
-    el.innerHTML = `<div class="social-subnav">${nav.map(([n, l]) => `<button class="ssub ${n === sub ? "active" : ""}" onclick="Social.feedTab('${n}')">${l}</button>`).join("")}</div>${body}`;
-    if (sub === "chat") this.scrollChat();
+    const body = sub2 === "feed" ? this.feedBody() : sub2 === "crew" ? this.crewBody() : sub2 === "chat" ? this.chatBody() : this.challengesBody();
+    el.innerHTML = `<div class="social-subnav">${nav.map(([n, l]) => `<button class="ssub ${n === sub2 ? "active" : ""}" onclick="Social.feedTab('${n}')">${l}</button>`).join("")}</div>${body}`;
+    if (sub2 === "chat") this.scrollChat();
   },
   feedTab(n) { this.sub = n; this.render(); },
 

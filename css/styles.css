@@ -137,22 +137,37 @@ input, select { font-family: inherit; }
   padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
 }
 
-/* tabbar */
+/* tabbar — pills on desktop, fixed bottom bar on mobile (Instagram-style) */
 .tabbar {
-  display: flex; gap: 6px; padding: 10px 16px; max-width: 900px; margin: 0 auto;
+  display: flex; gap: 6px; padding: 8px 16px; max-width: 900px; margin: 0 auto;
   position: sticky; top: 61px; z-index: 15;
 }
 .tab {
-  flex: 1; padding: 11px 8px; border: 1px solid var(--line); background: var(--card);
+  position: relative;
+  flex: 1; padding: 10px 8px; border: 1px solid var(--line); background: var(--card);
   color: var(--muted); border-radius: 12px; font-weight: 600; font-size: 14px;
   transition: all .2s ease;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
 }
+.tab i { font-style: normal; font-size: 17px; line-height: 1; }
 .tab:hover { color: var(--text); transform: translateY(-1px); }
 .tab.active {
   color: #fff; border-color: transparent;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
   box-shadow: 0 6px 18px rgba(255, 61, 127, 0.35);
 }
+.tab-badge {
+  position: absolute; top: 3px; right: 8px; min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--accent2); color: #fff; border-radius: 999px; font-size: 10px;
+  align-items: center; justify-content: center; font-weight: 800; box-shadow: 0 0 0 2px var(--bg);
+}
+.coach-subnav { margin-top: 4px; }
+.alerts-head { padding: 4px 4px 12px; }
+.alerts-head h2 { font-size: 20px; font-weight: 800; }
+/* screenshot deterrent: blur all media while the window is backgrounded */
+body.shot-guard .post-media img, body.shot-guard .cslide img,
+body.shot-guard .vp-clip img, body.shot-guard .ref-photo img,
+body.shot-guard .story-ring img { filter: blur(22px); transition: filter .12s; }
 
 .wrap { max-width: 900px; margin: 0 auto; padding: 8px 16px 40px; }
 .view { display: none; animation: fadeUp .4s ease; }
@@ -810,15 +825,30 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 
 /* ===== responsive: phones & tablets ===== */
 @media (max-width: 760px) {
-  .tabbar { overflow-x: auto; scrollbar-width: none; gap: 6px; }
-  .tabbar::-webkit-scrollbar { display: none; }
-  .tab { flex: 0 0 auto; padding: 10px 15px; }
+  /* fixed bottom nav — icons stacked over tiny labels */
+  .tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto; max-width: none;
+    margin: 0; gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(11, 13, 18, 0.94); backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line); z-index: 40;
+  }
+  .tabbar .tab {
+    flex: 1; flex-direction: column; gap: 3px; padding: 7px 2px;
+    border: none; background: none; border-radius: 10px; font-size: 10px;
+    letter-spacing: .3px; box-shadow: none;
+  }
+  .tabbar .tab i { font-size: 21px; }
+  .tabbar .tab:hover { transform: none; }
+  .tabbar .tab.active { background: none; color: var(--accent); box-shadow: none; transform: none; }
+  .tab-badge { top: 1px; right: calc(50% - 22px); box-shadow: 0 0 0 2px rgba(11,13,18,.94); }
+  .wrap { padding-bottom: 82px; }
+  .foot { margin-bottom: 70px; }
   .chal-new { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 480px) {
   .topbar { padding: 12px 14px; }
   .logo-sub { display: none; }
-  .wrap { padding: 8px 12px 40px; }
+  .wrap { padding: 8px 12px 82px; }
   .card { padding: 15px; }
   .hh-top { flex-direction: column; }
   .hh-goal { text-align: left; }
