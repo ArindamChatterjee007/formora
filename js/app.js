@@ -27,6 +27,7 @@ const App = {
     if (!u) return this.showAuth("login");
     Store.load("gymcoach_v1_" + u.id);
     this.applyAccount(u);
+    if (this.onboardProfile) this.applyOnboarding();
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
@@ -40,6 +41,15 @@ const App = {
     if (u.name && (!p.name || p.name === DEFAULT_PROFILE.name)) p.name = u.name.split(" ")[0];
     p.email = u.email || p.email || "";
     p.phone = u.phone || p.phone || "";
+    Store.save();
+  },
+
+  // seed a brand-new account's profile from the signup onboarding answers
+  applyOnboarding() {
+    const o = this.onboardProfile; this.onboardProfile = null;
+    if (!o) return;
+    Object.assign(Store.state.profile, o.patch);
+    if (o.weightKg) Store.state.weightLog = [{ date: todayISO(), kg: o.weightKg }];
     Store.save();
   },
 
@@ -134,8 +144,34 @@ const App = {
         <div class="field"><label>Password</label><input id="s-pass" type="password" placeholder="min 6 characters"></div>
         <div class="field"><label>Confirm password</label><input id="s-pass2" type="password" placeholder="repeat password"></div>
         ${err}
-        <button class="btn wide" onclick="App.doSignup()">Create account</button>
+        <button class="btn wide" onclick="App.doSignupStart()">Continue →</button>
         <div class="auth-switch">Already have an account? <a onclick="App.showAuth('login')">Log in</a></div>`;
+    } else if (this.authView === "details") {
+      body = `<div class="auth-sub">A few details so your plan fits <b>you</b> — you can change these anytime.</div>
+        <div class="form-grid">
+          <div class="field"><label>Sex</label>
+            <select id="d-gender">
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select></div>
+          <div class="field"><label>Date of birth</label><input id="d-dob" type="date" value="2000-01-01"></div>
+          <div class="field"><label>Height (cm)</label><input id="d-h" type="number" inputmode="decimal" placeholder="175"></div>
+          <div class="field"><label>Current weight (kg)</label><input id="d-w" type="number" inputmode="decimal" placeholder="70"></div>
+          <div class="field"><label>Goal weight (kg)</label><input id="d-tw" type="number" inputmode="decimal" placeholder="optional"></div>
+          <div class="field"><label>Activity level</label>
+            <select id="d-act">
+              <option value="1.375">Light (1–2 days)</option>
+              <option value="1.55" selected>Moderate (3–5 days)</option>
+              <option value="1.725">High (6–7 days)</option>
+            </select></div>
+          <div class="field"><label>Diet preference</label>
+            <select id="d-diet">
+              ${Object.keys(DIETS).map((k) => `<option value="${k}">${DIETS[k]}</option>`).join("")}
+            </select></div>
+        </div>
+        ${err}
+        <button class="btn wide" onclick="App.doCreateAccount()">Create my account</button>
+        <div class="auth-switch"><a onclick="App.showAuth('signup')">← Back</a></div>`;
     } else if (this.authView === "google") {
       body = `<div class="auth-sub">Choose your Google account</div>
         <div class="field"><label>Name</label><input id="g-name" placeholder="Your name"></div>
@@ -204,7 +240,7 @@ const App = {
     else this.showAuth("phone");
   },
 
-  async doSignup() {
+  async doSignupStart() {
     const name = document.getElementById("s-name").value.trim();
     const email = document.getElementById("s-email").value.trim();
     const phone = document.getElementById("s-phone").value.trim();
@@ -215,8 +251,32 @@ const App = {
     if (!Auth.validPhone(phone)) return this.authErr("Enter a valid phone number.");
     if (pass.length < 6) return this.authErr("Password must be at least 6 characters.");
     if (pass !== pass2) return this.authErr("Passwords don't match.");
+    if (!Auth.remote() && Auth.findByEmail(email)) return this.authErr("An account with this email already exists. Try logging in.");
+    this.signupDraft = { name, email, phone, pass };
+    this.showAuth("details");
+  },
+
+  async doCreateAccount() {
+    const g = document.getElementById("d-gender").value;
+    const dob = document.getElementById("d-dob").value;
+    const h = parseFloat(document.getElementById("d-h").value);
+    const w = parseFloat(document.getElementById("d-w").value);
+    const tw = parseFloat(document.getElementById("d-tw").value);
+    const act = parseFloat(document.getElementById("d-act").value);
+    const diet = document.getElementById("d-diet").value;
+    if (!dob) return this.authErr("Please enter your date of birth.");
+    if (!h || h < 90 || h > 250) return this.authErr("Enter a valid height in cm.");
+    if (!w || w < 25 || w > 400) return this.authErr("Enter a valid current weight in kg.");
+    const patch = {
+      gender: g, dob, heightCm: h, startWeightKg: w,
+      activityFactor: act, diet, physique: PHYSIQUES[g][0].id, physiqueChosen: false,
+      age: Math.max(13, Math.floor(daysBetween(dob, todayISO()) / 365.25)),
+    };
+    if (tw && tw >= 25 && tw <= 400) patch.targetWeightKg = tw;
+    this.onboardProfile = { patch, weightKg: w };
+    const d = this.signupDraft || {};
     try {
-      const r = await Auth.signup({ name, email, phone, password: pass });
+      const r = await Auth.signup({ name: d.name, email: d.email, phone: d.phone, password: d.pass });
       if (r && r.direct) this.enterApp();     // cloud backend: signed in
       else this.showAuth("otp");              // local: verify phone OTP
     } catch (e) { this.authErr(e.message); }
