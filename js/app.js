@@ -1430,14 +1430,18 @@ const App = {
   },
   // connect the shared backend when configured (no-op otherwise)
   initCloud(u) {
-    if (!window.FIREBASE_CONFIG || typeof Cloud === "undefined") return;
-    Cloud.init().then((okc) => {
-      if (!okc) return;
-      Cloud.registerMe(Store.state.profile, u);
-      const refresh = () => { const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); };
-      Cloud.onUsers((users) => { Social.cloud.users = users; refresh(); });
-      Cloud.onRequests((reqs) => { Social.cloud.requests = reqs; refresh(); });
-      Cloud.onFeed((posts) => { Social.cloud.feed = posts; refresh(); });
+    if (!window.SOCIAL_API || typeof Cloud === "undefined") return;
+    Cloud.init(u, Store.state.profile);
+    let last = "";
+    Cloud.start((s) => {
+      Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
+      Social.cloud.requests = (s.requests || []).filter((r) => r.to === Cloud.me && r.status === "pending");
+      Social.cloud.feed = s.posts || [];
+      const sig = JSON.stringify(s);
+      if (sig === last) return;
+      last = sig;
+      const v = document.getElementById("view-feed");
+      if (v && v.classList.contains("active")) Social.render();
     });
   },
   uploadAvatar(e) {

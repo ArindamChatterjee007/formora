@@ -26,9 +26,9 @@ window.SHEETS_API = "";
    Paste the Client ID below. Empty = simulated Google login (default).   */
 window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
 
-/* ---- Shared social backend (Firestore): paste your Firebase web config to turn
-   on real members / connect requests / shared feed. null = local-only. */
-window.FIREBASE_CONFIG = null;
+/* ---- Shared social backend (Pantry basket): real members / connect requests /
+   shared feed sync through this URL. Empty = local-only. ---- */
+window.SOCIAL_API = "https://getpantry.cloud/apiv1/pantry/88e06c30-c16e-489b-8fe9-1d495d54008e/basket/formora";
 
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
