@@ -177,9 +177,9 @@ const Social = {
         <div class="composer-top">${this.avatar(this.me(), 42)}
           <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…"></textarea>
         </div>
-        ${this.pendingPost ? `<div class="composer-photo"><img src="${this.pendingPost}" alt="preview"></div>` : ""}
+        ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         <div class="composer-actions">
-          <label class="photo-btn">📷 Photo<input type="file" accept="image/*" onchange="Social.postPhoto(event)" hidden></label>
+          <label class="photo-btn">📷 Photos<input type="file" accept="image/*" multiple onchange="Social.postPhoto(event)" hidden></label>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
@@ -194,7 +194,7 @@ const Social = {
   _cloudPost(p) {
     const likes = p.likes || {};
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
   },
   _likerName(id) { const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || null); return u ? (u.name || ("@" + u.handle)) : ("@" + id); },
   _likerNames(uids) {
@@ -235,8 +235,11 @@ const Social = {
   },
   postCard(p) {
     const a = this.persona(p.author);
-    const media = p.photo
-      ? `<div class="post-media"><img src="${p.photo}" alt="post"></div>`
+    const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
+    const media = pics.length
+      ? (pics.length > 1
+        ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${src}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
+        : `<div class="post-media"><img src="${pics[0]}" alt="post" draggable="false"></div>`)
       : `<div class="post-media grad" style="background:linear-gradient(135deg,${(p.gradient || ["#ff6b3d", "#ff3d7f"]).join(",")})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
     const comments = (p.comments || []).map((c) => `<div class="cmt"><b>${esc(this.persona(c.by).name)}</b> ${esc(c.text)}</div>`).join("");
     const reshared = p.resharedFrom ? `<div class="reshare-note">🔁 reshared from ${esc(this.persona(p.resharedFrom).name)}</div>` : "";
@@ -269,23 +272,27 @@ const Social = {
       </div>`;
   },
   postPhoto(e) {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    resizeImage(f, 900, 0.8).then((data) => { this.pendingPost = data; this.render(); }).catch(() => alert("Couldn't read that image."));
+    const files = Array.from((e.target && e.target.files) || []); if (!files.length) return;
+    if (!this.pendingPhotos) this.pendingPhotos = [];
+    const slots = Math.max(0, 6 - this.pendingPhotos.length);
+    Promise.all(files.slice(0, slots).map((f) => resizeImage(f, 1080, 0.8))).then((datas) => { this.pendingPhotos.push(...datas); this.render(); }).catch(() => alert("Couldn't read one of those images."));
   },
+  removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); this.render(); } },
   publishPost() {
     const t = document.getElementById("post-text");
     const text = t ? t.value.trim() : "";
-    if (!text && !this.pendingPost) { alert("Write something or add a photo to post."); return; }
+    const photos = this.pendingPhotos || [];
+    if (!text && !photos.length) { alert("Write something or add a photo to post."); return; }
     if (this.cloudActive()) {
-      const np = Cloud.addPost({ text, photo: this.pendingPost, gradient: this.me().colors, tag: "Flex" });
-      if (np) this.cloud.feed.unshift(np); // show my post immediately, don't wait for the next poll
-      this.pendingPost = null;
+      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, gradient: this.me().colors, tag: "Flex" });
+      if (np) this.cloud.feed.unshift(np);
+      this.pendingPhotos = [];
       if (typeof App !== "undefined" && App.toast) App.toast("Posted to the feed 🎉");
       const el = document.getElementById("post-text"); if (el) el.value = "";
       this.render();
       return;
     }
-    this.createPost({ text, photo: this.pendingPost }); this.pendingPost = null; this.render();
+    this.createPost({ text, photo: photos[0] || null }); this.pendingPhotos = []; this.render();
   },
   removePost(id) { this.deletePost(id); this.render(); },
   likePost(id) {
@@ -348,7 +355,20 @@ const Social = {
     this.addComment(id, i.value); this._openCmt = id; this.render();
     const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
   },
-  resharePost(id) { this.reshare(id); this.render(); },
+  resharePost(id) {
+    if (this.cloudActive()) {
+      const src = this.cloud.feed.find((p) => p.id === id);
+      if (src) {
+        const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, gradient: src.gradient, tag: src.tag, resharedFrom: src.author });
+        if (np) this.cloud.feed.unshift(np);
+        if (Cloud.notify && src.author !== Cloud.me) Cloud.notify(src.author, "reshare", id, src.text || "");
+        if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
+        this.render();
+      }
+      return;
+    }
+    this.reshare(id); this.render();
+  },
 
   // ---- crew UI ----
   crewCard(p, inCrew) {

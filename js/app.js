@@ -41,6 +41,7 @@ const App = {
     this.applySky();
     setInterval(() => this.applySky(), 5 * 60 * 1000);
     document.addEventListener("visibilitychange", () => this.onVisibility());
+    document.addEventListener("contextmenu", (e) => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
     if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
   },
@@ -48,10 +49,7 @@ const App = {
   onVisibility() {
     const hidden = document.hidden;
     document.body.classList.toggle("bg-paused", hidden);
-    if (typeof Cloud !== "undefined" && Cloud.active && Cloud.active()) {
-      if (hidden) Cloud.setPaused(true);
-      else { const f = document.getElementById("view-feed"); if (f && f.classList.contains("active")) Cloud.setPaused(false); }
-    }
+    if (typeof Cloud !== "undefined" && Cloud.active && Cloud.active()) Cloud.setPaused(hidden);
   },
 
   /* ---------------- AUTH GATE ---------------- */
@@ -427,7 +425,6 @@ const App = {
   },
 
   renderTab(tab) {
-    if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.setPaused) Cloud.setPaused(tab !== "feed");
     if (tab === "home") this.renderHome();
     if (tab === "feed") Social.render();
     if (tab === "today") this.renderToday();
@@ -1500,6 +1497,7 @@ const App = {
       const v = document.getElementById("view-feed");
       if (v && v.classList.contains("active")) Social.render();
     });
+    Cloud.setPaused(false);
     this.pollNotifs();
   },
   async pollNotifs() {
@@ -1527,7 +1525,7 @@ const App = {
   },
   notifText(n) {
     const who = (Social.cloudUser(n.actor) || {}).name || "Someone";
-    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request" };
+    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request", reshare: "🔁 reshared your post", message: "✉️ sent you a message" };
     return `<b>${esc(who)}</b> ${map[n.type] || esc(n.type)}${n.body ? ` — “${esc((n.body || "").slice(0, 40))}”` : ""}`;
   },
   renderNotifPanel() {

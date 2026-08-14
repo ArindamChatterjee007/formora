@@ -733,6 +733,18 @@ input, select { font-family: inherit; }
 body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg-glow, body.bg-paused .bg-grid, body.bg-paused .bg-sky { animation-play-state: paused !important; }
 .member-search { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; margin-bottom: 12px; }
 .member-search input { background: none; border: none; color: var(--text); flex: 1; font-size: 14px; outline: none; }
+/* ===== multi-image carousel + no-download ===== */
+.post-media img, .composer-photo img, .cslide img, .vp-clip img, .cp-thumb img, .av img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
+.post-media.carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; position: relative; scrollbar-width: none; }
+.post-media.carousel::-webkit-scrollbar { display: none; }
+.cslide { flex: 0 0 100%; scroll-snap-align: center; }
+.cslide img { width: 100%; display: block; max-height: 620px; object-fit: contain; background: #0d1017; }
+.cdots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; gap: 5px; justify-content: center; pointer-events: none; }
+.cdot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.6); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.composer-photos { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.cp-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; }
+.cp-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cp-x { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 11px; line-height: 1; }
 
 /* ===== action animations ===== */
 @keyframes heartPop { 0%{transform:scale(1)} 30%{transform:scale(1.45)} 55%{transform:scale(.85)} 100%{transform:scale(1)} }

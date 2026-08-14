@@ -41,7 +41,7 @@ const Cloud = {
       const r = await fetch(this.base + "/rpc/get_state", { method: "POST", headers: this._headers(), body: "{}" });
       if (!r.ok) return null;
       const s = await r.json();
-      return { users: (s && s.users) || {}, posts: (s && s.posts) || {}, requests: (s && s.requests) || {}, comments: (s && s.comments) || {} };
+      return { users: (s && s.users) || {}, posts: (s && s.posts) || {}, requests: (s && s.requests) || {}, comments: (s && s.comments) || {}, stories: (s && s.stories) || {} };
     } catch (e) { return null; }
   },
   async _write(path, body, extra) {
@@ -63,7 +63,7 @@ const Cloud = {
   addPost(post) {
     if (!this.active()) return null;
     const id = "p" + Date.now() + Math.floor(Math.random() * 999);
-    const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex" };
+    const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, photos: (post && post.photos) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex", resharedFrom: (post && post.resharedFrom) || null };
     this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
     return { id, author: this.me, likes: {}, ts: Date.now(), ...data }; // for instant optimistic display
   },
@@ -141,6 +141,49 @@ const Cloud = {
   async markNotifsRead() {
     if (!this.active() || !this.me) return;
     try { await fetch(this.base + "/notifications?uid=eq." + encodeURIComponent(this.me) + "&read=eq.false", { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ read: true }) }); } catch (e) {}
+  },
+
+  // ---- stories (24h) ----
+  addStory(photo) {
+    if (!this.active() || !photo) return null;
+    const id = "st" + Date.now() + Math.floor(Math.random() * 99999);
+    this._write("/stories", { id, author: this.me, photo }, { Prefer: "return=minimal" });
+    return { id, author: this.me, photo, ts: Date.now() };
+  },
+
+  // ---- direct messages ----
+  sendMessage(toUid, body) {
+    if (!this.active() || !toUid || !body) return null;
+    const id = "m" + Date.now() + Math.floor(Math.random() * 99999);
+    this._write("/messages", { id, from_uid: this.me, to_uid: toUid, body }, { Prefer: "return=minimal" });
+    this.notify(toUid, "message", null, body);
+    return { id, from: this.me, to: toUid, body, ts: Date.now() };
+  },
+  async getMessages(withUid) {
+    if (!this.active() || !this.me || !withUid) return [];
+    try {
+      const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 6000);
+      const me = encodeURIComponent(this.me), o = encodeURIComponent(withUid);
+      const url = this.base + "/messages?or=(and(from_uid.eq." + me + ",to_uid.eq." + o + "),and(from_uid.eq." + o + ",to_uid.eq." + me + "))&order=ts.asc&limit=300";
+      const r = await fetch(url, { headers: this._headers(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return [];
+      const rows = await r.json();
+      return rows.map((m) => ({ id: m.id, from: m.from_uid, to: m.to_uid, body: m.body, ts: new Date(m.ts).getTime() }));
+    } catch (e) { return []; }
+  },
+  async getInbox() {
+    if (!this.active() || !this.me) return [];
+    try {
+      const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 6000);
+      const me = encodeURIComponent(this.me);
+      const url = this.base + "/messages?or=(from_uid.eq." + me + ",to_uid.eq." + me + ")&order=ts.desc&limit=300";
+      const r = await fetch(url, { headers: this._headers(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return [];
+      const rows = await r.json();
+      return rows.map((m) => ({ id: m.id, from: m.from_uid, to: m.to_uid, body: m.body, ts: new Date(m.ts).getTime() }));
+    } catch (e) { return []; }
   },
 
   // ---- per-account personal data sync (streak/logs/weight follow the user across devices) ----
