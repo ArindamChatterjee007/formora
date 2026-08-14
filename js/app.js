@@ -45,12 +45,13 @@ const App = {
   },
 
   /* ---------------- AUTH GATE ---------------- */
-  enterApp() {
+  async enterApp() {
     const u = Auth.currentUser();
     if (!u) return this.showAuth("login");
     Store.load("gymcoach_v1_" + u.id);
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();
+    await this.syncAccountFromCloud(u);
     Social.load(u.id);
     this.ensureUsername();
     if (!Store.state.profile.onboarded) { this.onboardMode = "login"; return this.showAuth("details"); }
@@ -78,6 +79,22 @@ const App = {
     Object.assign(Store.state.profile, o.patch);
     if (o.weightKg) Store.logWeight(o.weightKg); // set today's weight without erasing history
     Store.save();
+  },
+
+  // pull this account's data from the cloud and union-merge it, so streak/logs/weight
+  // follow the user across devices and no entry is ever lost either way
+  async syncAccountFromCloud(u) {
+    if (typeof Cloud === "undefined" || !Cloud.active()) return;
+    Cloud._ensureIdentity(u.email);
+    let cloud = null;
+    try { cloud = await Cloud.pullAccount(); } catch (e) { cloud = null; }
+    if (cloud && cloud.profile) {
+      Store.merge(cloud);   // union of both devices — never drops a logged entry
+      Store.normalize();
+      Store.save();         // persist locally + mirror the merged result back to the cloud
+    } else if (Store.state.profile && Store.state.profile.onboarded) {
+      Cloud.pushAccount(Store.state);  // first device online — seed the cloud
+    }
   },
 
   logout() {

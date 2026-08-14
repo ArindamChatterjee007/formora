@@ -26,8 +26,6 @@ const Store = {
     }
     if (!this.state.profile) {
       this.state.profile = structuredClone(DEFAULT_PROFILE);
-      // seed the first weight entry
-      this.state.weightLog.push({ date: todayISO(), kg: DEFAULT_PROFILE.startWeightKg });
       this.save();
     }
     // guard against missing arrays after schema changes
@@ -46,7 +44,53 @@ const Store = {
     return this.state;
   },
 
+  // ensure state has all arrays/profile fields (after schema changes or a cloud restore)
+  normalize() {
+    if (!this.state.profile) this.state.profile = structuredClone(DEFAULT_PROFILE);
+    for (const k of ["weightLog", "workoutLog", "foodLog", "restDays"]) {
+      if (!Array.isArray(this.state[k])) this.state[k] = [];
+    }
+    for (const k in DEFAULT_PROFILE) {
+      if (this.state.profile[k] === undefined) this.state.profile[k] = structuredClone(DEFAULT_PROFILE[k]);
+    }
+  },
+
+  // union-merge a cloud copy into local state so no logged entry is ever lost across devices
+  merge(cloud) {
+    if (!cloud) return this.state;
+    const L = this.state, C = cloud;
+    const wMap = new Map();
+    (C.weightLog || []).forEach((w) => wMap.set(w.date, w));
+    (L.weightLog || []).forEach((w) => wMap.set(w.date, w)); // local edit wins per date
+    const weightLog = [...wMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const woMap = new Map();
+    [...(C.workoutLog || []), ...(L.workoutLog || [])].forEach((e) => woMap.set(JSON.stringify(e), e));
+    const workoutLog = [...woMap.values()].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const fMap = new Map();
+    (C.foodLog || []).forEach((f) => fMap.set(f.date, { date: f.date, items: [...(f.items || [])] }));
+    (L.foodLog || []).forEach((f) => {
+      const ex = fMap.get(f.date);
+      if (!ex) { fMap.set(f.date, { date: f.date, items: [...(f.items || [])] }); return; }
+      const seen = new Set(ex.items.map((i) => i.text));
+      (f.items || []).forEach((i) => { if (!seen.has(i.text)) ex.items.push(i); });
+    });
+    const foodLog = [...fMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const restDays = [...new Set([...(C.restDays || []), ...(L.restDays || [])])];
+    const newer = (C.updatedAt || 0) > (L.updatedAt || 0) ? C.profile : L.profile;
+    const older = newer === C.profile ? L.profile : C.profile;
+    const profile = Object.assign({}, older || {}, newer || {});
+    if (!profile.avatar && older && older.avatar) profile.avatar = older.avatar;
+    profile.onboarded = !!(L.profile && L.profile.onboarded) || !!(C.profile && C.profile.onboarded);
+    this.state = Object.assign({}, C, L, { profile, weightLog, workoutLog, foodLog, restDays });
+    return this.state;
+  },
+
   save() {
+    this.state.updatedAt = Date.now();
+    if (typeof Cloud !== "undefined" && Cloud.active && Cloud.active() && Cloud.me) {
+      clearTimeout(this._pushTimer);
+      this._pushTimer = setTimeout(() => Cloud.pushAccount(this.state), 1200);
+    }
     const put = () => localStorage.setItem(this.key, JSON.stringify(this.state));
     try { put(); return; } catch (e) {}
     // out of space: protect the user's LOGS by shedding heavy on-device images, then retry

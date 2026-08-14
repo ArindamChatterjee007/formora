@@ -22,11 +22,15 @@ const Cloud = {
     return Object.assign({ apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": "application/json" }, extra || {});
   },
 
-  init(account, profile) {
+  _ensureIdentity(email) {
     if (!this.active()) return false;
     this.base = window.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
     this.key = window.SUPABASE_ANON_KEY;
-    this.me = this.uidFor(account && account.email);
+    this.me = this.uidFor(email);
+    return true;
+  },
+  init(account, profile) {
+    if (!this._ensureIdentity(account && account.email)) return false;
     this.registerMe(profile);
     return true;
   },
@@ -75,6 +79,27 @@ const Cloud = {
     const id = fromUid + "__" + this.me;
     try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ status: "accepted" }) }); return r.ok; }
     catch (e) { return false; }
+  },
+
+  // ---- per-account personal data sync (streak/logs/weight follow the user across devices) ----
+  async pushAccount(state) {
+    if (!this.active() || !this.me || !state) return false;
+    try {
+      const r = await fetch(this.base + "/accounts", { method: "POST", headers: this._headers({ Prefer: "resolution=merge-duplicates,return=minimal" }), body: JSON.stringify({ uid: this.me, data: state, updated_at: new Date().toISOString() }) });
+      return r.ok;
+    } catch (e) { return false; }
+  },
+  async pullAccount() {
+    if (!this.active() || !this.me) return null;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(this.base + "/accounts?uid=eq." + encodeURIComponent(this.me) + "&select=data", { headers: this._headers(), signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return rows && rows[0] ? rows[0].data : null;
+    } catch (e) { return null; }
   },
 
   // poll the shared state (only while the Feed is open) and push updates to the UI
