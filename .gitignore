@@ -1,0 +1,6 @@
+# dev artifacts
+tools/
+assets/physiques/_sources.json
+assets/physiques/_preview.jpg
+.DS_Store
+*.log

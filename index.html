@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formora · Your Aesthetic Physique Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
+</head>
+<body>
+  <!-- animated background -->
+  <div class="bg-sky"></div>
+  <div class="bg-aurora"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+  <div class="bg-particles"></div>
+
+  <!-- ===== AUTH GATE ===== -->
+  <div class="auth-overlay" id="auth-overlay">
+    <div class="auth-card" id="auth-card"><!-- rendered by JS --></div>
+  </div>
+
+  <div id="app-shell" class="app-shell hidden">
+  <header class="topbar">
+    <div class="logo">
+      <span class="logo-mark">⟡</span>
+      <div>
+        <div class="logo-name">FORM<span>ORA</span></div>
+        <div class="logo-sub">aesthetic physique coach</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="chip sky" id="sky-chip"></span>
+      <span class="chip" id="chip-weight">— kg</span>
+      <span class="chip" id="chip-streak">🔥 0d</span>
+    </div>
+  </header>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-tab="today"><span>Today</span></button>
+    <button class="tab" data-tab="progress"><span>Progress</span></button>
+    <button class="tab" data-tab="nutrition"><span>Nutrition</span></button>
+    <button class="tab" data-tab="profile"><span>Profile</span></button>
+  </nav>
+
+  <main class="wrap">
+    <!-- ===== TODAY ===== -->
+    <section class="view active" id="view-today"></section>
+    <!-- ===== PROGRESS ===== -->
+    <section class="view" id="view-progress"></section>
+    <!-- ===== NUTRITION ===== -->
+    <section class="view" id="view-nutrition"></section>
+    <!-- ===== PROFILE ===== -->
+    <section class="view" id="view-profile"></section>
+  </main>
+
+  <footer class="foot">Built for Arindam · data stays private on this device</footer>
+  </div><!-- /app-shell -->
+
+  <!-- ===== MODAL (physique picker) ===== -->
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal-card" id="modal-card"></div>
+  </div>
+
+  <script src="js/config.js?v=11"></script>
+  <script src="js/data.js?v=11"></script>
+  <script src="js/storage.js?v=11"></script>
+  <script src="js/engine.js?v=11"></script>
+  <script src="js/charts.js?v=11"></script>
+  <script src="js/nutrition.js?v=11"></script>
+  <script src="js/auth.js?v=11"></script>
+  <script src="js/app.js?v=11"></script>
+</body>
+</html>
