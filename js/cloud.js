@@ -38,12 +38,12 @@ const Cloud = {
   },
   // read -> mutate -> write, with retries to survive concurrent writers
   async _update(mutate) {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const s = await this._get();
-      if (!s) { await this._sleep(400); continue; }
+      if (!s) { await this._sleep(1200); continue; }
       mutate(s);
       if (await this._put(s)) { if (this._cb) this._cb(s); return true; }
-      await this._sleep(400);
+      await this._sleep(1200);
     }
     return false;
   },
@@ -86,13 +86,18 @@ const Cloud = {
     return this._update((s) => { const r = s.requests.find((x) => x.from === fromUid && x.to === this.me); if (r) r.status = "accepted"; });
   },
 
-  // poll the shared basket and push updates to the UI
+  // poll the shared basket (only while the Feed is open) and push updates to the UI
   start(cb) {
     if (!this.active()) return;
     this._cb = cb;
-    const tick = async () => { const s = await this._get(); if (s && this._cb) this._cb(s); };
-    tick();
+    this._paused = true;
     clearInterval(this._timer);
-    this._timer = setInterval(tick, 7000);
+    this._timer = setInterval(() => { if (!this._paused) this._tick(); }, 12000);
   },
+  async _tick() {
+    if (this._busy) return;
+    this._busy = true;
+    try { const s = await this._get(); if (s && this._cb) this._cb(s); } finally { this._busy = false; }
+  },
+  setPaused(p) { this._paused = !!p; if (!p) this._tick(); },
 };

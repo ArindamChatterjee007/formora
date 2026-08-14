@@ -389,6 +389,7 @@ const App = {
   },
 
   renderTab(tab) {
+    if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.setPaused) Cloud.setPaused(tab !== "feed");
     if (tab === "home") this.renderHome();
     if (tab === "feed") Social.render();
     if (tab === "today") this.renderToday();
