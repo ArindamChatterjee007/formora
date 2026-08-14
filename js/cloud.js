@@ -54,16 +54,16 @@ const Cloud = {
     if (!this.active() || !file) return null;
     try {
       const mime = file.type || "application/octet-stream";
-      const ext = (mime.split("/")[1] || "bin").split(";")[0].replace("quicktime", "mov");
-      const path = (folder || "media") + "/" + this.me + "/" + Date.now() + "_" + Math.floor(Math.random() * 99999) + "." + ext;
+      const ext = (mime.split("/")[1] || "bin").split(";")[0].replace("quicktime", "mov").replace("jpeg", "jpg");
+      const sub = (folder || "misc") + "/" + this.me + "/" + Date.now() + "_" + Math.floor(Math.random() * 99999) + "." + ext;
       const root = window.SUPABASE_URL.replace(/\/$/, "");
-      const r = await fetch(root + "/storage/v1/object/" + path, {
+      const r = await fetch(root + "/storage/v1/object/media/" + sub, {
         method: "POST",
         headers: { apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": mime, "x-upsert": "true" },
         body: file,
       });
       if (!r.ok) return null;
-      return root + "/storage/v1/object/public/" + path;
+      return root + "/storage/v1/object/public/media/" + sub;
     } catch (e) { return null; }
   },
 

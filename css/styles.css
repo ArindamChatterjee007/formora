@@ -1024,3 +1024,19 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .dm-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
 .dm-head-u { display: flex; align-items: center; gap: 9px; cursor: pointer; }
 .chip-btn { background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 15px; }
+
+/* ===== camera/gallery chooser sheet ===== */
+.sheet { display: flex; flex-direction: column; gap: 9px; padding: 4px 2px 2px; }
+.sheet-h { font-weight: 800; font-size: 16px; text-align: center; padding: 4px 0 8px; }
+.sheet-btn { background: var(--card2); border: 1px solid var(--line); border-radius: 13px; padding: 15px; font-size: 15px; font-weight: 650; color: var(--text); cursor: pointer; text-align: center; transition: all .15s; font-family: inherit; }
+.sheet-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.sheet-btn.cancel { color: var(--muted); background: none; border-color: transparent; font-weight: 600; }
+
+/* ===== story preview (before sharing) ===== */
+.story-viewer.preview .sv-card { background: #000; }
+.story-viewer.preview .sv-head { top: 16px; }
+.sp-redo { margin-left: auto; background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.sp-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 14px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, rgba(0,0,0,.8), transparent); z-index: 3; display: flex; }
+.sp-share { flex: 1; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: 999px; padding: 15px; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; box-shadow: 0 8px 22px rgba(255,61,127,.42); transition: transform .12s; }
+.sp-share:hover { transform: translateY(-1px); }
+.sp-share:disabled { opacity: .7; cursor: default; transform: none; }

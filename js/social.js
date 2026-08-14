@@ -181,8 +181,8 @@ const Social = {
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         ${this.pendingVideo ? `<div class="composer-video"><video src="${this.pendingVideo}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
         <div class="composer-actions">
-          <label class="photo-btn">📷 Photo<input type="file" accept="image/*" multiple onchange="Social.postPhoto(event)" hidden></label>
-          <label class="photo-btn">🎬 Reel<input type="file" accept="video/*" onchange="Social.postVideo(event)" hidden></label>
+          <button class="photo-btn" onclick="Social.pickPhotos()">📷 Photo</button>
+          <button class="photo-btn" onclick="Social.pickReel()">🎬 Reel</button>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
@@ -318,36 +318,83 @@ const Social = {
     return `<div class="stories-row">${yours}${uploading}${others.map(ring).join("")}</div>`;
   },
   addStoryPick() {
-    let inp = document.getElementById("story-file");
-    if (!inp) {
-      inp = document.createElement("input");
-      inp.type = "file"; inp.accept = "image/*,video/*"; inp.id = "story-file"; inp.hidden = true;
-      inp.addEventListener("change", (e) => this.addStoryFile(e));
-      document.body.appendChild(inp);
-    }
-    inp.value = ""; inp.click();
+    this.mediaSheet("Add to your story", [
+      { label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.onStoryFile(e) },
+      { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.onStoryFile(e) },
+      { label: "🖼️ Choose from gallery", accept: "image/*,video/*", cb: (e) => this.onStoryFile(e) },
+    ]);
   },
-  async addStoryFile(e) {
+  // generic camera/gallery chooser sheet (reused by stories, photos & reels)
+  mediaSheet(title, opts) {
+    this._sheet = opts;
+    const card = document.getElementById("modal-card");
+    if (!card) return;
+    card.innerHTML = `<div class="sheet"><div class="sheet-h">${esc(title)}</div>${opts.map((o, i) => `<button class="sheet-btn" onclick="Social._sheetPick(${i})">${o.label}</button>`).join("")}<button class="sheet-btn cancel" onclick="App.closeModal()">Cancel</button></div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  _sheetPick(i) {
+    if (typeof App !== "undefined" && App.closeModal) App.closeModal();
+    const o = (this._sheet || [])[i]; if (!o) return;
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = o.accept;
+    if (o.capture) inp.setAttribute("capture", "environment");
+    if (o.multiple) inp.multiple = true;
+    inp.hidden = true;
+    inp.addEventListener("change", (e) => o.cb(e));
+    document.body.appendChild(inp);
+    inp.click();
+  },
+  // story: preview the picked media full-screen before sharing (Instagram/Snapchat-style)
+  onStoryFile(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return; }
     const isVid = /^video\//.test(f.type);
     if (isVid && f.size > 50 * 1024 * 1024) { alert("That clip is too large (max 50MB). Try a shorter one."); return; }
-    this.pendingStoryUploading = true; this.render();
+    if (this._storyDraft && this._storyDraft.url) URL.revokeObjectURL(this._storyDraft.url);
+    this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f) };
+    this.storyPreview();
+  },
+  storyPreview() {
+    const d = this._storyDraft; if (!d) return;
+    let ov = document.getElementById("story-preview");
+    if (!ov) { ov = document.createElement("div"); ov.id = "story-preview"; document.body.appendChild(ov); }
+    ov.className = "story-viewer preview";
+    const media = d.isVid ? `<video src="${d.url}" class="sv-media" autoplay loop muted playsinline></video>` : `<img src="${d.url}" class="sv-media" alt="preview" draggable="false">`;
+    ov.innerHTML = `<div class="sv-card">
+      <div class="sv-head"><button class="sv-x" onclick="Social.cancelStory()">✕</button><div class="sv-name" style="margin-left:4px">New story</div><button class="sp-redo" onclick="Social.cancelStory();Social.addStoryPick()">↻ Retake</button></div>
+      ${media}
+      <div class="sp-bar"><button class="sp-share" onclick="Social.shareStory()">${d.isVid ? "Share reel to your story" : "Share to your story"} →</button></div>
+    </div>`;
+  },
+  cancelStory() { const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; const ov = document.getElementById("story-preview"); if (ov) ov.remove(); },
+  async shareStory() {
+    const d = this._storyDraft; if (!d) return;
+    const ov = document.getElementById("story-preview");
+    const btn = ov && ov.querySelector(".sp-share"); if (btn) { btn.textContent = "Uploading…"; btn.disabled = true; }
     let url;
     try {
-      if (isVid) { url = await Cloud.uploadMedia(f, "stories"); }
-      else {
-        const dataUrl = await resizeImage(f, 1280, 0.82);
-        const blob = await (await fetch(dataUrl)).blob();
-        url = await Cloud.uploadMedia(new File([blob], "s.jpg", { type: "image/jpeg" }), "stories");
-      }
+      if (d.isVid) url = await Cloud.uploadMedia(d.file, "stories");
+      else { const dataUrl = await resizeImage(d.file, 1280, 0.82); const blob = await (await fetch(dataUrl)).blob(); url = await Cloud.uploadMedia(new File([blob], "s.jpg", { type: "image/jpeg" }), "stories"); }
     } catch (err) { url = null; }
-    this.pendingStoryUploading = false;
-    if (!url) { alert("Couldn't upload your story — check your connection and try again."); this.render(); return; }
-    const st = Cloud.addStory(url, isVid ? "video" : "photo");
+    if (!url) { alert("Couldn't upload your story — check your connection and try again."); if (btn) { btn.textContent = (d.isVid ? "Share reel to your story" : "Share to your story") + " →"; btn.disabled = false; } return; }
+    const st = Cloud.addStory(url, d.isVid ? "video" : "photo");
     if (st) this.cloud.stories.push(st);
+    this.cancelStory();
     if (typeof App !== "undefined" && App.toast) App.toast("Story shared ✨ visible for 24h");
     this.render();
+  },
+  // composer: camera/gallery choosers for photos & reels
+  pickPhotos() {
+    this.mediaSheet("Add a photo", [
+      { label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.postPhoto(e) },
+      { label: "🖼️ Choose from gallery", accept: "image/*", multiple: true, cb: (e) => this.postPhoto(e) },
+    ]);
+  },
+  pickReel() {
+    this.mediaSheet("Add a reel", [
+      { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.postVideo(e) },
+      { label: "🖼️ Choose from gallery", accept: "video/*", cb: (e) => this.postVideo(e) },
+    ]);
   },
   openStory(authorUid) {
     const groups = this.storyGroups();
