@@ -577,7 +577,7 @@ input, select { font-family: inherit; }
 .hh-goal-l { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
 .hh-goal-v { font-weight: 800; color: var(--accent); }
 .hh-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
-.stat { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; text-align: center; }
+.hh-stats .stat { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; text-align: center; }
 .stat-v { font-size: 19px; font-weight: 800; }
 .stat-v small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
 .stat-l { font-size: 11px; color: var(--muted); margin-top: 3px; }
@@ -601,6 +601,50 @@ input, select { font-family: inherit; }
   .home-grid { grid-template-columns: 1fr; }
   .hh-stats { grid-template-columns: repeat(2, 1fr); }
   .home-quick { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ===== dynamic polish / motion ===== */
+.view.active > * { animation: cardIn .5s cubic-bezier(.22,.61,.36,1) backwards; }
+.view.active > *:nth-child(1) { animation-delay: .02s; }
+.view.active > *:nth-child(2) { animation-delay: .09s; }
+.view.active > *:nth-child(3) { animation-delay: .16s; }
+.view.active > *:nth-child(4) { animation-delay: .23s; }
+.view.active > *:nth-child(n+5) { animation-delay: .3s; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.985); } }
+
+.card { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); box-shadow: 0 16px 36px rgba(0,0,0,.38); }
+
+.home-hero { position: relative; overflow: hidden; background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 26%, var(--card)), color-mix(in srgb, var(--accent2) 20%, var(--card)), var(--card)); background-size: 220% 220%; animation: heroShift 12s ease infinite; }
+@keyframes heroShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.home-hero::after { content: ""; position: absolute; right: -60px; top: -70px; width: 230px; height: 230px; pointer-events: none; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%); filter: blur(16px); animation: floatGlow 7s ease-in-out infinite alternate; }
+@keyframes floatGlow { from { transform: translate(0,0) scale(1); opacity: .65; } to { transform: translate(-18px,16px) scale(1.14); opacity: 1; } }
+/* keep the hero's entrance AND its continuous gradient (beats the generic entrance rule) */
+.view.active > .home-hero { animation: cardIn .5s cubic-bezier(.22,.61,.36,1) backwards, heroShift 12s ease infinite; }
+
+.hh-stats .stat { transition: transform .18s ease, border-color .18s ease; }
+.hh-stats .stat:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.stat-v .cnt { font-variant-numeric: tabular-nums; }
+
+.bar-f { position: relative; }
+.bar-f::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); transform: translateX(-100%); animation: shimmer 2.4s ease-in-out infinite; }
+@keyframes shimmer { 55%, 100% { transform: translateX(100%); } }
+
+.hc-badge { animation: badgePop .45s ease backwards; }
+@keyframes badgePop { from { opacity: 0; transform: scale(.82); } }
+
+.quick { position: relative; overflow: hidden; }
+.quick::before { content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent); transform: skewX(-20deg); transition: left .5s ease; }
+.quick:hover::before { left: 140%; }
+
+.btn { position: relative; overflow: hidden; }
+.btn::after { content: ""; position: absolute; top: 0; left: -120%; width: 55%; height: 100%; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent); transform: skewX(-20deg); transition: left .55s ease; }
+.btn:hover::after { left: 150%; }
+.btn:active { transform: translateY(0) scale(.98); }
+
+@media (prefers-reduced-motion: reduce) {
+  .view.active > *, .home-hero, .home-hero::after, .bar-f::after, .hc-badge { animation: none !important; }
+  .card:hover, .hh-stats .stat:hover { transform: none; }
 }
 .plan-actions .btn { flex: 1; }
 .meal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }

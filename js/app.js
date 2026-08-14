@@ -392,10 +392,10 @@ const App = {
           </div>
         </div>
         <div class="hh-stats">
-          <div class="stat"><div class="stat-v">${s.weight}<small>kg</small></div><div class="stat-l">Weight</div></div>
-          <div class="stat"><div class="stat-v">🔥 ${Engine.streak()}</div><div class="stat-l">Day streak</div></div>
-          <div class="stat"><div class="stat-v">${s.bmi}</div><div class="stat-l">BMI · ${s.bmiClass}</div></div>
-          <div class="stat"><div class="stat-v">${s.calTarget}</div><div class="stat-l">Target kcal</div></div>
+          <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.weight}" data-dec="${Number.isInteger(s.weight) ? 0 : 1}">0</span><small>kg</small></div><div class="stat-l">Weight</div></div>
+          <div class="stat"><div class="stat-v">🔥 <span class="cnt" data-to="${Engine.streak()}">0</span></div><div class="stat-l">Day streak</div></div>
+          <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.bmi}" data-dec="1">0</span></div><div class="stat-l">BMI · ${s.bmiClass}</div></div>
+          <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.calTarget}">0</span></div><div class="stat-l">Target kcal</div></div>
         </div>
       </section>
 
@@ -415,9 +415,9 @@ const App = {
 
         <div class="card home-card">
           <div class="hc-head"><h2>Today's nutrition</h2><span class="hc-badge">${eaten} / ${s.calTarget} kcal</span></div>
-          <div class="bar"><div class="bar-f" style="width:${calPct}%"></div></div>
+          <div class="bar"><div class="bar-f" data-w="${calPct}" style="width:0"></div></div>
           <div class="bar-l"><span>Calories</span><span>${calPct}%</span></div>
-          <div class="bar"><div class="bar-f pro" style="width:${proPct}%"></div></div>
+          <div class="bar"><div class="bar-f pro" data-w="${proPct}" style="width:0"></div></div>
           <div class="bar-l"><span>Protein</span><span>${eatenP} / ${s.proteinG}g</span></div>
           <div class="hc-actions">
             <button class="btn" onclick="App.goTab('nutrition')">Plan / log meals →</button>
@@ -431,6 +431,30 @@ const App = {
         <button class="quick" onclick="App.goTab('progress')"><span>📈</span>Progress</button>
         <button class="quick" onclick="App.goTab('profile')"><span>⚙️</span>Profile</button>
       </div>`;
+    this.animateHome(el);
+  },
+
+  // count-up the stat numbers + grow the progress bars on the Home dashboard
+  animateHome(el) {
+    const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.querySelectorAll(".cnt").forEach((n) => {
+      const to = parseFloat(n.dataset.to) || 0;
+      const dec = parseInt(n.dataset.dec || "0", 10);
+      if (reduce) { n.textContent = to.toFixed(dec); return; }
+      const start = performance.now(), dur = 750;
+      const tick = (t) => {
+        const prog = Math.min(1, (t - start) / dur);
+        const eased = 1 - Math.pow(1 - prog, 3);
+        n.textContent = (to * eased).toFixed(dec);
+        if (prog < 1) requestAnimationFrame(tick); else n.textContent = to.toFixed(dec);
+      };
+      requestAnimationFrame(tick);
+    });
+    el.querySelectorAll(".bar-f").forEach((b) => {
+      const w = (b.dataset.w || "0") + "%";
+      if (reduce) { b.style.width = w; return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => { b.style.width = w; }));
+    });
   },
 
   /* ---------------- TODAY ---------------- */
