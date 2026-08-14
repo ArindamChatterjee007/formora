@@ -32,7 +32,7 @@ const App = {
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
     document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", i === 0));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-today"));
+    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-home"));
     this.renderAll();
   },
 
@@ -334,7 +334,7 @@ const App = {
 
   renderAll() {
     this.renderChips();
-    this.renderTab("today");
+    this.renderTab("home");
   },
 
   renderChips() {
@@ -345,10 +345,92 @@ const App = {
   },
 
   renderTab(tab) {
+    if (tab === "home") this.renderHome();
     if (tab === "today") this.renderToday();
     if (tab === "progress") this.renderProgress();
     if (tab === "nutrition") this.renderNutrition();
     if (tab === "profile") this.renderProfile();
+  },
+
+  goTab(tab) {
+    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
+    if (btn) btn.click();
+  },
+
+  /* ---------------- HOME (dashboard) ---------------- */
+  renderHome() {
+    const el = document.getElementById("view-home");
+    if (!el) return;
+    const p = Store.state.profile;
+    const s = Engine.stats();
+    const today = todayISO();
+    const done = Store.workoutOn(today);
+    const isRest = Store.state.restDays.includes(today);
+    const day = Store.foodOn(today);
+    const eaten = day.items.reduce((n, i) => n + (i.kcal || 0), 0);
+    const eatenP = day.items.reduce((n, i) => n + (i.protein || 0), 0);
+    const calPct = Math.min(100, Math.round((eaten / s.calTarget) * 100));
+    const proPct = Math.min(100, Math.round((eatenP / s.proteinG) * 100));
+    const phys = Engine.getPhysique();
+    const tp = this.timePeriod();
+    const rec = Engine.recommendSplit();
+    const trainStatus = done
+      ? `Session done ✅ · ${done.exercises.length} exercises`
+      : isRest ? "Rest day 😴 — recovery mode" : `Suggested: ${SPLITS[rec].label}`;
+    const trainBadge = done ? "Done" : isRest ? "Rest" : "Planned";
+
+    el.innerHTML = `
+      <section class="home-hero card">
+        <div class="hh-top">
+          <div>
+            <div class="hh-greet">${tp.greet}, ${esc(p.name)} 👋</div>
+            <div class="hh-date">${prettyDate(today)}</div>
+          </div>
+          <div class="hh-goal">
+            <span class="hh-goal-l">Your goal</span>
+            <span class="hh-goal-v">${esc(phys.name)}</span>
+          </div>
+        </div>
+        <div class="hh-stats">
+          <div class="stat"><div class="stat-v">${s.weight}<small>kg</small></div><div class="stat-l">Weight</div></div>
+          <div class="stat"><div class="stat-v">🔥 ${Engine.streak()}</div><div class="stat-l">Day streak</div></div>
+          <div class="stat"><div class="stat-v">${s.bmi}</div><div class="stat-l">BMI · ${s.bmiClass}</div></div>
+          <div class="stat"><div class="stat-v">${s.calTarget}</div><div class="stat-l">Target kcal</div></div>
+        </div>
+      </section>
+
+      ${!p.physiqueChosen ? `<div class="card phys-cta home-cta">
+        <div><b>Pick your target physique</b><span>Choose how you want to look — your whole plan adapts to it.</span></div>
+        <button class="btn" onclick="App.openPhysiquePicker()">Choose look →</button>
+      </div>` : ""}
+
+      <div class="home-grid">
+        <div class="card home-card">
+          <div class="hc-head"><h2>Today's training</h2><span class="hc-badge">${trainBadge}</span></div>
+          <div class="hc-line">${trainStatus}</div>
+          <div class="hc-actions">
+            <button class="btn" onclick="App.goTab('today')">${done || isRest ? "Open Today" : "Start workout →"}</button>
+          </div>
+        </div>
+
+        <div class="card home-card">
+          <div class="hc-head"><h2>Today's nutrition</h2><span class="hc-badge">${eaten} / ${s.calTarget} kcal</span></div>
+          <div class="bar"><div class="bar-f" style="width:${calPct}%"></div></div>
+          <div class="bar-l"><span>Calories</span><span>${calPct}%</span></div>
+          <div class="bar"><div class="bar-f pro" style="width:${proPct}%"></div></div>
+          <div class="bar-l"><span>Protein</span><span>${eatenP} / ${s.proteinG}g</span></div>
+          <div class="hc-actions">
+            <button class="btn" onclick="App.goTab('nutrition')">Plan / log meals →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-quick">
+        <button class="quick" onclick="App.goTab('nutrition')"><span>🍽️</span>Plan meals</button>
+        <button class="quick" onclick="App.goTab('today')"><span>💪</span>Workout</button>
+        <button class="quick" onclick="App.goTab('progress')"><span>📈</span>Progress</button>
+        <button class="quick" onclick="App.goTab('profile')"><span>⚙️</span>Profile</button>
+      </div>`;
   },
 
   /* ---------------- TODAY ---------------- */
