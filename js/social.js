@@ -129,7 +129,7 @@ const Social = {
   sub: "feed",
   pendingPost: null,
   chatWith: null,
-  cloud: { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [] },
+  cloud: { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] },
   cloudActive() { return typeof Cloud !== "undefined" && Cloud.active(); },
   cloudUser(uid) {
     const u = this.cloud.users.find((x) => x.uid === uid);
@@ -179,15 +179,17 @@ const Social = {
           <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…"></textarea>
         </div>
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
+        ${this.pendingVideo ? `<div class="composer-video"><video src="${this.pendingVideo}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
         <div class="composer-actions">
-          <label class="photo-btn">📷 Photos<input type="file" accept="image/*" multiple onchange="Social.postPhoto(event)" hidden></label>
+          <label class="photo-btn">📷 Photo<input type="file" accept="image/*" multiple onchange="Social.postPhoto(event)" hidden></label>
+          <label class="photo-btn">🎬 Reel<input type="file" accept="video/*" onchange="Social.postVideo(event)" hidden></label>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
     if (this.cloudActive()) {
       const visible = this.cloud.feed.filter((p) => this._canSeePost(p));
       const posts = visible.map((p) => this.postCard(this._cloudPost(p))).join("");
-      return composer + (visible.length ? posts
+      return this.storiesRow() + composer + (visible.length ? posts
         : `<div class="card"><div class="sub" style="text-align:center;padding:22px 6px">No posts yet — share your first update above and your crew will see it 💪</div></div>`);
     }
     return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
@@ -195,7 +197,7 @@ const Social = {
   _cloudPost(p) {
     const likes = p.likes || {};
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares: p.reshares || 0, ts: p.ts || Date.now() };
   },
   _likerName(id) { const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || null); return u ? (u.name || ("@" + u.handle)) : ("@" + id); },
   _likerNames(uids) {
@@ -237,7 +239,9 @@ const Social = {
   postCard(p) {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
-    const media = pics.length
+    const media = p.video
+      ? `<div class="post-media video"><video src="${p.video}" controls playsinline preload="metadata" loop></video><span class="reel-badge">▶ Reel</span></div>`
+      : pics.length
       ? (pics.length > 1
         ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${src}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
         : `<div class="post-media"><img src="${pics[0]}" alt="post" draggable="false"></div>`)
@@ -279,16 +283,139 @@ const Social = {
     Promise.all(files.slice(0, slots).map((f) => resizeImage(f, 1080, 0.8))).then((datas) => { this.pendingPhotos.push(...datas); this.render(); }).catch(() => alert("Couldn't read one of those images."));
   },
   removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); this.render(); } },
+  async postVideo(e) {
+    const f = e.target && e.target.files && e.target.files[0]; if (!f) return;
+    if (!this.cloudActive()) { alert("Video reels need you to be signed in and online."); return; }
+    if (f.size > 50 * 1024 * 1024) { alert("That clip is too large (max 50MB). Try a shorter reel."); return; }
+    this.pendingVideoUploading = true; this.render();
+    const url = await Cloud.uploadMedia(f, "videos");
+    this.pendingVideoUploading = false;
+    if (!url) { alert("Couldn't upload that video — check your connection and try again."); this.render(); return; }
+    this.pendingVideo = url; this.render();
+  },
+  removeVideo() { this.pendingVideo = null; this.render(); },
+
+  // ---- stories (Instagram-style, 24h) ----
+  storyGroups() {
+    const byAuthor = {};
+    (this.cloud.stories || []).forEach((s) => { (byAuthor[s.author] = byAuthor[s.author] || []).push(s); });
+    const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    return Object.keys(byAuthor)
+      .map((a) => ({ author: a, items: byAuthor[a].slice().sort((x, y) => (x.ts || 0) - (y.ts || 0)) }))
+      .sort((g1, g2) => (g1.author === meId ? -1 : g2.author === meId ? 1 : (g2.items[g2.items.length - 1].ts || 0) - (g1.items[g1.items.length - 1].ts || 0)));
+  },
+  storiesRow() {
+    const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    const groups = this.storyGroups();
+    const mine = groups.find((g) => g.author === meId);
+    const others = groups.filter((g) => g.author !== meId);
+    const ring = (g) => {
+      const u = (g.author === meId) ? this.me() : (this.cloudUser(g.author) || { name: "?", handle: "?", colors: ["#8b93a7", "#262c3a"], avatar: null });
+      return `<button class="story-ring has" onclick="Social.openStory('${g.author}')"><span class="sr-halo">${this.avatar(u, 60)}</span><span class="sr-name">${esc((u.name || u.handle || "?").split(" ")[0])}</span></button>`;
+    };
+    const yours = `<button class="story-ring${mine ? " has" : ""}" onclick="${mine ? `Social.openStory('${meId}')` : "Social.addStoryPick()"}"><span class="sr-halo">${this.avatar(this.me(), 60)}<span class="sr-plus" onclick="event.stopPropagation();Social.addStoryPick()">＋</span></span><span class="sr-name">Your story</span></button>`;
+    const uploading = this.pendingStoryUploading ? `<div class="story-ring"><span class="sr-halo up">⏳</span><span class="sr-name">Posting…</span></div>` : "";
+    return `<div class="stories-row">${yours}${uploading}${others.map(ring).join("")}</div>`;
+  },
+  addStoryPick() {
+    let inp = document.getElementById("story-file");
+    if (!inp) {
+      inp = document.createElement("input");
+      inp.type = "file"; inp.accept = "image/*,video/*"; inp.id = "story-file"; inp.hidden = true;
+      inp.addEventListener("change", (e) => this.addStoryFile(e));
+      document.body.appendChild(inp);
+    }
+    inp.value = ""; inp.click();
+  },
+  async addStoryFile(e) {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return; }
+    const isVid = /^video\//.test(f.type);
+    if (isVid && f.size > 50 * 1024 * 1024) { alert("That clip is too large (max 50MB). Try a shorter one."); return; }
+    this.pendingStoryUploading = true; this.render();
+    let url;
+    try {
+      if (isVid) { url = await Cloud.uploadMedia(f, "stories"); }
+      else {
+        const dataUrl = await resizeImage(f, 1280, 0.82);
+        const blob = await (await fetch(dataUrl)).blob();
+        url = await Cloud.uploadMedia(new File([blob], "s.jpg", { type: "image/jpeg" }), "stories");
+      }
+    } catch (err) { url = null; }
+    this.pendingStoryUploading = false;
+    if (!url) { alert("Couldn't upload your story — check your connection and try again."); this.render(); return; }
+    const st = Cloud.addStory(url, isVid ? "video" : "photo");
+    if (st) this.cloud.stories.push(st);
+    if (typeof App !== "undefined" && App.toast) App.toast("Story shared ✨ visible for 24h");
+    this.render();
+  },
+  openStory(authorUid) {
+    const groups = this.storyGroups();
+    const gi = groups.findIndex((g) => g.author === authorUid);
+    if (gi < 0) return;
+    this._storyGroups = groups; this._storyGi = gi; this._storyIi = 0;
+    this.renderStory();
+  },
+  renderStory() {
+    const g = this._storyGroups && this._storyGroups[this._storyGi];
+    if (!g) return this.closeStory();
+    const item = g.items[this._storyIi];
+    if (!item) return this.storyNext();
+    const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    const u = (g.author === meId) ? this.me() : (this.cloudUser(g.author) || { name: "?", handle: "?", colors: ["#8b93a7", "#262c3a"], avatar: null });
+    const dur = item.kind === "video" ? 15 : 5;
+    const bars = g.items.map((it, i) => `<span class="sv-bar"><b class="${i < this._storyIi ? "done" : i === this._storyIi ? "run" : ""}"></b></span>`).join("");
+    const media = item.kind === "video"
+      ? `<video src="${item.photo}" class="sv-media" playsinline autoplay onended="Social.storyNext()"></video>`
+      : `<img src="${item.photo}" class="sv-media" alt="story" draggable="false">`;
+    const mineDel = (g.author === meId) ? `<button class="sv-del" onclick="Social.deleteStory('${item.id}')" title="Delete">🗑️</button>` : "";
+    let ov = document.getElementById("story-viewer");
+    if (!ov) { ov = document.createElement("div"); ov.id = "story-viewer"; document.body.appendChild(ov); }
+    ov.className = "story-viewer";
+    ov.innerHTML = `<div class="sv-card">
+      <div class="sv-bars">${bars}</div>
+      <div class="sv-head" onclick="App.closeModal();Social.viewProfile('${g.author}')">${this.avatar(u, 34)}<div class="sv-name">${esc(u.name)}</div><div class="sv-time">${this.timeAgo(item.ts)}</div>${mineDel}<button class="sv-x" onclick="event.stopPropagation();Social.closeStory()">✕</button></div>
+      ${media}
+      <button class="sv-tap prev" onclick="Social.storyPrev()" aria-label="Previous"></button>
+      <button class="sv-tap next" onclick="Social.storyNext()" aria-label="Next"></button>
+    </div>`;
+    clearTimeout(this._storyTimer);
+    if (item.kind !== "video") this._storyTimer = setTimeout(() => this.storyNext(), dur * 1000);
+    requestAnimationFrame(() => { const run = ov.querySelector(".sv-bar b.run"); if (run) { run.style.transition = `width ${dur}s linear`; run.style.width = "100%"; } });
+  },
+  storyNext() {
+    clearTimeout(this._storyTimer);
+    const g = this._storyGroups && this._storyGroups[this._storyGi];
+    if (g && this._storyIi < g.items.length - 1) { this._storyIi++; return this.renderStory(); }
+    if (this._storyGroups && this._storyGi < this._storyGroups.length - 1) { this._storyGi++; this._storyIi = 0; return this.renderStory(); }
+    this.closeStory();
+  },
+  storyPrev() {
+    clearTimeout(this._storyTimer);
+    if (this._storyIi > 0) { this._storyIi--; return this.renderStory(); }
+    if (this._storyGi > 0) { this._storyGi--; this._storyIi = 0; return this.renderStory(); }
+    this.renderStory();
+  },
+  closeStory() { clearTimeout(this._storyTimer); const ov = document.getElementById("story-viewer"); if (ov) ov.remove(); },
+  deleteStory(id) {
+    if (typeof Cloud !== "undefined" && Cloud.deleteStory) Cloud.deleteStory(id);
+    this.cloud.stories = (this.cloud.stories || []).filter((s) => s.id !== id);
+    this.closeStory();
+    if (typeof App !== "undefined" && App.toast) App.toast("Story removed");
+    this.render();
+  },
+
   publishPost() {
     const t = document.getElementById("post-text");
     const text = t ? t.value.trim() : "";
     const photos = this.pendingPhotos || [];
-    if (!text && !photos.length) { alert("Write something or add a photo to post."); return; }
+    const video = this.pendingVideo || null;
+    if (!text && !photos.length && !video) { alert("Write something, add a photo or a reel to post."); return; }
     if (this.cloudActive()) {
-      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, gradient: this.me().colors, tag: "Flex" });
+      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex" });
       if (np) this.cloud.feed.unshift(np);
-      this.pendingPhotos = [];
-      if (typeof App !== "undefined" && App.toast) App.toast("Posted to the feed 🎉");
+      this.pendingPhotos = []; this.pendingVideo = null;
+      if (typeof App !== "undefined" && App.toast) App.toast(video ? "Reel posted 🎬" : "Posted to the feed 🎉");
       const el = document.getElementById("post-text"); if (el) el.value = "";
       this.render();
       return;
@@ -420,7 +547,7 @@ const Social = {
     return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}</div></div>`;
   },
   memberCta(uid) {
-    if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" disabled>Connected ✓</button>`;
+    if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.openDM('${uid}')">💬 Message</button>`;
     if ((this.cloud.sent || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.cancelRequest('${uid}')">Requested · Cancel</button>`;
     return `<button class="btn sm" onclick="event.stopPropagation();Social.requestMember('${uid}')">Connect</button>`;
   },
@@ -475,7 +602,7 @@ const Social = {
     ].filter(Boolean).join("");
     const connected = this.inCrew(uid) || (this.cloud.connections || []).includes(uid);
     const requested = (this.cloud.sent || []).includes(uid);
-    const cta = isMe ? "" : connected ? `<button class="btn ghost wide" disabled>Connected ✓</button>`
+    const cta = isMe ? "" : connected ? `<button class="btn wide" onclick="App.closeModal();Social.openDM('${uid}')">💬 Message</button>`
       : requested ? `<button class="btn ghost wide" onclick="Social.cancelRequest('${uid}');App.closeModal()">Requested · Tap to cancel</button>`
       : `<button class="btn wide" onclick="Social.requestMember('${uid}');App.closeModal()">Connect</button>`;
     const isFriend = this.inCrew(uid) || (this.cloud.connections || []).includes(uid);
@@ -519,6 +646,7 @@ const Social = {
 
   // ---- chat UI ----
   chatBody() {
+    if (this.cloudActive()) return this.dmBody();
     const crew = this.crewList();
     if (!crew.length) return `<div class="card"><div class="card-head"><h2>Chat</h2></div><div class="sub">Add crew members first — then message and hype each other up.</div><button class="btn wide" onclick="Social.feedTab('crew')">Find your crew →</button></div>`;
     const active = this.chatWith && this.inCrew(this.chatWith) ? this.chatWith : crew[0].id;
@@ -532,6 +660,72 @@ const Social = {
         <div class="chat-input"><input id="chat-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendChat()"><button class="btn" onclick="Social.sendChat()">Send</button></div>
       </div>
     </div>`;
+  },
+  // ---- cloud direct messages (Instagram-style DMs) ----
+  dmBody() {
+    const meId = Cloud.me;
+    if (!this._dmInboxLoaded) { this._dmInboxLoaded = true; this.loadInbox(); }
+    if (this._dmWith) {
+      const u = (this._dmWith === meId) ? this.me() : (this.cloudUser(this._dmWith) || { name: "Member", handle: this._dmWith, colors: ["#8b93a7", "#262c3a"], avatar: null });
+      const msgs = this._dmMsgs || [];
+      const thread = this._dmThreadLoading
+        ? `<div class="sub" style="padding:20px;text-align:center">Loading…</div>`
+        : (msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === meId ? "me" : "them"}">${this._urlify2(m.body)}</div>`).join("") : `<div class="sub" style="padding:20px;text-align:center">Say hi to ${esc((u.name || "").split(" ")[0])} 👋</div>`);
+      return `<div class="card chat-card">
+        <div class="dm-head"><button class="icon-btn" onclick="Social.closeDM()">←</button><div class="dm-head-u" onclick="Social.viewProfile('${this._dmWith}')">${this.avatar(u, 38)}<div><div class="ch-name">${esc(u.name)}</div><div class="ch-sub">@${esc(u.handle)}</div></div></div></div>
+        <div class="chat-thread" id="chat-thread">${thread}</div>
+        <div class="chat-input"><input id="dm-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendDM()"><button class="btn" onclick="Social.sendDM()">Send</button></div>
+      </div>`;
+    }
+    const convos = this._dmConvos || [];
+    const crew = (this.cloud.connections || []).map((uid) => this.cloudUser(uid)).filter(Boolean);
+    const startRow = crew.length ? `<div class="dm-newrow">${crew.map((u) => `<button class="dm-new" onclick="Social.openDM('${u.id}')" title="${esc(u.name)}">${this.avatar(u, 52)}<span>${esc(u.name.split(" ")[0])}</span></button>`).join("")}</div>` : "";
+    const rows = convos.map((c) => {
+      const u = this.cloudUser(c.uid) || { name: "Member", handle: c.uid, colors: ["#8b93a7", "#262c3a"], avatar: null };
+      return `<div class="dm-row" onclick="Social.openDM('${c.uid}')">${this.avatar(u, 48)}<div class="dm-meta"><div class="dm-name">${esc(u.name)}</div><div class="dm-last">${esc((c.last || "").slice(0, 46))}</div></div><div class="dm-time">${this.timeAgo(c.ts)}</div></div>`;
+    }).join("");
+    return `<div class="card">
+      <div class="card-head"><h2>Messages</h2><span class="tag">💬</span></div>
+      ${startRow}
+      ${this._dmInboxLoading ? `<div class="sub" style="padding:10px 2px">Loading chats…</div>` : (convos.length ? `<div class="dm-list">${rows}</div>` : `<div class="sub" style="padding:10px 2px">No messages yet. Tap a crew member above to start a chat, or connect with people in Search.</div>`)}
+    </div>`;
+  },
+  _urlify2(s) { return esc(s || ""); },
+  loadInbox() {
+    if (typeof Cloud === "undefined" || !Cloud.getInbox) return;
+    this._dmInboxLoading = true;
+    Cloud.getInbox().then((msgs) => {
+      const meId = Cloud.me, map = {};
+      (msgs || []).forEach((m) => { const other = m.from === meId ? m.to : m.from; if (!map[other] || m.ts > map[other].ts) map[other] = { uid: other, last: (m.from === meId ? "You: " : "") + m.body, ts: m.ts }; });
+      this._dmConvos = Object.values(map).sort((a, b) => b.ts - a.ts);
+      this._dmInboxLoading = false;
+      if (this.sub === "chat" && !this._dmWith) this.render();
+    });
+  },
+  openDM(uid) {
+    if (typeof App !== "undefined" && App.closeModal) App.closeModal();
+    if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
+    this.sub = "chat"; this._dmWith = uid; this._dmMsgs = []; this._dmThreadLoading = true;
+    this.render();
+    if (typeof Cloud !== "undefined" && Cloud.getMessages) {
+      Cloud.getMessages(uid).then((msgs) => { this._dmMsgs = msgs || []; this._dmThreadLoading = false; if (this.sub === "chat" && this._dmWith === uid) { this.render(); this.scrollChat(); } });
+    }
+  },
+  closeDM() { this._dmWith = null; this._dmInboxLoaded = false; this.render(); this.loadInbox(); },
+  sendDM() {
+    const i = document.getElementById("dm-text");
+    if (!i || !i.value.trim() || !this._dmWith) return;
+    const body = i.value.trim(); i.value = "";
+    const sent = (typeof Cloud !== "undefined" && Cloud.sendMessage) ? Cloud.sendMessage(this._dmWith, body) : null;
+    if (sent) this._dmMsgs = (this._dmMsgs || []).concat([sent]);
+    this.render(); this.scrollChat();
+  },
+  refreshDM() {
+    if (!this._dmWith || typeof Cloud === "undefined" || !Cloud.getMessages) return;
+    Cloud.getMessages(this._dmWith).then((msgs) => {
+      if (this.sub !== "chat" || !this._dmWith) return;
+      if ((msgs || []).length !== (this._dmMsgs || []).length) { this._dmMsgs = msgs || []; this.render(); this.scrollChat(); }
+    });
   },
   openChat(id) { this.chatWith = id; this.sub = "chat"; this.render(); },
   sendChat() { const i = document.getElementById("chat-text"); if (!i || !i.value.trim()) return; this.sendMessage(this.chatWith, i.value); this.render(); },

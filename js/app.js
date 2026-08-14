@@ -48,7 +48,7 @@ const App = {
   },
   // ---- image protection: block right-click / drag / copy-paste on photos, blur when window loses focus (screenshot deterrent) ----
   guardImages() {
-    const isImg = (t) => t && (t.tagName === "IMG" || (t.closest && t.closest(".post-media,.cslide,.vp-clip,.cp-thumb,.story-ring,.av")));
+    const isImg = (t) => t && (t.tagName === "IMG" || (t.closest && t.closest(".post-media,.cslide,.vp-clip,.cp-thumb,.story-ring,.sv-media,.sv-card,.av")));
     document.addEventListener("contextmenu", (e) => { if (isImg(e.target)) e.preventDefault(); });
     document.addEventListener("dragstart", (e) => { if (isImg(e.target)) e.preventDefault(); });
     const blockCopy = (e) => {
@@ -183,7 +183,7 @@ const App = {
     const isLanding = this.authView === "login" || this.authView === "signup";
     const brand = isLanding
       ? `<div class="landing-hero">
-          <div class="auth-brand">⟡ FORM<span>ORA</span></div>
+          <div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg1" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg1)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
           <h1 class="landing-h1">Build your dream physique.</h1>
           <p class="landing-sub">Adaptive daily workouts, smart meal plans and progress tracking — personalised to the exact look you want.</p>
           <div class="landing-feats">
@@ -191,7 +191,7 @@ const App = {
             <span>📈 Streaks &amp; progress</span><span>🎯 Physique goals</span>
           </div>
         </div>`
-      : `<div class="auth-brand">⟡ FORM<span>ORA</span></div>
+      : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
     const gbtn = window.GOOGLE_CLIENT_ID
       ? `<div id="gsi-btn" class="gsi-wrap"></div>`
@@ -1439,7 +1439,7 @@ const App = {
           <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
         </div>
         <div class="ph-stats">
-          <div><b>${Social.crewList().length}</b><span>Crew</span></div>
+          <div><b>${cloudOn ? (Social.cloud.connections || []).length : Social.crewList().length}</b><span>Crew</span></div>
           <div><b>${myPosts.length}</b><span>Posts</span></div>
           <div><b>${Engine.streak()}</b><span>Streak</span></div>
           <div><b>${s.calTarget}</b><span>Target kcal</span></div>
@@ -1469,13 +1469,17 @@ const App = {
       </div>
       ${myPosts.length ? `<div class="card"><div class="card-head"><h2>Your posts</h2><span class="tag">${myPosts.length}</span></div>${myPosts.map((x) => Social.postCard(cloudOn ? Social._cloudPost(x) : x)).join("")}</div>` : ""}
       <div class="card">
-        <h2>Your body stats</h2>
-        <div class="sub">Auto-calculated from your profile &amp; latest weight</div>
+        <h2>Your fitness dashboard</h2>
+        <div class="sub">Auto-calculated from your profile, workouts &amp; latest weight</div>
         <div class="stat-grid">
+          <div class="stat"><div class="v">${Store.latestWeight()}<small>kg</small></div><div class="l">${p.targetWeightKg ? "Goal " + p.targetWeightKg + "kg" : "Current weight"}</div></div>
           <div class="stat"><div class="v">${s.bmi}</div><div class="l">BMI · ${s.bmiClass}</div></div>
+          <div class="stat"><div class="v">${Engine.streak()}</div><div class="l">Day streak 🔥</div></div>
+          <div class="stat"><div class="v">${(Store.state.workoutLog || []).length}</div><div class="l">Workouts logged</div></div>
+          <div class="stat"><div class="v">${s.proteinG}<small>g</small></div><div class="l">Protein / day</div></div>
+          <div class="stat"><div class="v">${s.calTarget}</div><div class="l">Target kcal</div></div>
           <div class="stat"><div class="v">${s.bmr}</div><div class="l">BMR kcal</div></div>
           <div class="stat"><div class="v">${s.tdee}</div><div class="l">TDEE kcal</div></div>
-          <div class="stat"><div class="v">${s.calTarget}</div><div class="l">Target kcal</div></div>
         </div>
       </div>
       <div class="card">
@@ -1569,7 +1573,9 @@ const App = {
       Social.cloud.connections = Object.values(s.requests || {}).filter((r) => r.status === "accepted" && (r.from === Cloud.me || r.to === Cloud.me)).map((r) => (r.from === Cloud.me ? r.to : r.from));
       Social.cloud.feed = Object.values(s.posts || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0));
       Social.cloud.comments = Object.values(s.comments || {});
+      Social.cloud.stories = Object.values(s.stories || {}).sort((a, b) => (a.ts || 0) - (b.ts || 0));
       this.pollNotifs();
+      if (Social.sub === "chat" && Social._dmWith) Social.refreshDM();
       const sig = JSON.stringify(s);
       if (sig === last) return;
       last = sig;
@@ -1609,6 +1615,7 @@ const App = {
   },
   openNotif(actor, type) {
     if (type === "connect" || type === "accept") { this.selectTab("search"); }
+    else if (type === "message" && actor) { Social.openDM(actor); }
     else if (actor) { Social.viewProfile(actor); }
   },
   uploadAvatar(e) {

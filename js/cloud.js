@@ -49,6 +49,24 @@ const Cloud = {
     catch (e) { return false; }
   },
 
+  // upload a File/Blob to the public 'media' Storage bucket → returns its public URL (used for video/reels + story media)
+  async uploadMedia(file, folder) {
+    if (!this.active() || !file) return null;
+    try {
+      const mime = file.type || "application/octet-stream";
+      const ext = (mime.split("/")[1] || "bin").split(";")[0].replace("quicktime", "mov");
+      const path = (folder || "media") + "/" + this.me + "/" + Date.now() + "_" + Math.floor(Math.random() * 99999) + "." + ext;
+      const root = window.SUPABASE_URL.replace(/\/$/, "");
+      const r = await fetch(root + "/storage/v1/object/" + path, {
+        method: "POST",
+        headers: { apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": mime, "x-upsert": "true" },
+        body: file,
+      });
+      if (!r.ok) return null;
+      return root + "/storage/v1/object/public/" + path;
+    } catch (e) { return null; }
+  },
+
   registerMe(profile) {
     if (!this.active()) return;
     const p = profile || (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
@@ -63,7 +81,7 @@ const Cloud = {
   addPost(post) {
     if (!this.active()) return null;
     const id = "p" + Date.now() + Math.floor(Math.random() * 999);
-    const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, photos: (post && post.photos) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex", resharedFrom: (post && post.resharedFrom) || null };
+    const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, photos: (post && post.photos) || null, video: (post && post.video) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex", resharedFrom: (post && post.resharedFrom) || null };
     this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
     return { id, author: this.me, likes: {}, ts: Date.now(), ...data }; // for instant optimistic display
   },
@@ -144,11 +162,16 @@ const Cloud = {
   },
 
   // ---- stories (24h) ----
-  addStory(photo) {
-    if (!this.active() || !photo) return null;
+  addStory(url, kind) {
+    if (!this.active() || !url) return null;
     const id = "st" + Date.now() + Math.floor(Math.random() * 99999);
-    this._write("/stories", { id, author: this.me, photo }, { Prefer: "return=minimal" });
-    return { id, author: this.me, photo, ts: Date.now() };
+    this._write("/stories", { id, author: this.me, photo: url, kind: kind || "photo" }, { Prefer: "return=minimal" });
+    return { id, author: this.me, photo: url, kind: kind || "photo", ts: Date.now() };
+  },
+  async deleteStory(id) {
+    if (!this.active() || !id) return;
+    try { const r = await fetch(this.base + "/stories?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
+    catch (e) { return false; }
   },
 
   // ---- direct messages ----

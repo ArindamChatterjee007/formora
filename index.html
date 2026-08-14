@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 39;
+      var V = 40;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=39" />
+  <link rel="stylesheet" href="css/styles.css?v=40" />
 </head>
 <body>
   <!-- animated background -->
@@ -42,7 +42,7 @@
   <div id="app-shell" class="app-shell hidden">
   <header class="topbar">
     <div class="logo">
-      <span class="logo-mark">⟡</span>
+      <span class="logo-mark"><svg viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg0" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg0)"/><rect x="3" y="3" width="38" height="38" rx="12" stroke="#fff" stroke-opacity=".18" stroke-width="1.5"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg></span>
       <div>
         <div class="logo-name">FORM<span>ORA</span></div>
         <div class="logo-sub">aesthetic physique coach</div>
@@ -86,15 +86,15 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=39"></script>
-  <script src="js/data.js?v=39"></script>
-  <script src="js/storage.js?v=39"></script>
-  <script src="js/engine.js?v=39"></script>
-  <script src="js/charts.js?v=39"></script>
-  <script src="js/nutrition.js?v=39"></script>
-  <script src="js/auth.js?v=39"></script>
-  <script src="js/social.js?v=39"></script>
-  <script src="js/cloud.js?v=39"></script>
-  <script src="js/app.js?v=39"></script>
+  <script src="js/config.js?v=40"></script>
+  <script src="js/data.js?v=40"></script>
+  <script src="js/storage.js?v=40"></script>
+  <script src="js/engine.js?v=40"></script>
+  <script src="js/charts.js?v=40"></script>
+  <script src="js/nutrition.js?v=40"></script>
+  <script src="js/auth.js?v=40"></script>
+  <script src="js/social.js?v=40"></script>
+  <script src="js/cloud.js?v=40"></script>
+  <script src="js/app.js?v=40"></script>
 </body>
 </html>
