@@ -243,10 +243,12 @@ const Social = {
     const text = t ? t.value.trim() : "";
     if (!text && !this.pendingPost) { alert("Write something or add a photo to post."); return; }
     if (this.cloudActive()) {
-      Cloud.addPost({ text, photo: this.pendingPost, gradient: this.me().colors, tag: "Flex" });
+      const np = Cloud.addPost({ text, photo: this.pendingPost, gradient: this.me().colors, tag: "Flex" });
+      if (np) this.cloud.feed.unshift(np); // show my post immediately, don't wait for the next poll
       this.pendingPost = null;
       if (typeof App !== "undefined" && App.toast) App.toast("Posted to the feed 🎉");
       const el = document.getElementById("post-text"); if (el) el.value = "";
+      this.render();
       return;
     }
     this.createPost({ text, photo: this.pendingPost }); this.pendingPost = null; this.render();

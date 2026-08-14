@@ -60,10 +60,11 @@ const Cloud = {
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
   addPost(post) {
-    if (!this.active()) return;
+    if (!this.active()) return null;
     const id = "p" + Date.now() + Math.floor(Math.random() * 999);
     const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex" };
-    return this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
+    this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
+    return { id, author: this.me, likes: {}, ts: Date.now(), ...data }; // for instant optimistic display
   },
   likeCloud(postId) {
     if (!this.active()) return;
