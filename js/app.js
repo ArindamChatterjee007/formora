@@ -1239,17 +1239,39 @@ const App = {
     const s = Engine.stats();
     const u = Auth.currentUser() || {};
     el.innerHTML = `
-      <div class="card">
-        <h2>Account</h2>
-        <div class="account-row">
-          <div class="avatar">${esc((p.name || "U").charAt(0).toUpperCase())}</div>
-          <div>
-            <div style="font-weight:700;font-size:16px">${esc(p.name || "User")}</div>
-            <div class="sub" style="margin:0">${esc(u.email || "—")}</div>
-            <div class="sub" style="margin:0">${esc(u.phone || "no phone")} ${u.phoneVerified ? '· <span class="badge-ok">✓ verified</span>' : ""} ${u.provider === "google" ? "· via Google" : ""}</div>
+      <div class="card profile-hero">
+        <div class="ph-cover"></div>
+        <div class="ph-main">
+          <label class="ph-avatar" title="Change photo">
+            ${Social.avatar(Social.me(), 92)}
+            <span class="ph-cam">📷</span>
+            <input type="file" accept="image/*" onchange="App.uploadAvatar(event)" hidden>
+          </label>
+          <div class="ph-id">
+            <div class="ph-name">${esc(p.name || "User")} <span class="lvl">${esc(Social.me().level)}</span></div>
+            <div class="ph-handle">@${esc((u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
           </div>
+          <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
         </div>
-        <button class="btn ghost wide" style="margin-top:16px" onclick="App.logout()">Log out</button>
+        <div class="ph-stats">
+          <div><b>${Social.crewList().length}</b><span>Crew</span></div>
+          <div><b>${Social.feed().filter((x) => x.author === "me").length}</b><span>Posts</span></div>
+          <div><b>${Engine.streak()}</b><span>Streak</span></div>
+          <div><b>${s.calTarget}</b><span>Target kcal</span></div>
+        </div>
+        <div class="ph-bio-field field"><label>Bio</label>
+          <input id="p-bio" maxlength="120" placeholder="Add a short bio — e.g. Lean-bulk szn · chasing the shelf" value="${esc(p.bio || "")}">
+        </div>
+        <div class="ph-socials">
+          <div class="soc"><span class="soc-ic ig">📷</span><input id="soc-ig" placeholder="Instagram username" value="${esc((p.socials && p.socials.instagram) || "")}"></div>
+          <div class="soc"><span class="soc-ic li">in</span><input id="soc-li" placeholder="LinkedIn profile URL" value="${esc((p.socials && p.socials.linkedin) || "")}"></div>
+          <div class="soc"><span class="soc-ic fb">f</span><input id="soc-fb" placeholder="Facebook profile URL" value="${esc((p.socials && p.socials.facebook) || "")}"></div>
+        </div>
+        <div class="ph-actions">
+          <button class="btn" onclick="App.saveSocialProfile()">Save profile</button>
+          <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
+        </div>
+        <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
       </div>
       <div class="card">
         <h2>Your body stats</h2>
@@ -1316,6 +1338,25 @@ const App = {
         <div class="sub">Erase all logs and start fresh. This cannot be undone.</div>
         <button class="btn ghost wide" onclick="App.resetAll()">Reset all data</button>
       </div>`;
+  },
+
+  uploadAvatar(e) {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { Store.state.profile.avatar = r.result; Store.save(); this.renderProfile(); };
+    r.readAsDataURL(f);
+  },
+  saveSocialProfile() {
+    const p = Store.state.profile;
+    const bio = document.getElementById("p-bio");
+    if (bio) p.bio = bio.value.trim();
+    p.socials = {
+      instagram: (document.getElementById("soc-ig").value || "").trim(),
+      linkedin: (document.getElementById("soc-li").value || "").trim(),
+      facebook: (document.getElementById("soc-fb").value || "").trim(),
+    };
+    Store.save();
+    this.renderProfile();
   },
 
   saveProfile() {

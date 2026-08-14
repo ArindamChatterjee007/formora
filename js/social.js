@@ -48,9 +48,9 @@ const Social = {
 
   // ---- identity ----
   me() {
-    const p = (window.Store && Store.state && Store.state.profile) || {};
-    const phys = (window.Engine && Engine.getPhysique && Engine.getPhysique().name) || "Lean Aesthetic";
-    const streak = (window.Engine && Engine.streak && Engine.streak()) || 0;
+    const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
+    const phys = (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "Lean Aesthetic";
+    const streak = (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0;
     return { id: "me", name: p.name || "You", handle: (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null };
   },
   persona(id) {

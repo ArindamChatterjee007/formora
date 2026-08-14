@@ -20,6 +20,9 @@ const DEFAULT_PROFILE = {
   lookPhotos: {},             // { physiqueId: [dataURL, ...] } user reference photos
   activityFactor: 1.55,       // moderate (3-5 sessions/week)
   targetWeightKg: 76,         // aesthetic lean-bulk target
+  avatar: null,               // profile photo (dataURL)
+  bio: "",                    // short social bio
+  socials: { instagram: "", linkedin: "", facebook: "" },
 };
 
 // Muscle groups mapped to split categories
