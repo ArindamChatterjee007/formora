@@ -4,10 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Formora · Your Aesthetic Physique Coach</title>
+  <script>
+    // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
+    (function () {
+      var V = 33;
+      try {
+        fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.text() : ""; })
+          .then(function (t) {
+            var latest = parseInt((t || "").trim(), 10);
+            if (latest && latest > V && sessionStorage.getItem("fmv") !== String(latest)) {
+              sessionStorage.setItem("fmv", String(latest));
+              location.replace(location.pathname + "?u=" + latest);
+            }
+          }).catch(function () {});
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=32" />
+  <link rel="stylesheet" href="css/styles.css?v=33" />
 </head>
 <body>
   <!-- animated background -->
@@ -70,15 +87,15 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=32"></script>
-  <script src="js/data.js?v=32"></script>
-  <script src="js/storage.js?v=32"></script>
-  <script src="js/engine.js?v=32"></script>
-  <script src="js/charts.js?v=32"></script>
-  <script src="js/nutrition.js?v=32"></script>
-  <script src="js/auth.js?v=32"></script>
-  <script src="js/social.js?v=32"></script>
-  <script src="js/cloud.js?v=32"></script>
-  <script src="js/app.js?v=32"></script>
+  <script src="js/config.js?v=33"></script>
+  <script src="js/data.js?v=33"></script>
+  <script src="js/storage.js?v=33"></script>
+  <script src="js/engine.js?v=33"></script>
+  <script src="js/charts.js?v=33"></script>
+  <script src="js/nutrition.js?v=33"></script>
+  <script src="js/auth.js?v=33"></script>
+  <script src="js/social.js?v=33"></script>
+  <script src="js/cloud.js?v=33"></script>
+  <script src="js/app.js?v=33"></script>
 </body>
 </html>

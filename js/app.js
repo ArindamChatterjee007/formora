@@ -1324,6 +1324,8 @@ const App = {
     const p = Store.state.profile;
     const s = Engine.stats();
     const u = Auth.currentUser() || {};
+    const cloudOn = typeof Cloud !== "undefined" && Cloud.active();
+    const myPosts = cloudOn ? Social.cloud.feed.filter((x) => x.author === Cloud.me) : Social.feed().filter((x) => x.author === "me");
     el.innerHTML = `
       <div class="card profile-hero">
         <div class="ph-cover"></div>
@@ -1341,7 +1343,7 @@ const App = {
         </div>
         <div class="ph-stats">
           <div><b>${Social.crewList().length}</b><span>Crew</span></div>
-          <div><b>${Social.feed().filter((x) => x.author === "me").length}</b><span>Posts</span></div>
+          <div><b>${myPosts.length}</b><span>Posts</span></div>
           <div><b>${Engine.streak()}</b><span>Streak</span></div>
           <div><b>${s.calTarget}</b><span>Target kcal</span></div>
         </div>
@@ -1362,6 +1364,7 @@ const App = {
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
       </div>
+      ${myPosts.length ? `<div class="card"><div class="card-head"><h2>Your posts</h2><span class="tag">${myPosts.length}</span></div>${myPosts.map((x) => Social.postCard(cloudOn ? Social._cloudPost(x) : x)).join("")}</div>` : ""}
       <div class="card">
         <h2>Your body stats</h2>
         <div class="sub">Auto-calculated from your profile &amp; latest weight</div>
@@ -1416,7 +1419,7 @@ const App = {
       </div>
       <div class="card">
         <h2>Backup &amp; move devices</h2>
-        <div class="sub">Cross-device login needs the Google Sheet deploy. Until then: download your backup here, then use “Restore a backup” on the login screen of any other device.</div>
+        <div class="sub">Your data now syncs across devices automatically — just log in with the same account (Google works on any device). This download is an extra offline copy.</div>
         <button class="btn wide" onclick="App.exportData()">⬇️ Download my backup</button>
         <label class="photo-btn" style="margin-top:10px">📂 Restore from a backup file
           <input type="file" accept="application/json,.json" onchange="App.importFile(event)" hidden>

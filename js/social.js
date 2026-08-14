@@ -56,6 +56,7 @@ const Social = {
   },
   persona(id) {
     if (id === "me") return this.me();
+    if (typeof Cloud !== "undefined" && Cloud.me && id === Cloud.me) return this.me(); // my own cloud posts render as me
     const local = SOCIAL_PERSONAS.find((x) => x.id === id);
     if (local) return local;
     if (this.cloudActive()) { const c = this.cloudUser(id); if (c) return c; }
@@ -91,7 +92,7 @@ const Social = {
   addCrew(id) { if (!this.inCrew(id)) { this.state.crew.push(id); this.save(); } },
   removeCrew(id) { this.state.crew = this.state.crew.filter((x) => x !== id); this.save(); },
   crewList() { return this.state.crew.map((id) => this.persona(id)); },
-  suggestions() { return SOCIAL_PERSONAS.filter((p) => !this.inCrew(p.id)); },
+  suggestions() { return this.cloudActive() ? [] : SOCIAL_PERSONAS.filter((p) => !this.inCrew(p.id)); },
   isFollowing(id) { return (this.state.following || []).includes(id); },
   toggleFollow(id) {
     this.state.following = this.state.following || [];
@@ -174,10 +175,12 @@ const Social = {
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
-    const useCloud = this.cloudActive() && this.cloud.feed.length;
-    return composer + this.suggestStrip() + (useCloud
-      ? this.cloud.feed.map((p) => this.postCard(this._cloudPost(p))).join("")
-      : this.feed().map((p) => this.postCard(p)).join(""));
+    if (this.cloudActive()) {
+      const posts = this.cloud.feed.map((p) => this.postCard(this._cloudPost(p))).join("");
+      return composer + (this.cloud.feed.length ? posts
+        : `<div class="card"><div class="sub" style="text-align:center;padding:22px 6px">No posts yet — share your first update above and your crew will see it 💪</div></div>`);
+    }
+    return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
   },
   _cloudPost(p) {
     const likes = p.likes || {};
@@ -281,24 +284,23 @@ const Social = {
     </div>`;
   },
   crewBody() {
-    const crew = this.crewList(), sugg = this.suggestions();
-    let head = "";
     if (this.cloudActive()) {
       const reqs = this.cloud.requests.map((r) => {
         const p = this.cloudUser(r.from) || { id: r.from, name: r.from, handle: r.from, colors: ["#8b93a7", "#262c3a"] };
         return `<div class="crew-card">${this.avatar(p, 48)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)} wants to connect</div></div><div class="crew-cta"><button class="btn sm" onclick="Social.acceptReq('${r.from}')">Accept</button></div></div>`;
       }).join("");
       const members = this.cloud.users.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
-      head = `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}
-        <div class="card"><div class="card-head"><h2>Members</h2><span class="tag">${this.cloud.users.length}</span></div>${this.cloud.users.length ? `<div class="crew-list">${members}</div>` : `<div class="sub">No one else has joined yet — share Formora and have a friend log in!</div>`}</div>`;
+      return `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}
+        <div class="card"><div class="card-head"><h2>Members</h2><span class="tag">${this.cloud.users.length}</span></div>${this.cloud.users.length ? `<div class="crew-list">${members}</div>` : `<div class="sub">No one else has joined yet — share Formora and have a friend log in on their phone. When they do, they'll appear here to connect.</div>`}</div>`;
     }
-    return head + `
+    const crew = this.crewList(), sugg = this.suggestions();
+    return `
       <div class="card">
         <div class="card-head"><h2>Your crew</h2><span class="tag">${crew.length}</span></div>
         ${crew.length ? `<div class="crew-list">${crew.map((p) => this.crewCard(p, true)).join("")}</div>` : `<div class="sub">No crew yet — add people from suggestions below to build your circle.</div>`}
       </div>
       <div class="card">
-        <div class="card-head"><h2>${this.cloudActive() ? "Suggested athletes" : "Crew suggestions"}</h2><span class="tag">for you</span></div>
+        <div class="card-head"><h2>Crew suggestions</h2><span class="tag">for you</span></div>
         <div class="sub">People with similar goals you might vibe with.</div>
         <div class="crew-list">${sugg.map((p) => this.crewCard(p, false)).join("") || `<div class="sub">You've added everyone — legend! 🎉</div>`}</div>
       </div>`;
