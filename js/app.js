@@ -8,6 +8,29 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// downscale + JPEG-compress an uploaded image so it fits in localStorage (avatars/posts)
+function resizeImage(file, max = 512, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = reject;
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+        else if (h > max) { w = Math.round(w * max / h); h = max; }
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
 const App = {
   // in-progress workout being built on the Today tab
   session: null,   // { split, slots:[{selected, sets:[{reps,weight}]}] }
@@ -29,6 +52,7 @@ const App = {
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();
     Social.load(u.id);
+    if (!Store.state.profile.onboarded) { this.onboardMode = "login"; return this.showAuth("details"); }
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
@@ -171,8 +195,8 @@ const App = {
             </select></div>
         </div>
         ${err}
-        <button class="btn wide" onclick="App.doCreateAccount()">Create my account</button>
-        <div class="auth-switch"><a onclick="App.showAuth('signup')">← Back</a></div>`;
+        <button class="btn wide" onclick="App.submitDetails()">${this.onboardMode === "login" ? "Save &amp; continue" : "Create my account"}</button>
+        <div class="auth-switch">${this.onboardMode === "login" ? `<a onclick="App.logout()">← Log out</a>` : `<a onclick="App.showAuth('signup')">← Back</a>`}</div>`;
     } else if (this.authView === "google") {
       body = `<div class="auth-sub">Choose your Google account</div>
         <div class="field"><label>Name</label><input id="g-name" placeholder="Your name"></div>
@@ -254,10 +278,12 @@ const App = {
     if (pass !== pass2) return this.authErr("Passwords don't match.");
     if (!Auth.remote() && Auth.findByEmail(email)) return this.authErr("An account with this email already exists. Try logging in.");
     this.signupDraft = { name, email, phone, pass };
+    this.onboardMode = "signup";
     this.showAuth("details");
   },
 
-  async doCreateAccount() {
+  // read + validate the onboarding details form -> profile patch (or null)
+  _readDetails() {
     const g = document.getElementById("d-gender").value;
     const dob = document.getElementById("d-dob").value;
     const h = parseFloat(document.getElementById("d-h").value);
@@ -265,16 +291,31 @@ const App = {
     const tw = parseFloat(document.getElementById("d-tw").value);
     const act = parseFloat(document.getElementById("d-act").value);
     const diet = document.getElementById("d-diet").value;
-    if (!dob) return this.authErr("Please enter your date of birth.");
-    if (!h || h < 90 || h > 250) return this.authErr("Enter a valid height in cm.");
-    if (!w || w < 25 || w > 400) return this.authErr("Enter a valid current weight in kg.");
+    if (!dob) { this.authErr("Please enter your date of birth."); return null; }
+    if (!h || h < 90 || h > 250) { this.authErr("Enter a valid height in cm."); return null; }
+    if (!w || w < 25 || w > 400) { this.authErr("Enter a valid current weight in kg."); return null; }
     const patch = {
       gender: g, dob, heightCm: h, startWeightKg: w,
-      activityFactor: act, diet, physique: PHYSIQUES[g][0].id, physiqueChosen: false,
+      activityFactor: act, diet, physique: PHYSIQUES[g][0].id, physiqueChosen: false, onboarded: true,
       age: Math.max(13, Math.floor(daysBetween(dob, todayISO()) / 365.25)),
     };
     if (tw && tw >= 25 && tw <= 400) patch.targetWeightKg = tw;
-    this.onboardProfile = { patch, weightKg: w };
+    return patch;
+  },
+  submitDetails() {
+    return this.onboardMode === "login" ? this.finishOnboarding() : this.doCreateAccount();
+  },
+  // first-time details for an already-logged-in user (e.g. Google sign-in)
+  finishOnboarding() {
+    const patch = this._readDetails(); if (!patch) return;
+    Object.assign(Store.state.profile, patch);
+    Store.state.weightLog = [{ date: todayISO(), kg: patch.startWeightKg }];
+    Store.save();
+    this.enterApp();
+  },
+  async doCreateAccount() {
+    const patch = this._readDetails(); if (!patch) return;
+    this.onboardProfile = { patch, weightKg: patch.startWeightKg };
     const d = this.signupDraft || {};
     try {
       const r = await Auth.signup({ name: d.name, email: d.email, phone: d.phone, password: d.pass });
@@ -477,12 +518,20 @@ const App = {
           <button class="btn" onclick="App.openPhysiquePicker()">Choose look →</button>
         </div>` : ""}`;
 
+    if (this.session) {
+      html += `</div>`;
+      el.innerHTML = html + this.sessionCard();
+      return;
+    }
+
     if (done) {
       html += `<div class="focus-banner" style="margin-top:14px">
           <div><div class="ft">Session complete ✅</div>
           <div class="fs">${done.exercises.length} exercises · ${done.exercises.reduce((n,e)=>n+e.sets.length,0)} sets · ${Math.round(done.volume)} kg volume</div></div>
           <span class="pill" style="background:var(--green)">${SPLITS[done.split].label}</span>
-        </div></div>`;
+        </div>
+        <button class="btn ghost wide" style="margin-top:12px" onclick="App.editSession()">✏️ Edit this session</button>
+        </div>`;
       html += this.guidanceCard();
       el.innerHTML = html;
       return;
@@ -498,25 +547,19 @@ const App = {
       return;
     }
 
-    if (!this.session) {
-      const rec = Engine.recommendSplit();
-      html += `<div class="choice">
-          <button class="btn-big go" onclick="App.startSession('${rec}')">Going to the gym 💪<small>Suggested: ${SPLITS[rec].label}</small></button>
-          <button class="btn-big rest" onclick="App.markRest()">Rest today 😴<small>Log a recovery day</small></button>
-        </div>
-        <div class="pick-day">
-          <span class="pick-label">or pick your day:</span>
-          ${SPLIT_ROTATION.map((s) => `<button class="day-chip ${s === rec ? "rec" : ""}" onclick="App.startSession('${s}')">${SPLITS[s].label}${s === rec ? " ★" : ""}</button>`).join("")}
-        </div>
-        <div class="hint" style="margin-top:12px">ℹ️ ${Engine.splitReason(rec)}</div>
-        </div>`;
-      html += this.guidanceCard();
-      el.innerHTML = html;
-      return;
-    }
-
-    html += `</div>`;
-    el.innerHTML = html + this.sessionCard();
+    const rec = Engine.recommendSplit();
+    html += `<div class="choice">
+        <button class="btn-big go" onclick="App.startSession('${rec}')">Going to the gym 💪<small>Suggested: ${SPLITS[rec].label}</small></button>
+        <button class="btn-big rest" onclick="App.markRest()">Rest today 😴<small>Log a recovery day</small></button>
+      </div>
+      <div class="pick-day">
+        <span class="pick-label">or pick your day:</span>
+        ${SPLIT_ROTATION.map((s) => `<button class="day-chip ${s === rec ? "rec" : ""}" onclick="App.startSession('${s}')">${SPLITS[s].label}${s === rec ? " ★" : ""}</button>`).join("")}
+      </div>
+      <div class="hint" style="margin-top:12px">ℹ️ ${Engine.splitReason(rec)}</div>
+      </div>`;
+    html += this.guidanceCard();
+    el.innerHTML = html;
   },
 
   guidanceCard() {
@@ -726,6 +769,27 @@ const App = {
     this.renderToday();
   },
 
+  // reopen a finished workout to edit its sets
+  editSession() {
+    const done = Store.workoutOn(todayISO());
+    if (!done) return;
+    this.session = {
+      split: done.split,
+      editing: true,
+      origDate: done.date,
+      items: done.exercises.map((e) => ({
+        kind: "primary",
+        slotName: (EXERCISES[e.id] && EXERCISES[e.id].muscle) || e.muscle || e.name,
+        targetSets: e.sets.length || 3,
+        reps: "8–12",
+        options: [e.id],
+        selected: e.id,
+        sets: e.sets.map((s) => ({ reps: String(s.reps), weight: String(s.weight) })),
+      })),
+    };
+    this.renderToday();
+  },
+
   // manually change the day (Push/Pull/Legs), even mid-session
   switchSplit(split) {
     if (this.session && this.session.split === split) return;
@@ -864,7 +928,9 @@ const App = {
       exercises.push({ id: it.selected, name: ex.name, muscle: ex.muscle, sets });
     });
     if (!exercises.length) { alert("Log at least one set before finishing."); return; }
-    Store.logWorkout({ date: todayISO(), split: this.session.split, exercises, volume });
+    const date = this.session.editing ? this.session.origDate : todayISO();
+    if (this.session.editing) Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
+    Store.logWorkout({ date, split: this.session.split, exercises, volume });
     this.session = null;
     this.renderChips();
     this.renderToday();
@@ -1342,9 +1408,11 @@ const App = {
 
   uploadAvatar(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = () => { Store.state.profile.avatar = r.result; Store.save(); this.renderProfile(); };
-    r.readAsDataURL(f);
+    resizeImage(f, 256, 0.85).then((data) => {
+      Store.state.profile.avatar = data;
+      Store.save();
+      this.renderProfile();
+    }).catch(() => alert("Couldn't read that image. Try another one."));
   },
   saveSocialProfile() {
     const p = Store.state.profile;

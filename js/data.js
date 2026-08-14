@@ -3,26 +3,28 @@
    Goal: Lean-bulk aesthetic physique (Hrithik Roshan style)
    ============================================================ */
 
-// Default profile from the user's info
+// Default profile — NEUTRAL. Never hardcode a real person; each user's real
+// values come from the onboarding step (or their account).
 const DEFAULT_PROFILE = {
-  name: "Arindam",
+  name: "",
   email: "",
   phone: "",
   gender: "male",
-  dob: "2000-03-28",
-  age: 26,
-  heightCm: 178.5,
-  startWeightKg: 69,
+  dob: "2000-01-01",          // neutral fallback until onboarding
+  age: 25,
+  heightCm: 170,
+  startWeightKg: 70,
   goal: "lean-bulk",          // legacy; physique drives targets now
   physique: "lean_aesthetic", // chosen target look
   physiqueChosen: false,
-  diet: "nonveg",             // nonveg | egg | veg | vegan
+  diet: "veg",                // safe default; user chooses in onboarding
   lookPhotos: {},             // { physiqueId: [dataURL, ...] } user reference photos
   activityFactor: 1.55,       // moderate (3-5 sessions/week)
-  targetWeightKg: 76,         // aesthetic lean-bulk target
+  targetWeightKg: 72,
   avatar: null,               // profile photo (dataURL)
   bio: "",                    // short social bio
   socials: { instagram: "", linkedin: "", facebook: "" },
+  onboarded: false,           // true once the user completes the details step
 };
 
 // Muscle groups mapped to split categories

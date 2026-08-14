@@ -691,6 +691,14 @@ input, select { font-family: inherit; }
 .btn.sm { padding: 8px 12px; font-size: 13px; box-shadow: none; }
 .chip-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 16px; }
 .chip-btn:hover { border-color: var(--accent); }
+.chip-btn.on { border-color: var(--accent); color: var(--accent); }
+.suggest .card-head .ssub { padding: 5px 10px; font-size: 12px; }
+.suggest-row { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 2px; scrollbar-width: none; }
+.suggest-row::-webkit-scrollbar { display: none; }
+.sg-card { flex: 0 0 auto; width: 132px; text-align: center; padding: 12px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card2); display: flex; flex-direction: column; align-items: center; }
+.sg-name { font-weight: 700; font-size: 13px; margin-top: 6px; }
+.sg-sub { font-size: 11px; color: var(--muted); min-height: 28px; display: flex; align-items: center; }
+.sg-cta { display: flex; gap: 6px; margin-top: 6px; }
 
 .chat-card { padding: 0; overflow: hidden; }
 .chat-people { display: flex; gap: 8px; padding: 12px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }

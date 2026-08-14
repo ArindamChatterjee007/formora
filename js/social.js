@@ -30,6 +30,7 @@ const Social = {
     this.state.posts = this.state.posts || [];
     this.state.challenges = this.state.challenges || [];
     this.state.chats = this.state.chats || {};
+    this.state.following = this.state.following || [];
     this.save();
     return this.state;
   },
@@ -88,6 +89,12 @@ const Social = {
   removeCrew(id) { this.state.crew = this.state.crew.filter((x) => x !== id); this.save(); },
   crewList() { return this.state.crew.map((id) => this.persona(id)); },
   suggestions() { return SOCIAL_PERSONAS.filter((p) => !this.inCrew(p.id)); },
+  isFollowing(id) { return (this.state.following || []).includes(id); },
+  toggleFollow(id) {
+    this.state.following = this.state.following || [];
+    this.state.following = this.isFollowing(id) ? this.state.following.filter((x) => x !== id) : [...this.state.following, id];
+    this.save(); this.render();
+  },
 
   // ---- chat (simulated replies) ----
   messages(id) { return this.state.chats[id] || []; },
@@ -157,7 +164,25 @@ const Social = {
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
-    return composer + this.feed().map((p) => this.postCard(p)).join("");
+    return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
+  },
+  suggestStrip() {
+    const s = this.suggestions().slice(0, 8);
+    if (!s.length) return "";
+    return `<div class="card suggest">
+      <div class="card-head"><h2>Suggested crew</h2><button class="ssub" onclick="Social.feedTab('crew')">See all</button></div>
+      <div class="suggest-row">
+        ${s.map((p) => `<div class="sg-card">
+          ${this.avatar(p, 56)}
+          <div class="sg-name">${esc(p.name.split(" ")[0])}</div>
+          <div class="sg-sub">${esc(p.physique)}</div>
+          <div class="sg-cta">
+            <button class="btn sm" onclick="Social.crewAdd('${p.id}')">Connect</button>
+            <button class="chip-btn ${this.isFollowing(p.id) ? "on" : ""}" title="Follow" onclick="Social.toggleFollow('${p.id}')">${this.isFollowing(p.id) ? "\u2713" : "+"}</button>
+          </div>
+        </div>`).join("")}
+      </div>
+    </div>`;
   },
   postCard(p) {
     const a = this.persona(p.author);
@@ -193,7 +218,7 @@ const Social = {
   },
   postPhoto(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    const r = new FileReader(); r.onload = () => { this.pendingPost = r.result; this.render(); }; r.readAsDataURL(f);
+    resizeImage(f, 900, 0.8).then((data) => { this.pendingPost = data; this.render(); }).catch(() => alert("Couldn't read that image."));
   },
   publishPost() {
     const t = document.getElementById("post-text");
@@ -220,8 +245,8 @@ const Social = {
         <div class="crew-bio">${esc(p.bio || "")}</div></div>
       <div class="crew-cta">
         ${inCrew
-          ? `<button class="btn ghost sm" onclick="Social.crewRemove('${p.id}')">In crew ✓</button><button class="chip-btn" title="Message" onclick="Social.openChat('${p.id}')">💬</button>`
-          : `<button class="btn sm" onclick="Social.crewAdd('${p.id}')">+ Add</button>`}
+          ? `<button class="btn ghost sm" onclick="Social.crewRemove('${p.id}')">Connected ✓</button><button class="chip-btn" title="Message" onclick="Social.openChat('${p.id}')">💬</button>`
+          : `<button class="btn sm" onclick="Social.crewAdd('${p.id}')">Connect</button><button class="btn ghost sm" onclick="Social.toggleFollow('${p.id}')">${this.isFollowing(p.id) ? "Following" : "Follow"}</button>`}
       </div>
     </div>`;
   },

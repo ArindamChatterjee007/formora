@@ -38,6 +38,11 @@ const Store = {
     for (const k in DEFAULT_PROFILE) {
       if (this.state.profile[k] === undefined) this.state.profile[k] = structuredClone(DEFAULT_PROFILE[k]);
     }
+    // migrate pre-onboarding users: an existing, already-used profile is considered onboarded
+    if (!this.state.profile.onboarded &&
+      (this.state.profile.name || this.state.workoutLog.length || this.state.foodLog.length || this.state.weightLog.length > 1)) {
+      this.state.profile.onboarded = true;
+    }
     return this.state;
   },
 
