@@ -61,8 +61,19 @@ const App = {
 
   renderAuth() {
     const card = document.getElementById("auth-card");
-    const brand = `<div class="auth-brand">⟡ FORM<span>ORA</span></div>
-      <div class="auth-tag">Your aesthetic lean-bulk coach</div>`;
+    const isLanding = this.authView === "login" || this.authView === "signup";
+    const brand = isLanding
+      ? `<div class="landing-hero">
+          <div class="auth-brand">⟡ FORM<span>ORA</span></div>
+          <h1 class="landing-h1">Build your dream physique.</h1>
+          <p class="landing-sub">Adaptive daily workouts, smart meal plans and progress tracking — personalised to the exact look you want.</p>
+          <div class="landing-feats">
+            <span>🏋️ Adaptive workouts</span><span>🍽️ Meal planner</span>
+            <span>📈 Streaks &amp; progress</span><span>🎯 Physique goals</span>
+          </div>
+        </div>`
+      : `<div class="auth-brand">⟡ FORM<span>ORA</span></div>
+         <div class="auth-tag">Your aesthetic physique coach</div>`;
     const gbtn = `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`;
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
@@ -109,7 +120,7 @@ const App = {
     }
 
     card.innerHTML = `${brand}${body}
-      <div class="auth-note">🔒 Local demo login — your data is stored only on this device.</div>`;
+      <div class="auth-note">${window.SHEETS_API ? "☁️ Secure cloud login — sign in from any device." : "🔒 Private login — your data is saved on this device."}</div>`;
   },
 
   googleIcon() {

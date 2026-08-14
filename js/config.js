@@ -13,6 +13,11 @@
    ============================================================ */
 window.PEXELS_KEY = "";
 
+/* ---- Google Sheets login backend (optional; for cross-device accounts) ----
+   Deploy backend/Code.gs as a Web App, then paste its /exec URL here.
+   Empty = local device-only login (default).                              */
+window.SHEETS_API = "";
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {
