@@ -141,14 +141,14 @@ const Social = {
   myFollowing() { return (typeof Store !== "undefined" && Store.state.profile && Store.state.profile.following) || []; },
   isFollowing(uid) { return this.myFollowing().includes(uid); },
   toggleFollow(uid) {
-    if (!this.cloudActive() || uid === Cloud.me) return;
+    if (!uid || uid === (typeof Cloud !== "undefined" ? Cloud.me : null)) return; // can't follow yourself
     const p = Store.state.profile;
     if (!p.following) p.following = [];
     const i = p.following.indexOf(uid);
     if (i >= 0) { p.following.splice(i, 1); if (typeof App !== "undefined" && App.toast) App.toast("Unfollowed"); }
-    else { p.following.push(uid); if (Cloud.notify) Cloud.notify(uid, "follow", null, ""); if (typeof App !== "undefined" && App.toast) App.toast("Following ✓"); }
+    else { p.following.push(uid); if (this.cloudActive() && Cloud.notify && Cloud.me) Cloud.notify(uid, "follow", null, ""); if (typeof App !== "undefined" && App.toast) App.toast("Following ✓"); }
     Store.save();
-    if (Cloud.registerMe) Cloud.registerMe(p);
+    if (this.cloudActive() && Cloud.registerMe && Cloud.me) Cloud.registerMe(p);
     this.render();
   },
   followingCount() { return this.myFollowing().length; },
