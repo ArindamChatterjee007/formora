@@ -27,6 +27,7 @@ const DEFAULT_PROFILE = {
   username: "",               // unique @handle (auto-generated, editable)
   privacy: "public",          // "public" | "friends" — who can see profile & posts
   following: [],              // uids this user follows (one-way, LinkedIn-style)
+  autoFollowed: [],           // uids auto-followed when connected (so unfollow = opt-out, no re-follow)
   onboarded: false,           // true once the user completes the details step
 };
 

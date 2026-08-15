@@ -237,6 +237,58 @@ window.runFormoraTests = async function () {
       const fx = document.getElementById("view-flex"); if (fx) fx.innerHTML = "";
     }
 
+    /* ---------- v47: auto-follow-on-connect + feed ranking + reshare idempotency + 100 filters ---------- */
+    {
+      const _m = { registerMe: Cloud.registerMe, notify: Cloud.notify, acceptRequest: Cloud.acceptRequest, addPost: Cloud.addPost, deletePost: Cloud.deletePost, render: Social.render, toast: (typeof App !== "undefined") ? App.toast : null, me: Cloud.me };
+      Cloud.registerMe = () => {}; Cloud.notify = () => {}; Cloud.acceptRequest = () => {}; Cloud.deletePost = () => true;
+      Cloud.addPost = (post) => ({ id: post.id || ("np_" + Math.random()), author: Cloud.me, likes: {}, ts: Date.now(), ...post });
+      Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {};
+      Cloud.me = "u_me"; Social.state.crew = [];
+      Store.state.profile.following = []; Store.state.profile.autoFollowed = [];
+      Social.cloud = { users: [{ uid: "u_a", name: "A", username: "a", following: [] }, { uid: "u_b", name: "B", username: "b", following: [] }], requests: [{ from: "u_a", to: "u_me", status: "pending" }], sent: [], connections: [], comments: [], feed: [], notifs: [], stories: [] };
+
+      Social.acceptReq("u_a");
+      ok("accept auto-follows the connection", Social.isFollowing("u_a"));
+      ok("accept adds to connections", (Social.cloud.connections || []).includes("u_a"));
+      Social.cloud.connections = ["u_a", "u_b"];
+      Social.syncAutoFollow();
+      ok("syncAutoFollow follows all connections", Social.isFollowing("u_a") && Social.isFollowing("u_b"));
+      Social.toggleFollow("u_b");
+      ok("can unfollow a connection (opt-out)", !Social.isFollowing("u_b"));
+      Social.syncAutoFollow();
+      ok("opt-out respected (no re-auto-follow)", !Social.isFollowing("u_b"));
+
+      Store.state.profile.following = ["u_a"]; Social.cloud.connections = ["u_a"];
+      const ranked = Social._rankFeed([
+        { id: "old_stranger", author: "u_x", ts: 1000 },
+        { id: "new_stranger", author: "u_y", ts: 9000 },
+        { id: "followed", author: "u_a", ts: 500 },
+        { id: "mine", author: "u_me", ts: 100 },
+      ]);
+      ok("feed ranks own+followed above strangers", ranked[0].id === "mine" && ranked[1].id === "followed");
+      ok("strangers ranked below, newest-first", ranked[2].id === "new_stranger" && ranked[3].id === "old_stranger");
+
+      Social.cloud.feed = [{ id: "PX", author: "u_a", likes: {} }];
+      Social.resharePost("PX");
+      const r1 = Social.cloud.feed.find((p) => p.reshareOf === "PX" && p.author === "u_me");
+      ok("reshare uses deterministic id", r1 && r1.id === "rs_u_me__PX");
+      ok("only one reshare per account", Social.cloud.feed.filter((p) => p.reshareOf === "PX" && p.author === "u_me").length === 1);
+
+      ok("camera has ~100 filters", Camera.FILTERS.length >= 100);
+      Camera.filterIdx = 0; Camera.setFilter(Camera.FILTERS.length - 1);
+      ok("setFilter selects last", Camera.filterIdx === Camera.FILTERS.length - 1);
+      Camera.nextFilter();
+      ok("nextFilter wraps to first", Camera.filterIdx === 0);
+      Camera.prevFilter();
+      ok("prevFilter wraps to last", Camera.filterIdx === Camera.FILTERS.length - 1);
+      Camera.filterIdx = 0;
+
+      Cloud.registerMe = _m.registerMe; Cloud.notify = _m.notify; Cloud.acceptRequest = _m.acceptRequest; Cloud.addPost = _m.addPost; Cloud.deletePost = _m.deletePost;
+      Social.render = _m.render; if (typeof App !== "undefined") App.toast = _m.toast; Cloud.me = _m.me;
+      Store.state.profile.following = []; Store.state.profile.autoFollowed = [];
+      Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };
+    }
+
     // DATA SAFETY: onboarding must NEVER erase existing logs (the reported bug)
     Store.load("gymcoach_v1_TEST_SAFE_" + Date.now());
     Store.state.workoutLog = [{ date: todayISO(), split: "push", exercises: [{ id: "bench_press", name: "x", muscle: "Chest", sets: [{ reps: 10, weight: 40 }] }], volume: 400 }];

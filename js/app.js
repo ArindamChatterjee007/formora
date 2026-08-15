@@ -1639,6 +1639,7 @@ const App = {
       Social.cloud.feed = Object.values(s.posts || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0));
       Social.cloud.comments = Object.values(s.comments || {});
       Social.cloud.stories = Object.values(s.stories || {}).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      Social.syncAutoFollow();
       this.pollNotifs();
       if (Social.sub === "chat" && Social._dmWith) Social.refreshDM();
       const sig = JSON.stringify(s);
@@ -1657,7 +1658,7 @@ const App = {
     // instant connect: if someone accepted my request, reflect it now (don't wait for the 12s state poll)
     let gained = false;
     (list || []).forEach((n) => { if (n.type === "accept" && n.actor && !(Social.cloud.connections || []).includes(n.actor)) { (Social.cloud.connections = Social.cloud.connections || []).push(n.actor); gained = true; } });
-    if (gained) { const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); }
+    if (gained) { Social.syncAutoFollow(); const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); }
     const unread = (list || []).filter((n) => !n.read).length;
     if (this.curTab === "alerts") { this.renderNotifPanel(); this.updateNotifBadge(0); if (Cloud.markNotifsRead) Cloud.markNotifsRead(); }
     else this.updateNotifBadge(unread);

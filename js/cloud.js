@@ -80,9 +80,11 @@ const Cloud = {
   },
   addPost(post) {
     if (!this.active()) return null;
-    const id = "p" + Date.now() + Math.floor(Math.random() * 999);
+    const id = (post && post.id) || ("p" + Date.now() + Math.floor(Math.random() * 999));
     const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, photos: (post && post.photos) || null, video: (post && post.video) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex", resharedFrom: (post && post.resharedFrom) || null, reshareOf: (post && post.reshareOf) || null };
-    this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
+    // deterministic-id reshares upsert (merge-duplicates) so a post can't be reshared twice by the same account
+    const extra = (post && post.merge) ? { Prefer: "resolution=merge-duplicates,return=minimal" } : { Prefer: "return=minimal" };
+    this._write("/posts", { id, author: this.me, data, likes: {} }, extra);
     return { id, author: this.me, likes: {}, ts: Date.now(), ...data }; // for instant optimistic display
   },
   async deletePost(id) {

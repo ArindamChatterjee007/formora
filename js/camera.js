@@ -11,32 +11,117 @@ const Camera = {
     { id: "gym", name: "Gym", css: "contrast(1.16) saturate(1.35) brightness(1.03)" },
     { id: "vivid", name: "Vivid", css: "saturate(1.6) contrast(1.15)" },
     { id: "pop", name: "Pop", css: "saturate(1.9) contrast(1.25) brightness(1.02)" },
+    { id: "punch", name: "Punch", css: "saturate(2.1) contrast(1.3)" },
     { id: "clarity", name: "Clarity", css: "contrast(1.25) brightness(1.05) saturate(1.15)" },
+    { id: "crisp", name: "Crisp", css: "contrast(1.3) brightness(1.04) saturate(1.1)" },
+    { id: "sharp", name: "Sharp", css: "contrast(1.35) saturate(1.05)" },
+    { id: "bright", name: "Bright", css: "brightness(1.16) saturate(1.1)" },
+    { id: "radiant", name: "Radiant", css: "brightness(1.12) saturate(1.4) contrast(1.05)" },
+    { id: "glow", name: "Glow", css: "brightness(1.14) saturate(1.22) contrast(.97)" },
+    { id: "halo", name: "Halo", css: "brightness(1.2) contrast(.92) saturate(1.15)" },
+    { id: "sunlit", name: "Sunlit", css: "brightness(1.12) sepia(.15) saturate(1.4) contrast(1.03)" },
     { id: "warm", name: "Warm", css: "sepia(.32) saturate(1.5) brightness(1.05) contrast(1.05)" },
-    { id: "sunset", name: "Sunset", css: "sepia(.25) saturate(1.6) hue-rotate(-15deg) brightness(1.06)" },
-    { id: "gold", name: "Gold", css: "sepia(.5) saturate(1.7) hue-rotate(-8deg) brightness(1.08) contrast(1.05)" },
+    { id: "sunny", name: "Sunny", css: "sepia(.22) saturate(1.55) brightness(1.1) hue-rotate(-8deg)" },
+    { id: "golden", name: "Golden", css: "sepia(.5) saturate(1.7) hue-rotate(-8deg) brightness(1.08) contrast(1.05)" },
+    { id: "honey", name: "Honey", css: "sepia(.42) saturate(1.6) hue-rotate(-6deg) brightness(1.06)" },
+    { id: "amber", name: "Amber", css: "sepia(.55) saturate(1.75) hue-rotate(-12deg) brightness(1.04)" },
+    { id: "caramel", name: "Caramel", css: "sepia(.5) saturate(1.5) hue-rotate(-14deg) brightness(1.02) contrast(1.05)" },
+    { id: "bronze", name: "Bronze", css: "sepia(.6) saturate(1.4) hue-rotate(-16deg) brightness(.98) contrast(1.08)" },
+    { id: "rust", name: "Rust", css: "sepia(.6) saturate(1.9) hue-rotate(-22deg) contrast(1.1) brightness(.98)" },
     { id: "peach", name: "Peach", css: "sepia(.25) saturate(1.45) hue-rotate(-18deg) brightness(1.08)" },
+    { id: "apricot", name: "Apricot", css: "sepia(.3) saturate(1.5) hue-rotate(-20deg) brightness(1.07)" },
+    { id: "coral", name: "Coral", css: "sepia(.28) saturate(1.7) hue-rotate(-24deg) brightness(1.05)" },
+    { id: "sunset", name: "Sunset", css: "sepia(.25) saturate(1.6) hue-rotate(-15deg) brightness(1.06)" },
+    { id: "sunrise", name: "Sunrise", css: "sepia(.2) saturate(1.5) hue-rotate(-10deg) brightness(1.1) contrast(.98)" },
+    { id: "dusk", name: "Dusk", css: "brightness(.92) contrast(1.15) saturate(1.2) hue-rotate(-10deg)" },
+    { id: "ember", name: "Ember", css: "sepia(.4) saturate(1.8) hue-rotate(-20deg) contrast(1.1) brightness(1.02)" },
+    { id: "clay", name: "Clay", css: "sepia(.45) saturate(1.3) hue-rotate(-18deg) contrast(1.05)" },
+    { id: "sand", name: "Sand", css: "sepia(.4) saturate(1.15) brightness(1.08) contrast(.98)" },
+    { id: "desert", name: "Desert", css: "sepia(.5) saturate(1.25) hue-rotate(-5deg) brightness(1.06) contrast(1.02)" },
     { id: "rose", name: "Rose", css: "sepia(.2) saturate(1.5) hue-rotate(-25deg) brightness(1.05) contrast(1.03)" },
     { id: "blush", name: "Blush", css: "sepia(.15) saturate(1.35) hue-rotate(-22deg) brightness(1.06) contrast(1.02)" },
-    { id: "ember", name: "Ember", css: "sepia(.4) saturate(1.8) hue-rotate(-20deg) contrast(1.1) brightness(1.02)" },
+    { id: "cherry", name: "Cherry", css: "saturate(1.7) hue-rotate(-18deg) contrast(1.15)" },
+    { id: "crimson", name: "Crimson", css: "saturate(1.8) hue-rotate(-14deg) contrast(1.2) brightness(.98)" },
+    { id: "ruby", name: "Ruby", css: "saturate(1.9) hue-rotate(-10deg) contrast(1.18)" },
+    { id: "flamingo", name: "Flamingo", css: "saturate(1.6) hue-rotate(-28deg) brightness(1.06) contrast(1.02)" },
+    { id: "candy", name: "Candy", css: "saturate(1.9) hue-rotate(-30deg) brightness(1.05) contrast(1.05)" },
+    { id: "bubblegum", name: "Bubblegum", css: "saturate(2) hue-rotate(-34deg) brightness(1.06)" },
+    { id: "berry", name: "Berry", css: "saturate(1.7) hue-rotate(-38deg) contrast(1.1) brightness(.98)" },
+    { id: "wine", name: "Wine", css: "saturate(1.5) hue-rotate(-40deg) contrast(1.15) brightness(.9)" },
+    { id: "magenta", name: "Magenta", css: "saturate(1.9) hue-rotate(-44deg) contrast(1.1)" },
+    { id: "violet", name: "Violet", css: "saturate(1.6) hue-rotate(-50deg) brightness(1.02) contrast(1.05)" },
+    { id: "orchid", name: "Orchid", css: "saturate(1.5) hue-rotate(-55deg) brightness(1.05)" },
+    { id: "lavender", name: "Lavender", css: "saturate(1.3) hue-rotate(-60deg) brightness(1.08) contrast(.98)" },
+    { id: "plum", name: "Plum", css: "saturate(1.5) hue-rotate(-58deg) contrast(1.1) brightness(.95)" },
+    { id: "grape", name: "Grape", css: "saturate(1.6) hue-rotate(-64deg) contrast(1.08) brightness(.96)" },
+    { id: "amethyst", name: "Amethyst", css: "saturate(1.55) hue-rotate(-70deg) brightness(1.02)" },
+    { id: "ultra", name: "Ultra", css: "saturate(1.8) hue-rotate(-80deg) contrast(1.12)" },
     { id: "cool", name: "Cool", css: "contrast(1.05) brightness(1.05) saturate(1.2) hue-rotate(12deg)" },
     { id: "chill", name: "Chill", css: "brightness(1.05) contrast(1.02) saturate(1.1) hue-rotate(16deg)" },
-    { id: "mint", name: "Mint", css: "saturate(1.3) hue-rotate(25deg) brightness(1.05) contrast(1.03)" },
-    { id: "aqua", name: "Aqua", css: "saturate(1.45) hue-rotate(40deg) brightness(1.04)" },
+    { id: "ice", name: "Ice", css: "brightness(1.14) contrast(.95) saturate(.95) hue-rotate(14deg)" },
+    { id: "arctic", name: "Arctic", css: "brightness(1.12) contrast(.98) saturate(.85) hue-rotate(20deg)" },
     { id: "frost", name: "Frost", css: "brightness(1.12) contrast(.95) saturate(.9) hue-rotate(10deg)" },
-    { id: "cyber", name: "Cyber", css: "contrast(1.3) saturate(1.6) hue-rotate(-30deg) brightness(1.02)" },
+    { id: "glacier", name: "Glacier", css: "brightness(1.1) contrast(1.02) saturate(1) hue-rotate(24deg)" },
+    { id: "winter", name: "Winter", css: "brightness(1.06) contrast(1.05) saturate(.9) hue-rotate(18deg)" },
+    { id: "steel", name: "Steel", css: "contrast(1.1) saturate(.8) hue-rotate(15deg)" },
+    { id: "denim", name: "Denim", css: "saturate(1.2) hue-rotate(25deg) contrast(1.05) brightness(.98)" },
+    { id: "cobalt", name: "Cobalt", css: "saturate(1.5) hue-rotate(30deg) contrast(1.1) brightness(.98)" },
+    { id: "sapphire", name: "Sapphire", css: "saturate(1.6) hue-rotate(35deg) contrast(1.12) brightness(.96)" },
+    { id: "ocean", name: "Ocean", css: "saturate(1.4) hue-rotate(40deg) brightness(1.02) contrast(1.05)" },
+    { id: "azure", name: "Azure", css: "saturate(1.35) hue-rotate(45deg) brightness(1.06)" },
+    { id: "sky", name: "Sky", css: "saturate(1.25) hue-rotate(38deg) brightness(1.1) contrast(.98)" },
+    { id: "marine", name: "Marine", css: "saturate(1.45) hue-rotate(50deg) contrast(1.08) brightness(.98)" },
+    { id: "teal", name: "Teal", css: "saturate(1.5) hue-rotate(60deg) brightness(1.02)" },
+    { id: "aqua", name: "Aqua", css: "saturate(1.45) hue-rotate(55deg) brightness(1.04)" },
+    { id: "seafoam", name: "Seafoam", css: "saturate(1.2) hue-rotate(70deg) brightness(1.08) contrast(.98)" },
+    { id: "mint", name: "Mint", css: "saturate(1.3) hue-rotate(75deg) brightness(1.05) contrast(1.03)" },
+    { id: "jade", name: "Jade", css: "saturate(1.5) hue-rotate(85deg) contrast(1.05)" },
+    { id: "emerald", name: "Emerald", css: "saturate(1.6) hue-rotate(90deg) contrast(1.08) brightness(.98)" },
+    { id: "sage", name: "Sage", css: "saturate(1.1) hue-rotate(80deg) brightness(1.04) contrast(.98)" },
+    { id: "matcha", name: "Matcha", css: "sepia(.2) saturate(1.4) hue-rotate(60deg) brightness(1.02)" },
+    { id: "lime", name: "Lime", css: "saturate(1.7) hue-rotate(100deg) brightness(1.05)" },
+    { id: "forest", name: "Forest", css: "saturate(1.4) hue-rotate(95deg) contrast(1.1) brightness(.92)" },
+    { id: "moss", name: "Moss", css: "sepia(.25) saturate(1.3) hue-rotate(70deg) brightness(.98) contrast(1.05)" },
+    { id: "pine", name: "Pine", css: "saturate(1.35) hue-rotate(110deg) contrast(1.08) brightness(.9)" },
     { id: "neon", name: "Neon", css: "saturate(2) contrast(1.3) brightness(1.05)" },
+    { id: "electric", name: "Electric", css: "saturate(2.2) contrast(1.35) brightness(1.06) hue-rotate(10deg)" },
+    { id: "cyber", name: "Cyber", css: "contrast(1.3) saturate(1.6) hue-rotate(-30deg) brightness(1.02)" },
+    { id: "laser", name: "Laser", css: "saturate(2.3) contrast(1.4) hue-rotate(-20deg)" },
+    { id: "vapor", name: "Vapor", css: "saturate(1.6) hue-rotate(-45deg) brightness(1.1) contrast(1.05)" },
+    { id: "disco", name: "Disco", css: "saturate(2.1) hue-rotate(-60deg) contrast(1.2) brightness(1.02)" },
+    { id: "prism", name: "Prism", css: "saturate(2) hue-rotate(120deg) contrast(1.15)" },
     { id: "drama", name: "Drama", css: "contrast(1.42) saturate(1.1) brightness(.96)" },
-    { id: "dusk", name: "Dusk", css: "brightness(.92) contrast(1.15) saturate(1.2) hue-rotate(-10deg)" },
-    { id: "velvet", name: "Velvet", css: "contrast(1.15) saturate(1.25) brightness(.98) sepia(.1)" },
+    { id: "bold", name: "Bold", css: "contrast(1.5) saturate(1.2) brightness(.95)" },
+    { id: "moody", name: "Moody", css: "contrast(1.3) saturate(.9) brightness(.9)" },
+    { id: "midnight", name: "Midnight", css: "brightness(.82) contrast(1.25) saturate(1.15) hue-rotate(10deg)" },
+    { id: "shadow", name: "Shadow", css: "brightness(.85) contrast(1.3) saturate(.95)" },
+    { id: "storm", name: "Storm", css: "brightness(.88) contrast(1.2) saturate(.85) hue-rotate(15deg)" },
+    { id: "eclipse", name: "Eclipse", css: "brightness(.8) contrast(1.35) saturate(1.1)" },
+    { id: "ink", name: "Ink", css: "grayscale(.6) contrast(1.4) brightness(.9)" },
     { id: "fade", name: "Fade", css: "contrast(.9) brightness(1.09) saturate(.82)" },
-    { id: "retro", name: "Retro", css: "sepia(.4) contrast(1.1) saturate(1.2) brightness(1.02) hue-rotate(-5deg)" },
+    { id: "faded", name: "Faded", css: "contrast(.85) brightness(1.12) saturate(.7)" },
+    { id: "soft", name: "Soft", css: "contrast(.92) brightness(1.08) saturate(.95)" },
+    { id: "dream", name: "Dream", css: "contrast(.88) brightness(1.14) saturate(1.1) sepia(.1)" },
+    { id: "haze", name: "Haze", css: "contrast(.85) brightness(1.16) saturate(.9) sepia(.08)" },
+    { id: "mist", name: "Mist", css: "contrast(.9) brightness(1.12) saturate(.8) hue-rotate(10deg)" },
+    { id: "pastel", name: "Pastel", css: "saturate(.75) brightness(1.1) contrast(.95)" },
+    { id: "muted", name: "Muted", css: "saturate(.65) contrast(1.02) brightness(1.03)" },
     { id: "vintage", name: "Vintage", css: "sepia(.5) contrast(.96) brightness(1.05) saturate(1.3)" },
+    { id: "retro", name: "Retro", css: "sepia(.4) contrast(1.1) saturate(1.2) brightness(1.02) hue-rotate(-5deg)" },
+    { id: "film", name: "Film", css: "sepia(.3) contrast(1.08) brightness(1.02) saturate(1.1)" },
+    { id: "polaroid", name: "Polaroid", css: "sepia(.35) contrast(.95) brightness(1.1) saturate(1.15)" },
     { id: "sepia", name: "Sepia", css: "sepia(.8) contrast(1.05) brightness(1.05)" },
-    { id: "glow", name: "Glow", css: "brightness(1.14) saturate(1.22) contrast(.97)" },
+    { id: "toast", name: "Toast", css: "sepia(.7) saturate(1.4) hue-rotate(-10deg) contrast(1.05)" },
+    { id: "velvet", name: "Velvet", css: "contrast(1.15) saturate(1.25) brightness(.98) sepia(.1)" },
     { id: "mono", name: "Mono", css: "grayscale(1) contrast(1.16)" },
+    { id: "silver", name: "Silver", css: "grayscale(1) contrast(1.05) brightness(1.1)" },
     { id: "noir", name: "Noir", css: "grayscale(1) contrast(1.55) brightness(.9)" },
-    { id: "invert", name: "X-Ray", css: "invert(1) hue-rotate(180deg) contrast(1.1)" },
+    { id: "graphite", name: "Graphite", css: "grayscale(1) contrast(1.3) brightness(.95)" },
+    { id: "pearl", name: "Pearl", css: "grayscale(.9) contrast(.95) brightness(1.15)" },
+    { id: "slate", name: "Slate", css: "grayscale(.85) contrast(1.15) hue-rotate(15deg)" },
+    { id: "thermal", name: "Thermal", css: "saturate(2.5) hue-rotate(140deg) contrast(1.3)" },
+    { id: "infrared", name: "Infrared", css: "saturate(2) hue-rotate(200deg) contrast(1.2) brightness(1.05)" },
+    { id: "xray", name: "X-Ray", css: "invert(1) hue-rotate(180deg) contrast(1.1)" },
   ],
   PAINT_COLORS: ["#ff3d7f", "#ff6b3d", "#ffd23d", "#3dff88", "#3dd0ff", "#8b5cff", "#ffffff", "#101014"],
   stream: null, facing: "user", filterIdx: 0, target: "story", mode: "photo",
@@ -76,11 +161,18 @@ const Camera = {
     try { await this.start(); } catch (e) { this.facing = this.facing === "user" ? "environment" : "user"; }
   },
   setFilter(i) {
-    this.filterIdx = i;
+    this.filterIdx = (i + this.FILTERS.length) % this.FILTERS.length;
     const v = document.getElementById("cam-video");
     if (v) v.style.filter = this.cssFilter();
-    document.querySelectorAll(".cam-filter").forEach((el, idx) => el.classList.toggle("active", idx === i));
+    const btns = document.querySelectorAll(".cam-filter");
+    btns.forEach((el, idx) => el.classList.toggle("active", idx === this.filterIdx));
+    const active = btns[this.filterIdx];
+    if (active && active.scrollIntoView) active.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    const label = document.getElementById("cam-filter-name");
+    if (label) { label.textContent = (this.FILTERS[this.filterIdx] || {}).name || ""; label.classList.remove("show"); void label.offsetWidth; label.classList.add("show"); }
   },
+  nextFilter() { this.setFilter(this.filterIdx + 1); },
+  prevFilter() { this.setFilter(this.filterIdx - 1); },
 
   buildUI() {
     let ov = document.getElementById("camera-ov");
@@ -90,6 +182,7 @@ const Camera = {
       <div class="cam-stage">
         <video id="cam-video" playsinline autoplay muted></video>
         <canvas id="cam-canvas" class="cam-canvas"></canvas>
+        <div class="cam-filter-name" id="cam-filter-name"></div>
         <div class="cam-top">
           <button class="cam-ic" onclick="Camera.close()">✕</button>
           <div class="cam-rec-time" id="cam-rec-time"></div>
@@ -99,7 +192,7 @@ const Camera = {
           ${this.FILTERS.map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
         </div>
         <div class="cam-bottom">
-          <div class="cam-hint" id="cam-hint">Tap to take a photo</div>
+          <div class="cam-hint" id="cam-hint">Tap to take a photo · swipe for filters</div>
           <div class="cam-modes">
             <button class="cam-mode active" id="cam-mode-photo" onclick="Camera.setMode('photo')">Photo</button>
             <button class="cam-mode" id="cam-mode-video" onclick="Camera.setMode('video')">Video</button>
@@ -122,6 +215,11 @@ const Camera = {
     sh.addEventListener("pointerdown", (e) => { try { sh.setPointerCapture(e.pointerId); } catch (er) {} startHold(e); });
     sh.addEventListener("pointerup", endHold);
     sh.addEventListener("pointercancel", () => { clearTimeout(timer); if (this.recording) this.stopRec(); held = false; });
+    // swipe left/right anywhere on the preview to change filters (Snapchat-style)
+    const stage = ov.querySelector(".cam-stage");
+    let sx = null, sy = null;
+    stage.addEventListener("pointerdown", (e) => { if (e.target.closest(".cam-shutter,.cam-filters,.cam-modes,.cam-ic,.cam-top,.cam-bottom")) { sx = null; return; } sx = e.clientX; sy = e.clientY; });
+    stage.addEventListener("pointerup", (e) => { if (sx === null) return; const dx = e.clientX - sx, dy = e.clientY - sy; sx = null; if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { if (dx < 0) this.nextFilter(); else this.prevFilter(); } });
     const v = document.getElementById("cam-video"); if (v) v.style.filter = this.cssFilter();
   },
   setMode(m) {

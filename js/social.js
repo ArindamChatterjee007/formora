@@ -166,6 +166,36 @@ const Social = {
       ? `<button class="btn ghost sm" onclick="event.stopPropagation();Social.toggleFollow('${uid}')">Following ✓</button>`
       : `<button class="btn sm follow" onclick="event.stopPropagation();Social.toggleFollow('${uid}')">+ Follow</button>`;
   },
+  // connecting auto-follows both people (LinkedIn-style); unfollow = opt-out, remembered so we never re-auto-follow
+  autoFollowOnConnect(uid) {
+    if (!uid || (typeof Cloud !== "undefined" && uid === Cloud.me)) return;
+    const p = Store.state.profile;
+    if (!p.autoFollowed) p.autoFollowed = [];
+    if (!p.following) p.following = [];
+    if (p.autoFollowed.includes(uid) || p.following.includes(uid)) return;
+    p.following.push(uid); p.autoFollowed.push(uid);
+    Store.save();
+    if (this.cloudActive() && Cloud.registerMe && Cloud.me) Cloud.registerMe(p);
+  },
+  syncAutoFollow() {
+    const p = Store.state.profile;
+    if (!p.autoFollowed) p.autoFollowed = [];
+    if (!p.following) p.following = [];
+    const me = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    let changed = false;
+    (this.cloud.connections || []).forEach((uid) => {
+      if (uid && uid !== me && !p.autoFollowed.includes(uid) && !p.following.includes(uid)) { p.following.push(uid); p.autoFollowed.push(uid); changed = true; }
+    });
+    if (changed) { Store.save(); if (this.cloudActive() && Cloud.registerMe && Cloud.me) Cloud.registerMe(p); }
+  },
+  // feed priority: your own + people you follow + connections rank above everyone else, each newest-first
+  _rankFeed(posts) {
+    const me = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    const following = this.myFollowing();
+    const conns = this.cloud.connections || [];
+    const pri = (p) => (p.author === me ? 3 : following.includes(p.author) ? 2 : conns.includes(p.author) ? 1 : 0);
+    return posts.slice().sort((a, b) => (pri(b) - pri(a)) || ((b.ts || 0) - (a.ts || 0)));
+  },
   // friends-only posts are hidden from non-connected viewers (UI-level privacy)
   _canSeePost(p) {
     if (typeof Cloud === "undefined" || p.author === Cloud.me) return true;
@@ -216,7 +246,7 @@ const Social = {
         </div>
       </div>`;
     if (this.cloudActive()) {
-      const visible = this.cloud.feed.filter((p) => this._canSeePost(p));
+      const visible = this._rankFeed(this.cloud.feed.filter((p) => this._canSeePost(p)));
       const posts = visible.map((p) => this.postCard(this._cloudPost(p))).join("");
       return this.storiesRow() + composer + (visible.length ? posts
         : `<div class="card"><div class="sub" style="text-align:center;padding:22px 6px">No posts yet — share your first update above and your crew will see it 💪</div></div>`);
@@ -598,7 +628,8 @@ const Social = {
       if (!src) return;
       const origId = src.reshareOf || src.id;
       const origAuthor = src.resharedFrom || src.author;
-      const mine = this.cloud.feed.find((x) => x.reshareOf === origId && x.author === Cloud.me);
+      if (origAuthor === Cloud.me) { if (typeof App !== "undefined" && App.toast) App.toast("You can't reshare your own post"); return; }
+      const mine = this.cloud.feed.find((x) => x.author === Cloud.me && x.reshareOf === origId);
       if (mine) {
         if (Cloud.deletePost) Cloud.deletePost(mine.id);
         this.cloud.feed = this.cloud.feed.filter((p) => p.id !== mine.id);
@@ -606,9 +637,10 @@ const Social = {
         this.render();
         return;
       }
-      if (origAuthor === Cloud.me) { if (typeof App !== "undefined" && App.toast) App.toast("You can't reshare your own post"); return; }
-      const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, video: src.video, gradient: src.gradient, tag: src.tag, resharedFrom: origAuthor, reshareOf: origId });
-      if (np) this.cloud.feed.unshift(np);
+      // deterministic id → upsert; a post can only be reshared once per account (no duplicates on race/double-tap)
+      const reshareId = "rs_" + Cloud.me + "__" + origId;
+      const np = Cloud.addPost({ id: reshareId, merge: true, text: src.text, photo: src.photo, photos: src.photos, video: src.video, gradient: src.gradient, tag: src.tag, resharedFrom: origAuthor, reshareOf: origId });
+      if (np && !this.cloud.feed.some((p) => p.id === np.id)) this.cloud.feed.unshift(np);
       if (Cloud.notify) Cloud.notify(origAuthor, "reshare", origId, src.text || "");
       if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
       this.render();
@@ -689,6 +721,7 @@ const Social = {
     if (!this.cloud.connections) this.cloud.connections = [];
     if (!this.cloud.connections.includes(fromUid)) this.cloud.connections.push(fromUid);
     this.cloud.requests = (this.cloud.requests || []).filter((r) => r.from !== fromUid);
+    this.autoFollowOnConnect(fromUid);
     if (typeof App !== "undefined" && App.toast) App.toast("Connected 🎉");
     this.render();
   },

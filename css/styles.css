@@ -1066,6 +1066,9 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .cam-modes { display: flex; gap: 6px; background: rgba(0,0,0,.38); border-radius: 999px; padding: 4px; backdrop-filter: blur(6px); }
 .cam-mode { padding: 7px 20px; border-radius: 999px; border: none; background: none; color: rgba(255,255,255,.72); font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; letter-spacing: .3px; }
 .cam-mode.active { background: #fff; color: #111; }
+.cam-filter-name { position: absolute; top: 40%; left: 0; right: 0; text-align: center; color: #fff; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 14px rgba(0,0,0,.7); z-index: 3; opacity: 0; pointer-events: none; }
+.cam-filter-name.show { animation: camFilterName 1s ease forwards; }
+@keyframes camFilterName { 0% { opacity: 0; transform: scale(.9); } 15% { opacity: 1; transform: scale(1); } 68% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ===== Flex reels (vertical scroll) ===== */
 .reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 14px; }
