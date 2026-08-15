@@ -1066,6 +1066,38 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .cam-modes { display: flex; gap: 6px; background: rgba(0,0,0,.38); border-radius: 999px; padding: 4px; backdrop-filter: blur(6px); }
 .cam-mode { padding: 7px 20px; border-radius: 999px; border: none; background: none; color: rgba(255,255,255,.72); font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; letter-spacing: .3px; }
 .cam-mode.active { background: #fff; color: #111; }
+
+/* ===== Flex reels (vertical scroll) ===== */
+.reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 14px; }
+.reels::-webkit-scrollbar { display: none; }
+.reel { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; background: #000; overflow: hidden; display: flex; }
+.reel-vid { width: 100%; height: 100%; object-fit: contain; background: #000; margin: auto; }
+.reel-grad { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.6), transparent 32%, transparent 72%, rgba(0,0,0,.35)); }
+.reel-mute { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(0,0,0,.42); color: #fff; font-size: 17px; cursor: pointer; z-index: 3; backdrop-filter: blur(6px); }
+.reel-actions { position: absolute; right: 12px; bottom: 96px; display: flex; flex-direction: column; gap: 18px; z-index: 3; }
+.reel-act { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; color: #fff; font-size: 26px; cursor: pointer; text-shadow: 0 2px 8px rgba(0,0,0,.55); font-family: inherit; }
+.reel-act span { font-size: 12px; font-weight: 700; }
+.reel-act.on { transform: scale(1.08); }
+.reel-info { position: absolute; left: 14px; right: 76px; bottom: 26px; display: flex; align-items: center; gap: 10px; color: #fff; z-index: 3; cursor: pointer; }
+.reel-meta { min-width: 0; }
+.reel-name { font-weight: 800; font-size: 14px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.reel-name span { font-weight: 500; opacity: .85; }
+.reel-cap { font-size: 13px; margin-top: 2px; text-shadow: 0 1px 4px rgba(0,0,0,.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.flex-empty { text-align: center; padding: 54px 24px; }
+.flex-empty-ic { font-size: 52px; margin-bottom: 10px; }
+.flex-empty h2 { font-size: 20px; margin-bottom: 6px; }
+.flex-empty .btn { margin-top: 16px; }
+@media (max-width: 760px) { .reels { margin: -8px -12px 0; border-radius: 0; height: calc(100dvh - 140px); } }
+
+/* ===== profile counts + follow ===== */
+.vp-counts { display: flex; gap: 6px; margin: 14px 0 12px; text-align: center; }
+.vp-counts > div { flex: 1; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 4px; }
+.vp-counts b { display: block; font-size: 18px; font-weight: 800; }
+.vp-counts span { font-size: 11px; color: var(--muted); }
+.vp-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+.vp-actions .btn { flex: 1; }
+.crew-cta { display: flex; flex-direction: column; gap: 6px; }
+.btn.sm.follow { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
 .cam-share { min-width: 220px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: 999px; padding: 15px; font-weight: 800; font-size: 15px; box-shadow: 0 8px 22px rgba(255,61,127,.42); }
 .paint-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
 .paint-colors { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 5; }

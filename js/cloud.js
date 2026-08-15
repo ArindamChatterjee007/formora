@@ -74,7 +74,7 @@ const Cloud = {
       username: p.username || "", name: p.name || "", avatar: p.avatar || "",
       physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
-      socials: p.socials || {}, privacy: p.privacy || "public",
+      socials: p.socials || {}, privacy: p.privacy || "public", following: p.following || [],
     };
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
@@ -84,6 +84,11 @@ const Cloud = {
     const data = { text: (post && post.text) || "", photo: (post && post.photo) || null, photos: (post && post.photos) || null, video: (post && post.video) || null, gradient: (post && post.gradient) || null, tag: (post && post.tag) || "Flex", resharedFrom: (post && post.resharedFrom) || null, reshareOf: (post && post.reshareOf) || null };
     this._write("/posts", { id, author: this.me, data, likes: {} }, { Prefer: "return=minimal" });
     return { id, author: this.me, likes: {}, ts: Date.now(), ...data }; // for instant optimistic display
+  },
+  async deletePost(id) {
+    if (!this.active() || !id) return false;
+    try { const r = await fetch(this.base + "/posts?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
+    catch (e) { return false; }
   },
   likeCloud(postId) {
     if (!this.active()) return;

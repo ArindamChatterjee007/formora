@@ -135,7 +135,30 @@ const Social = {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public" };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [] };
+  },
+  // ---- follow (one-way, LinkedIn-style) + counts ----
+  myFollowing() { return (typeof Store !== "undefined" && Store.state.profile && Store.state.profile.following) || []; },
+  isFollowing(uid) { return this.myFollowing().includes(uid); },
+  toggleFollow(uid) {
+    if (!this.cloudActive() || uid === Cloud.me) return;
+    const p = Store.state.profile;
+    if (!p.following) p.following = [];
+    const i = p.following.indexOf(uid);
+    if (i >= 0) { p.following.splice(i, 1); if (typeof App !== "undefined" && App.toast) App.toast("Unfollowed"); }
+    else { p.following.push(uid); if (Cloud.notify) Cloud.notify(uid, "follow", null, ""); if (typeof App !== "undefined" && App.toast) App.toast("Following ✓"); }
+    Store.save();
+    if (Cloud.registerMe) Cloud.registerMe(p);
+    this.render();
+  },
+  followingCount() { return this.myFollowing().length; },
+  followersCount(uid) { const t = uid || (typeof Cloud !== "undefined" ? Cloud.me : null); if (!t) return 0; return (this.cloud.users || []).filter((u) => (u.following || []).includes(t)).length; },
+  connectionsCount() { return (this.cloud.connections || []).length; },
+  followBtn(uid) {
+    if (!this.cloudActive() || uid === Cloud.me) return "";
+    return this.isFollowing(uid)
+      ? `<button class="btn ghost sm" onclick="event.stopPropagation();Social.toggleFollow('${uid}')">Following ✓</button>`
+      : `<button class="btn sm follow" onclick="event.stopPropagation();Social.toggleFollow('${uid}')">+ Follow</button>`;
   },
   // friends-only posts are hidden from non-connected viewers (UI-level privacy)
   _canSeePost(p) {
@@ -258,7 +281,7 @@ const Social = {
             <div class="post-who"><div class="pw-name">${esc(a.name)} ${a.level ? `<span class="lvl">${esc(a.level)}</span>` : ""}</div>
               <div class="pw-sub">@${esc(a.handle)} · ${this.timeAgo(p.ts)}</div></div>
           </div>
-          ${p.author === "me" ? `<button class="icon-btn" title="Delete" onclick="Social.removePost('${p.id}')">✕</button>` : ""}
+          ${(p.author === "me" || (typeof Cloud !== "undefined" && Cloud.me && p.author === Cloud.me)) ? `<button class="icon-btn" title="Delete" onclick="Social.removePost('${p.id}')">✕</button>` : ""}
         </div>
         ${reshared}
         ${p.text ? `<div class="post-text">${esc(p.text)}</div>` : ""}
@@ -266,7 +289,7 @@ const Social = {
         <div class="post-actions">
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${p.likedByMe ? "❤️" : "🤍"} <span>${p.likes}</span></button>
           <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
-          <button class="pa ${p.resharedByMe ? "on" : ""}" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
+          <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
@@ -492,7 +515,17 @@ const Social = {
     }
     this.createPost({ text, photo: photos[0] || null }); this.pendingPhotos = []; this.render();
   },
-  removePost(id) { this.deletePost(id); this.render(); },
+  removePost(id) {
+    if (!confirm("Delete this post? This can't be undone.")) return;
+    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.deletePost) {
+      Cloud.deletePost(id);
+      this.cloud.feed = this.cloud.feed.filter((p) => p.id !== id);
+      if (typeof App !== "undefined" && App.toast) App.toast("Post deleted");
+      this.render();
+      return;
+    }
+    this.deletePost(id); this.render();
+  },
   likePost(id) {
     if (this.cloudActive()) {
       const post = this.cloud.feed.find((p) => p.id === id);
@@ -556,13 +589,23 @@ const Social = {
   resharePost(id) {
     if (this.cloudActive()) {
       const src = this.cloud.feed.find((p) => p.id === id);
-      if (src) {
-        const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, gradient: src.gradient, tag: src.tag, resharedFrom: src.author, reshareOf: src.id });
-        if (np) this.cloud.feed.unshift(np);
-        if (Cloud.notify && src.author !== Cloud.me) Cloud.notify(src.author, "reshare", id, src.text || "");
-        if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
+      if (!src) return;
+      const origId = src.reshareOf || src.id;
+      const origAuthor = src.resharedFrom || src.author;
+      const mine = this.cloud.feed.find((x) => x.reshareOf === origId && x.author === Cloud.me);
+      if (mine) {
+        if (Cloud.deletePost) Cloud.deletePost(mine.id);
+        this.cloud.feed = this.cloud.feed.filter((p) => p.id !== mine.id);
+        if (typeof App !== "undefined" && App.toast) App.toast("Reshare removed");
         this.render();
+        return;
       }
+      if (origAuthor === Cloud.me) { if (typeof App !== "undefined" && App.toast) App.toast("You can't reshare your own post"); return; }
+      const np = Cloud.addPost({ text: src.text, photo: src.photo, photos: src.photos, video: src.video, gradient: src.gradient, tag: src.tag, resharedFrom: origAuthor, reshareOf: origId });
+      if (np) this.cloud.feed.unshift(np);
+      if (Cloud.notify) Cloud.notify(origAuthor, "reshare", origId, src.text || "");
+      if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
+      this.render();
       return;
     }
     this.reshare(id); this.render();
@@ -614,7 +657,7 @@ const Social = {
       </div>`;
   },
   memberCard(p) {
-    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}</div></div>`;
+    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}${this.followBtn(p.id)}</div></div>`;
   },
   memberCta(uid) {
     if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.openDM('${uid}')">💬 Message</button>`;
@@ -683,6 +726,12 @@ const Social = {
     else if (tab === "stats") tabHtml = `<div class="vp-stats"><div><b>${posts.length}</b><span>Posts</span></div><div><b>${u.streak || 0}</b><span>Day streak</span></div>${u.physique ? `<div><b>🎯</b><span>${esc(u.physique)}</span></div>` : ""}</div>${isMe ? `<button class="btn ghost wide" onclick="App.closeModal();App.goTab('progress')">Open my progress graph →</button>` : `<div class="sub" style="padding:10px 0;text-align:center">Detailed progress stays private to each member.</div>`}`;
     else tabHtml = posts.length ? posts.map((x) => this.postCard(this.cloudActive() ? this._cloudPost(x) : x)).join("") : `<div class="sub" style="text-align:center;padding:16px 0">No posts yet.</div>`;
     const card = document.getElementById("modal-card");
+    const vpCounts = `<div class="vp-counts">
+      <div><b>${posts.length}</b><span>Posts</span></div>
+      <div><b>${this.followersCount(uid)}</b><span>Followers</span></div>
+      <div><b>${(u.following || []).length}</b><span>Following</span></div>
+      ${isMe ? `<div><b>${this.connectionsCount()}</b><span>Connections</span></div>` : ""}
+    </div>`;
     card.innerHTML = `
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="view-profile">
@@ -692,9 +741,10 @@ const Social = {
             ${u.physique ? `<div class="vp-phys">🎯 ${esc(u.physique)}</div>` : ""}
           </div>
         </div>
+        ${vpCounts}
         ${u.bio ? `<div class="vp-bio">${esc(u.bio)}</div>` : ""}
         ${links ? `<div class="vp-socials">${links}</div>` : ""}
-        ${cta}
+        ${isMe ? "" : `<div class="vp-actions">${cta}${this.followBtn(uid)}</div>`}
         ${locked ? "" : `<div class="vp-tabs">
           <button class="vp-tab ${tab === "posts" ? "active" : ""}" onclick="Social.vpTab('${uid}','posts')">📝 Posts</button>
           <button class="vp-tab ${tab === "clips" ? "active" : ""}" onclick="Social.vpTab('${uid}','clips')">🎬 Clips</button>

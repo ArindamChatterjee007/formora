@@ -26,6 +26,7 @@ const DEFAULT_PROFILE = {
   socials: { instagram: "", linkedin: "", facebook: "" },
   username: "",               // unique @handle (auto-generated, editable)
   privacy: "public",          // "public" | "friends" — who can see profile & posts
+  following: [],              // uids this user follows (one-way, LinkedIn-style)
   onboarded: false,           // true once the user completes the details step
 };
 

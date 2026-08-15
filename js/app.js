@@ -430,8 +430,8 @@ const App = {
   },
 
   // maps a top-level tab to the section element it activates
-  _tabView: { home: "feed", search: "feed", coach: "coach", alerts: "alerts", profile: "profile" },
-  _tabOrder: ["home", "search", "coach", "alerts", "profile"],
+  _tabView: { home: "feed", search: "feed", flex: "flex", coach: "coach", alerts: "alerts", profile: "profile" },
+  _tabOrder: ["home", "search", "flex", "coach", "alerts", "profile"],
 
   selectTab(tab) {
     if (!this._tabView[tab]) tab = "home";
@@ -446,9 +446,74 @@ const App = {
   renderTab(tab) {
     if (tab === "home") Social.render("feed");
     else if (tab === "search") Social.render("crew");
+    else if (tab === "flex") this.renderFlex();
     else if (tab === "coach") this.renderCoach();
     else if (tab === "alerts") this.renderAlerts();
     else if (tab === "profile") this.renderProfile();
+  },
+
+  // ---- Flex: full-screen vertical-scroll reels (TikTok/Reels-style) ----
+  renderFlex() {
+    const el = document.getElementById("view-flex");
+    if (!el) return;
+    const cloudOn = Social.cloudActive();
+    const reels = cloudOn ? Social.cloud.feed.filter((p) => p.video && Social._canSeePost(p)) : [];
+    if (!reels.length) {
+      el.innerHTML = `<div class="flex-empty"><div class="flex-empty-ic">🎬</div><h2>No Flex videos yet</h2><p class="sub">Record a Flex from the Home feed and it'll show up here to scroll — like Reels, but yours.</p><button class="btn" onclick="App.selectTab('home');Social.pickReel()">Record a Flex 💪</button></div>`;
+      if (this._reelObs) { this._reelObs.disconnect(); this._reelObs = null; }
+      return;
+    }
+    el.innerHTML = `<div class="reels" id="reels">${reels.map((p) => this.reelSlide(Social._cloudPost(p))).join("")}</div>`;
+    this._bindReels();
+  },
+  reelSlide(p) {
+    const a = Social.persona(p.author);
+    return `<div class="reel" data-id="${p.id}">
+      <video class="reel-vid" src="${p.video}" playsinline loop muted preload="metadata" onclick="App.toggleReelPlay(this)"></video>
+      <div class="reel-grad"></div>
+      <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">🔇</button>
+      <div class="reel-actions">
+        <button class="reel-act like ${p.likedByMe ? "on" : ""}" onclick="App.reelLike('${p.id}',this)">${p.likedByMe ? "❤️" : "🤍"}<span>${p.likes}</span></button>
+        <button class="reel-act" onclick="Social.viewProfile('${p.author}')">💬<span>${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
+        <button class="reel-act reshare ${p.resharedByMe ? "on" : ""}" onclick="App.reelReshare('${p.id}',this)">🔁<span>${p.reshares || 0}</span></button>
+      </div>
+      <div class="reel-info" onclick="Social.viewProfile('${p.author}')">
+        ${Social.avatar(a, 40)}
+        <div class="reel-meta"><div class="reel-name">${esc(a.name)} <span>@${esc(a.handle)}</span></div>${p.text ? `<div class="reel-cap">${esc(p.text)}</div>` : ""}</div>
+      </div>
+    </div>`;
+  },
+  _bindReels() {
+    const cont = document.getElementById("reels");
+    if (!cont) return;
+    const vids = cont.querySelectorAll(".reel-vid");
+    if (this._reelObs) this._reelObs.disconnect();
+    this._reelObs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        const v = e.target;
+        if (e.isIntersecting && e.intersectionRatio > 0.6) v.play().catch(() => {});
+        else v.pause();
+      });
+    }, { threshold: [0, 0.6, 1] });
+    vids.forEach((v) => this._reelObs.observe(v));
+    if (vids[0]) vids[0].play().catch(() => {});
+  },
+  toggleReelPlay(v) { if (v.paused) v.play().catch(() => {}); else v.pause(); },
+  toggleReelMute(btn) { const r = btn.closest(".reel"); const v = r && r.querySelector(".reel-vid"); if (!v) return; v.muted = !v.muted; btn.textContent = v.muted ? "🔇" : "🔊"; },
+  reelLike(id, btn) {
+    Social.likePost(id);
+    const src = Social.cloud.feed.find((x) => x.id === id);
+    if (!src) return;
+    const p = Social._cloudPost(src);
+    btn.classList.toggle("on", p.likedByMe);
+    btn.innerHTML = (p.likedByMe ? "❤️" : "🤍") + `<span>${p.likes}</span>`;
+  },
+  reelReshare(id, btn) {
+    Social.resharePost(id);
+    const src = Social.cloud.feed.find((x) => x.id === id);
+    const p = src ? Social._cloudPost(src) : { reshares: 0, resharedByMe: false };
+    btn.classList.toggle("on", p.resharedByMe);
+    btn.innerHTML = "🔁" + `<span>${p.reshares || 0}</span>`;
   },
 
   // route legacy/deep-link targets (feed, today, progress, nutrition, overview) to the new nav
@@ -1439,10 +1504,10 @@ const App = {
           <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
         </div>
         <div class="ph-stats">
-          <div><b>${cloudOn ? (Social.cloud.connections || []).length : Social.crewList().length}</b><span>Crew</span></div>
+          <div><b>${cloudOn ? Social.connectionsCount() : Social.crewList().length}</b><span>Connections</span></div>
+          <div><b>${cloudOn ? Social.followersCount() : 0}</b><span>Followers</span></div>
+          <div><b>${cloudOn ? Social.followingCount() : 0}</b><span>Following</span></div>
           <div><b>${myPosts.length}</b><span>Posts</span></div>
-          <div><b>${Engine.streak()}</b><span>Streak</span></div>
-          <div><b>${s.calTarget}</b><span>Target kcal</span></div>
         </div>
         <div class="ph-bio-field field"><label>Username <span class="inline-hint">(your unique @handle)</span></label>
           <input id="p-username" maxlength="20" value="${esc(p.username || "")}" placeholder="e.g. arindam.fit">
@@ -1589,6 +1654,10 @@ const App = {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     const list = await Cloud.getNotifications();
     Social.cloud.notifs = list || [];
+    // instant connect: if someone accepted my request, reflect it now (don't wait for the 12s state poll)
+    let gained = false;
+    (list || []).forEach((n) => { if (n.type === "accept" && n.actor && !(Social.cloud.connections || []).includes(n.actor)) { (Social.cloud.connections = Social.cloud.connections || []).push(n.actor); gained = true; } });
+    if (gained) { const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); }
     const unread = (list || []).filter((n) => !n.read).length;
     if (this.curTab === "alerts") { this.renderNotifPanel(); this.updateNotifBadge(0); if (Cloud.markNotifsRead) Cloud.markNotifsRead(); }
     else this.updateNotifBadge(unread);
@@ -1604,7 +1673,7 @@ const App = {
   },
   notifText(n) {
     const who = (Social.cloudUser(n.actor) || {}).name || "Someone";
-    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request", reshare: "🔁 reshared your post", message: "✉️ sent you a message" };
+    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request — you're connected", reshare: "🔁 reshared your post", message: "✉️ sent you a message", follow: "➕ started following you" };
     return `<b>${esc(who)}</b> ${map[n.type] || esc(n.type)}${n.body ? ` — “${esc((n.body || "").slice(0, 40))}”` : ""}`;
   },
   renderNotifPanel() {
