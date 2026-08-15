@@ -152,7 +152,13 @@ const Social = {
     this.render();
   },
   followingCount() { return this.myFollowing().length; },
-  followersCount(uid) { const t = uid || (typeof Cloud !== "undefined" ? Cloud.me : null); if (!t) return 0; return (this.cloud.users || []).filter((u) => (u.following || []).includes(t)).length; },
+  followersCount(uid) {
+    const t = uid || (typeof Cloud !== "undefined" ? Cloud.me : null); if (!t) return 0;
+    let n = (this.cloud.users || []).filter((u) => (u.following || []).includes(t)).length;
+    // my own follow isn't in cloud.users (self is filtered out) — count it when viewing someone I follow
+    if (typeof Cloud !== "undefined" && t !== Cloud.me && this.isFollowing(t)) n += 1;
+    return n;
+  },
   connectionsCount() { return (this.cloud.connections || []).length; },
   followBtn(uid) {
     if (!this.cloudActive() || uid === Cloud.me) return "";
