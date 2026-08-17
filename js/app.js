@@ -74,10 +74,27 @@ const App = {
     if (typeof Cloud !== "undefined" && Cloud.active && Cloud.active()) Cloud.setPaused(hidden);
   },
 
+  // ---- moderation ----
+  isBanned(uid) { return !!(uid && window.BANNED_UIDS && window.BANNED_UIDS.includes(uid)); },
+  showSuspended() {
+    const shell = document.getElementById("app-shell"); if (shell) shell.classList.add("hidden");
+    const ov = document.getElementById("auth-overlay"); if (ov) ov.classList.remove("hidden");
+    const card = document.getElementById("auth-card");
+    if (card) card.innerHTML = `<div class="suspended">
+      <div class="susp-ic">🚫</div>
+      <h2>Account suspended</h2>
+      <p>Your account has been suspended for violating Formora's community guidelines — impersonating another person.</p>
+      <p class="susp-sub">If you believe this is a mistake, you can appeal by verifying your identity with our team.</p>
+      <button class="btn ghost wide" onclick="App.logout()">Log out</button>
+    </div>`;
+  },
+
   /* ---------------- AUTH GATE ---------------- */
   async enterApp() {
     const u = Auth.currentUser();
     if (!u) return this.showAuth("login");
+    const myUid = (typeof Cloud !== "undefined" && Cloud.uidFor) ? Cloud.uidFor(u.email) : (u.email || "").toLowerCase();
+    if (this.isBanned(myUid)) return this.showSuspended();
     Store.load("gymcoach_v1_" + u.id);
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();

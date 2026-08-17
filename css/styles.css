@@ -1070,6 +1070,14 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .cam-filter-name.show { animation: camFilterName 1s ease forwards; }
 @keyframes camFilterName { 0% { opacity: 0; transform: scale(.9); } 15% { opacity: 1; transform: scale(1); } 68% { opacity: 1; } 100% { opacity: 0; } }
 
+/* ===== suspended / banned account ===== */
+.suspended { text-align: center; padding: 22px 12px; }
+.susp-ic { font-size: 56px; margin-bottom: 8px; }
+.suspended h2 { font-size: 22px; margin-bottom: 12px; }
+.suspended p { color: var(--muted); line-height: 1.55; margin-bottom: 10px; }
+.susp-sub { font-size: 13px; }
+.suspended .btn { margin-top: 16px; }
+
 /* ===== Flex reels (vertical scroll) ===== */
 .reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 14px; }
 .reels::-webkit-scrollbar { display: none; }

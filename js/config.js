@@ -32,6 +32,11 @@ window.SUPABASE_URL = "https://ptukgtxpigdkdzsewuvz.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0dWtndHhwaWdka2R6c2V3dXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MTUwNDEsImV4cCI6MjEwMjI5MTA0MX0.nlm6efF_qABMFaB3BgLk0RMCPbbmiiWd00BdSSJPYfA";
 window.SOCIAL_API = "";
 
+/* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
+   A banned user is blocked at login with a suspension notice, and their posts /
+   stories / profile are hidden across the app. Remove a uid here to lift a ban. ---- */
+window.BANNED_UIDS = ["miakhalifa_gmail_com"];
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {

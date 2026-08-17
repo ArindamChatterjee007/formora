@@ -197,7 +197,9 @@ const Social = {
     return posts.slice().sort((a, b) => (pri(b) - pri(a)) || ((b.ts || 0) - (a.ts || 0)));
   },
   // friends-only posts are hidden from non-connected viewers (UI-level privacy)
+  _isBanned(uid) { return !!(uid && window.BANNED_UIDS && window.BANNED_UIDS.includes(uid)); },
   _canSeePost(p) {
+    if (this._isBanned(p.author)) return false;
     if (typeof Cloud === "undefined" || p.author === Cloud.me) return true;
     const a = this.cloudUser(p.author);
     if (a && a.privacy === "friends") return (this.cloud.connections || []).includes(p.author) || this.inCrew(p.author);
@@ -362,6 +364,7 @@ const Social = {
     (this.cloud.stories || []).forEach((s) => { (byAuthor[s.author] = byAuthor[s.author] || []).push(s); });
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
     return Object.keys(byAuthor)
+      .filter((a) => !this._isBanned(a))
       .map((a) => ({ author: a, items: byAuthor[a].slice().sort((x, y) => (x.ts || 0) - (y.ts || 0)) }))
       .sort((g1, g2) => (g1.author === meId ? -1 : g2.author === meId ? 1 : (g2.items[g2.items.length - 1].ts || 0) - (g1.items[g1.items.length - 1].ts || 0)));
   },
@@ -671,8 +674,8 @@ const Social = {
       }).join("");
       const q = (this._memberQuery || "").toLowerCase();
       const conns = this.cloud.connections || [];
-      const crewMembers = this.cloud.users.filter((u) => conns.includes(u.uid));
-      const others = this.cloud.users.filter((u) => !conns.includes(u.uid) && (!q || (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q)));
+      const crewMembers = this.cloud.users.filter((u) => conns.includes(u.uid) && !this._isBanned(u.uid));
+      const others = this.cloud.users.filter((u) => !conns.includes(u.uid) && !this._isBanned(u.uid) && (!q || (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q)));
       const crewCards = crewMembers.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
       const otherCards = others.map((u) => this.memberCard(this.cloudUser(u.uid))).join("");
       return `${this.cloud.requests.length ? `<div class="card"><div class="card-head"><h2>Connect requests</h2><span class="tag">${this.cloud.requests.length}</span></div><div class="crew-list">${reqs}</div></div>` : ""}

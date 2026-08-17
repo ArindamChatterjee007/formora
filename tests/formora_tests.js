@@ -350,6 +350,11 @@ window.runFormoraTests = async function () {
       ok("commentCount = 1 for P1", Social.commentCount("P1") === 1);
       ok("commentCount = 0 for P2", Social.commentCount("P2") === 0);
 
+      // moderation / ban (window.BANNED_UIDS from config.js)
+      ok("banned uid detected", Social._isBanned("miakhalifa_gmail_com") === true && Social._isBanned("someone_ok") === false);
+      ok("banned author's post hidden from feed", Social._canSeePost({ author: "miakhalifa_gmail_com" }) === false);
+      ok("App.isBanned matches ban list", (typeof App === "undefined") || App.isBanned("miakhalifa_gmail_com") === true);
+
       // restore
       Cloud.addPost = _m.addPost; Cloud.deletePost = _m.deletePost; Cloud.notify = _m.notify; Cloud.registerMe = _m.registerMe;
       Cloud.sendRequest = _m.sendRequest; Cloud.acceptRequest = _m.acceptRequest; Cloud.declineRequest = _m.declineRequest; Cloud.cancelRequest = _m.cancelRequest;
