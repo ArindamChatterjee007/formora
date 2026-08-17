@@ -76,6 +76,13 @@ const App = {
 
   // ---- moderation ----
   isBanned(uid) { return !!(uid && window.BANNED_UIDS && window.BANNED_UIDS.includes(uid)); },
+  // admin helper: email a user about a moderation action (needs Mailer configured + owner's fm_mod_token)
+  async moderate(email, type, name, details) {
+    if (typeof Mailer === "undefined" || !Mailer.active()) { console.warn("Mailer not configured — set window.EMAIL_FN_URL in config.js + localStorage fm_mod_token"); return { ok: false, skipped: true }; }
+    const r = await Mailer.send(email, type || "warning", { name, details });
+    if (this.toast) this.toast(r.ok ? "📧 Email sent to " + email : "Email failed — check config/token");
+    return r;
+  },
   showSuspended() {
     const shell = document.getElementById("app-shell"); if (shell) shell.classList.add("hidden");
     const ov = document.getElementById("auth-overlay"); if (ov) ov.classList.remove("hidden");

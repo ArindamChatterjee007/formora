@@ -37,6 +37,12 @@ window.SOCIAL_API = "";
    stories / profile are hidden across the app. Remove a uid here to lift a ban. ---- */
 window.BANNED_UIDS = ["miakhalifa_gmail_com"];
 
+/* ---- Moderation emails (optional): deploy supabase/functions/send-email and paste its
+   URL here to email users on warn / content-removal / suspension. Empty = no emails.
+   The function is protected by a MOD_TOKEN secret; the owner enables in-app sending by
+   running once in their OWN browser: localStorage.setItem("fm_mod_token","<MOD_TOKEN>") ---- */
+window.EMAIL_FN_URL = "";
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {
