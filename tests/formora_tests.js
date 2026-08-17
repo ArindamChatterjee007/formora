@@ -417,6 +417,7 @@ window.runFormoraTests = async function () {
       const vpost = Social.postCard(Social._cloudPost(Social.cloud.feed[0]));
       ok("feed video is Instagram-style (no native controls, tap + mute)", !/controls/.test(vpost) && vpost.includes("tapFeedVideo") && vpost.includes("fv-mute"));
       ok("Social._bindFeedVideos exists", typeof Social._bindFeedVideos === "function");
+      ok("feed sound is a persistent global toggle", (() => { const b0 = Social._feedSound; Social.toggleFeedMute(document.createElement("button")); const flipped = Social._feedSound !== b0; Social._feedSound = false; return flipped; })());
       const rs = App.reelSlide(Social._cloudPost(Social.cloud.feed[0]));
       ok("reelSlide builds video + actions", rs.includes("reel-vid") && rs.includes("reel-act"));
       App.renderFlex();
