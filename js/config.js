@@ -43,6 +43,17 @@ window.BANNED_UIDS = ["miakhalifa_gmail_com"];
    running once in their OWN browser: localStorage.setItem("fm_mod_token","<MOD_TOKEN>") ---- */
 window.EMAIL_FN_URL = "";
 
+/* ---- Email verification delivery (so a signup's email is REAL, not fake) ----
+   The signup step emails a 6-digit code; the user must fetch it from their inbox.
+   Two ways to deliver — configure EITHER (both optional; empty = demo code on screen):
+   1) Resend (via EMAIL_FN_URL above) — needs a verified domain in Resend.
+   2) EmailJS — no domain needed, sends from your Gmail. Create a free account at
+      https://www.emailjs.com → add an email service + a template with variables
+      {{to_email}}, {{code}}, {{name}} → paste the 3 IDs below. Free ~200/mo.        */
+window.EMAILJS_PUBLIC_KEY = "";
+window.EMAILJS_SERVICE_ID = "";
+window.EMAILJS_TEMPLATE_ID = "";
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {

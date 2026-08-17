@@ -156,7 +156,7 @@ window.runFormoraTests = async function () {
     const su = await Auth.signup({ name: "T", email: em2, phone: "9876543210", password: "secret1" });
     ok("signup returns otp (local)", su.direct === false && /^\d{6}$/.test(su.otp));
     const vu = Auth.verifyOtp(Auth.pending.otp);
-    ok("verifyOtp commits + sets current", vu.email === em2 && Auth.currentUser().email === em2 && vu.phoneVerified === true);
+    ok("verifyOtp commits + sets current", vu.email === em2 && Auth.currentUser().email === em2);
     let dupThrew = false; try { await Auth.signup({ name: "T", email: em2, phone: "9", password: "y" }); } catch (e) { dupThrew = true; }
     ok("signup duplicate throws", dupThrew);
     let badPw = false; try { await Auth.login({ email: em2, password: "wrong" }); } catch (e) { badPw = true; }
@@ -249,8 +249,9 @@ window.runFormoraTests = async function () {
 
     /* ---------- CLOUD SOCIAL: normal + edge + impossible scenarios (where the real bugs live) ---------- */
     {
-      const _m = { addPost: Cloud.addPost, deletePost: Cloud.deletePost, notify: Cloud.notify, registerMe: Cloud.registerMe, sendRequest: Cloud.sendRequest, acceptRequest: Cloud.acceptRequest, declineRequest: Cloud.declineRequest, cancelRequest: Cloud.cancelRequest, render: Social.render, toast: App.toast, me: Cloud.me };
+      const _m = { addPost: Cloud.addPost, deletePost: Cloud.deletePost, notify: Cloud.notify, registerMe: Cloud.registerMe, sendRequest: Cloud.sendRequest, acceptRequest: Cloud.acceptRequest, declineRequest: Cloud.declineRequest, cancelRequest: Cloud.cancelRequest, render: Social.render, toast: App.toast, me: Cloud.me, active: Cloud.active };
       // stub network + render so we test pure logic (no Supabase writes)
+      Cloud.active = () => true; // exercise cloud-gated paths even when the runner forces local-only
       Cloud.addPost = (post) => ({ id: "np_" + Math.floor(Math.random() * 1e9), author: Cloud.me, likes: {}, ts: Date.now(), ...post });
       Cloud.deletePost = () => true; Cloud.notify = () => {}; Cloud.registerMe = () => {};
       Cloud.sendRequest = () => {}; Cloud.acceptRequest = () => {}; Cloud.declineRequest = () => {}; Cloud.cancelRequest = () => {};
@@ -355,18 +356,50 @@ window.runFormoraTests = async function () {
       ok("banned author's post hidden from feed", Social._canSeePost({ author: "miakhalifa_gmail_com" }) === false);
       ok("App.isBanned matches ban list", (typeof App === "undefined") || App.isBanned("miakhalifa_gmail_com") === true);
 
+      // ---- email verification (real, replaces the fake on-screen phone OTP) ----
+      {
+        const _ad = Auth.data, _ap = Auth.pending;
+        Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
+        const sr = await Auth.signup({ name: "Ver Ify", email: "verify_test@example.com", phone: "+919812345670", password: "test1234" });
+        ok("signup opens an EMAIL-channel code (email unverified)", Auth.pending && Auth.pending.channel === "email" && Auth.pending.account.emailVerified === false);
+        Auth.pending.delivered = false;                 // no mail backend → demo code shown on screen
+        Auth.verifyOtp(sr.otp);
+        ok("demo code does NOT mark email verified", Auth.currentUser() && Auth.currentUser().emailVerified === false);
+
+        Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
+        const sr2 = await Auth.signup({ name: "Ver Two", email: "verify_test2@example.com", phone: "+919812345671", password: "test1234" });
+        Auth.pending.delivered = true;                  // code actually emailed
+        Auth.verifyOtp(sr2.otp);
+        ok("emailed code marks email verified", Auth.currentUser() && Auth.currentUser().emailVerified === true);
+
+        Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
+        await Auth.signup({ name: "X", email: "x_test@example.com", phone: "+919812345672", password: "test1234" });
+        let rejected = false; try { Auth.verifyOtp("000000"); } catch { rejected = true; }
+        ok("wrong code rejected", rejected === true);
+
+        Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
+        const g = Auth.loginWithGoogle({ name: "Goo Gle", email: "goo_test@example.com" });
+        ok("google login is email-verified (the exception)", g.emailVerified === true);
+        Auth.data = _ad; Auth.pending = _ap;
+      }
+      // Mailer code-delivery gating (nothing configured in tests → inert)
+      ok("Mailer.emailjsReady false when unconfigured", typeof Mailer === "undefined" || Mailer.emailjsReady() === false);
+      ok("Mailer.canSendCodes reflects backend config", typeof Mailer === "undefined" || Mailer.canSendCodes() === (!!window.EMAIL_FN_URL || Mailer.emailjsReady()));
+      // verified badge
+      ok("vbadge shows only for verified users", /vbadge/.test(Social.vbadge({ verified: true })) && Social.vbadge({ verified: false }) === "");
+
       // restore
       Cloud.addPost = _m.addPost; Cloud.deletePost = _m.deletePost; Cloud.notify = _m.notify; Cloud.registerMe = _m.registerMe;
       Cloud.sendRequest = _m.sendRequest; Cloud.acceptRequest = _m.acceptRequest; Cloud.declineRequest = _m.declineRequest; Cloud.cancelRequest = _m.cancelRequest;
-      Social.render = _m.render; if (typeof App !== "undefined") App.toast = _m.toast; Cloud.me = _m.me;
+      Social.render = _m.render; if (typeof App !== "undefined") App.toast = _m.toast; Cloud.me = _m.me; Cloud.active = _m.active;
       Store.state.profile.following = origFollowing;
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };
     }
 
     /* ---------- CLOUD RENDER SMOKE: template-heavy paths (catches syntax/render bugs) ---------- */
     {
-      const _me = Cloud.me, _render = Social.render, _toast = (typeof App !== "undefined") ? App.toast : null;
-      Cloud.me = "u_me"; Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {};
+      const _me = Cloud.me, _render = Social.render, _toast = (typeof App !== "undefined") ? App.toast : null, _active = Cloud.active;
+      Cloud.me = "u_me"; Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {}; Cloud.active = () => true;
       Social.state.crew = [];
       Social.cloud = {
         users: [{ uid: "u_a", name: "Alice", username: "alice", following: [], privacy: "public" }],
@@ -399,7 +432,7 @@ window.runFormoraTests = async function () {
       Social._dmWith = "u_a"; Social._dmMsgs = [{ from: "u_a", to: "u_me", body: "hi there" }];
       ok("dmBody renders thread bubble", Social.dmBody().includes("bubble"));
       Social._dmWith = null; Social._dmInboxLoaded = false;
-      Cloud.me = _me; Social.render = _render; if (typeof App !== "undefined") App.toast = _toast;
+      Cloud.me = _me; Social.render = _render; if (typeof App !== "undefined") App.toast = _toast; Cloud.active = _active;
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };
       const ov = document.getElementById("story-viewer"); if (ov) ov.remove();
       const fx = document.getElementById("view-flex"); if (fx) fx.innerHTML = "";
@@ -407,7 +440,8 @@ window.runFormoraTests = async function () {
 
     /* ---------- v47: auto-follow-on-connect + feed ranking + reshare idempotency + 100 filters ---------- */
     {
-      const _m = { registerMe: Cloud.registerMe, notify: Cloud.notify, acceptRequest: Cloud.acceptRequest, addPost: Cloud.addPost, deletePost: Cloud.deletePost, render: Social.render, toast: (typeof App !== "undefined") ? App.toast : null, me: Cloud.me };
+      const _m = { registerMe: Cloud.registerMe, notify: Cloud.notify, acceptRequest: Cloud.acceptRequest, addPost: Cloud.addPost, deletePost: Cloud.deletePost, render: Social.render, toast: (typeof App !== "undefined") ? App.toast : null, me: Cloud.me, active: Cloud.active };
+      Cloud.active = () => true;
       Cloud.registerMe = () => {}; Cloud.notify = () => {}; Cloud.acceptRequest = () => {}; Cloud.deletePost = () => true;
       Cloud.addPost = (post) => ({ id: post.id || ("np_" + Math.random()), author: Cloud.me, likes: {}, ts: Date.now(), ...post });
       Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {};
@@ -452,7 +486,7 @@ window.runFormoraTests = async function () {
       Camera.filterIdx = 0;
 
       Cloud.registerMe = _m.registerMe; Cloud.notify = _m.notify; Cloud.acceptRequest = _m.acceptRequest; Cloud.addPost = _m.addPost; Cloud.deletePost = _m.deletePost;
-      Social.render = _m.render; if (typeof App !== "undefined") App.toast = _m.toast; Cloud.me = _m.me;
+      Social.render = _m.render; if (typeof App !== "undefined") App.toast = _m.toast; Cloud.me = _m.me; Cloud.active = _m.active;
       Store.state.profile.following = []; Store.state.profile.autoFollowed = [];
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };
     }

@@ -83,6 +83,38 @@ const App = {
     if (this.toast) this.toast(r.ok ? "📧 Email sent to " + email : "Email failed — check config/token");
     return r;
   },
+
+  // ---- in-app email verification (for a logged-in, still-unverified user) ----
+  async verifyMyEmail() {
+    const p = Store.state.profile; const email = p.email || "";
+    if (!email) return this.toast && this.toast("No email on file for this account.");
+    if (typeof Mailer === "undefined" || !Mailer.canSendCodes || !Mailer.canSendCodes()) return this.toast && this.toast("Email delivery isn't set up yet.");
+    this._verifyCode = Auth.genOtp();
+    let sent = false;
+    try { const r = await Mailer.sendCode(email, this._verifyCode, p.name); sent = !!(r && r.sent); } catch (_) {}
+    this._verifyDelivered = sent;
+    const card = document.getElementById("modal-card");
+    card.innerHTML = `<div class="modal-head"><h2>Verify your email</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <div style="padding:6px 2px">
+        <div class="auth-sub">${sent ? `We emailed a 6-digit code to <b>${esc(email)}</b> — check your inbox (and spam).` : `Couldn't send the code right now — please try again shortly.`}</div>
+        <div class="field"><input id="my-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000"></div>
+        <button class="btn wide" onclick="App.submitMyEmailCode()">Verify</button>
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  submitMyEmailCode() {
+    if (!this._verifyDelivered) return this.toast && this.toast("Code wasn't delivered — tap Send again.");
+    const el = document.getElementById("my-code");
+    const code = el ? el.value.trim() : "";
+    if (!code || code !== this._verifyCode) return this.authErr ? (this.toast && this.toast("Invalid code")) : null;
+    const p = Store.state.profile; p.verified = true; Store.save();
+    const acc = Auth.currentUser(); if (acc) { acc.emailVerified = true; Auth.save(); }
+    if (typeof Cloud !== "undefined" && Cloud.registerMe && Cloud.me) Cloud.registerMe(p);
+    this._verifyCode = null;
+    this.closeModal();
+    if (this.toast) this.toast("Email verified ✓");
+    if (typeof Social !== "undefined" && Social.render) Social.render();
+  },
   showSuspended() {
     const shell = document.getElementById("app-shell"); if (shell) shell.classList.add("hidden");
     const ov = document.getElementById("auth-overlay"); if (ov) ov.classList.remove("hidden");
@@ -122,6 +154,7 @@ const App = {
     if (u.name && (!p.name || p.name === DEFAULT_PROFILE.name)) p.name = u.name.split(" ")[0];
     p.email = u.email || p.email || "";
     p.phone = u.phone || p.phone || "";
+    if (u.emailVerified || u.provider === "google") p.verified = true; // real email / Google → verified badge
     Store.save();
   },
 
@@ -287,8 +320,18 @@ const App = {
         <button class="btn wide" onclick="App.doSendOtp()">Send code</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back</a></div>`;
     } else if (this.authView === "otp") {
-      body = `<div class="auth-sub">Enter the 6-digit code sent to <b>${Auth.pending?.account?.phone || "your phone"}</b></div>
-        <div class="otp-demo">📶 Demo mode (no SMS gateway) — your code is <b>${Auth.pending?.otp || ""}</b></div>
+      const pend = Auth.pending || {};
+      const isEmail = pend.channel === "email";
+      const dest = isEmail ? (pend.account && pend.account.email) || "your email" : (pend.account && pend.account.phone) || "your phone";
+      const demoCode = isEmail ? (this.pendingCode || "") : (pend.otp || "");
+      const sub = isEmail
+        ? (demoCode ? "Enter the 6-digit code below to verify your email" : `We emailed a 6-digit code to <b>${esc(dest)}</b> — check your inbox (and spam) and enter it below.`)
+        : `Enter the 6-digit code sent to <b>${esc(dest)}</b>`;
+      const demoNote = isEmail
+        ? `✉️ Email delivery isn't set up yet — your code is <b>${demoCode}</b>`
+        : `📶 Demo mode (no SMS gateway) — your code is <b>${demoCode}</b>`;
+      body = `<div class="auth-sub">${sub}</div>
+        ${demoCode ? `<div class="otp-demo">${demoNote}</div>` : ""}
         <div class="field"><input id="o-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000"></div>
         ${err}
         <button class="btn wide" onclick="App.doVerifyOtp()">Verify &amp; continue</button>
@@ -402,8 +445,10 @@ const App = {
     const d = this.signupDraft || {};
     try {
       const r = await Auth.signup({ name: d.name, email: d.email, phone: d.phone, password: d.pass });
-      if (r && r.direct) this.enterApp();     // cloud backend: signed in
-      else this.showAuth("otp");              // local: verify phone OTP
+      if (r && r.direct) return this.enterApp();     // cloud backend: signed in
+      const del = await Auth.deliverCode();          // email a 6-digit code to verify the address
+      this.pendingCode = del.sent ? null : (del.otp || null); // no mail backend → show code on screen (demo)
+      this.showAuth("otp");
     } catch (e) { this.authErr(e.message); }
   },
 
@@ -422,10 +467,18 @@ const App = {
   },
   doVerifyOtp() {
     const code = document.getElementById("o-code").value.trim();
-    try { Auth.verifyOtp(code); this.enterApp(); }
+    try { Auth.verifyOtp(code); this.pendingCode = null; this.enterApp(); }
     catch (e) { this.authErr(e.message); }
   },
-  doResend() { Auth.resendOtp(); this.showAuth("otp"); },
+  async doResend() {
+    Auth.resendOtp();
+    if (Auth.pending && Auth.pending.channel === "email") {
+      const del = await Auth.deliverCode();
+      this.pendingCode = del.sent ? null : (del.otp || null);
+      if (this.toast) this.toast(del.sent ? "New code emailed ✓" : "New code generated");
+    }
+    this.showAuth("otp");
+  },
 
   // floating energy particles in the animated background
   spawnParticles() {

@@ -47,6 +47,11 @@ function template(type: string, name: string, details: string) {
   } else if (type === "verify") {
     subject = "Please verify your identity on Formora";
     body = `${hi}<p>To keep Formora authentic, please <b>verify your identity</b>. Reply to this email with a photo of your ID or a selfie that matches your profile.</p>`;
+  } else if (type === "code") {
+    subject = "Your Formora verification code";
+    body = `${hi}<p>Your Formora verification code is:</p>
+      <div style="font-size:30px;font-weight:800;letter-spacing:8px;background:#faf7f5;border:1px solid #eee;border-radius:12px;padding:16px 8px;text-align:center;margin:14px 0">${esc(details)}</div>
+      <p style="color:#888;font-size:13px">Enter this code to verify your email. It expires shortly. If you didn't request it, ignore this email.</p>`;
   }
   const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:520px;margin:auto">
     <div style="background:linear-gradient(135deg,#ff9d4d,#ff3d7f);padding:20px 24px;border-radius:14px 14px 0 0;color:#fff">

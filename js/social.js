@@ -52,7 +52,7 @@ const Social = {
     const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
     const phys = (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "Lean Aesthetic";
     const streak = (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0;
-    return { id: "me", name: p.name || "You", handle: p.username || (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null };
+    return { id: "me", name: p.name || "You", handle: p.username || (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null, verified: !!p.verified, email: p.email || "" };
   },
   persona(id) {
     if (id === "me") return this.me();
@@ -135,8 +135,10 @@ const Social = {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [] };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified };
   },
+  // small ✓ shown next to a verified member's name (email confirmed or Google sign-in)
+  vbadge(u) { return (u && u.verified) ? ` <span class="vbadge" title="Verified — email confirmed">✓</span>` : ""; },
   // ---- follow (one-way, LinkedIn-style) + counts ----
   myFollowing() { return (typeof Store !== "undefined" && Store.state.profile && Store.state.profile.following) || []; },
   isFollowing(uid) { return this.myFollowing().includes(uid); },
@@ -234,9 +236,17 @@ const Social = {
 
   // ---- feed UI ----
   feedBody() {
-    const composer = `
+    const meU = this.me();
+    const gate = (typeof Mailer !== "undefined" && Mailer.canSendCodes && Mailer.canSendCodes() && !meU.verified);
+    const composer = gate ? `
+      <div class="card composer verify-gate">
+        <div class="vg-ic">✉️</div>
+        <div class="vg-title">Verify your email to post</div>
+        <div class="vg-sub">Confirm <b>${esc((Store.state.profile && Store.state.profile.email) || "your email")}</b> so the community knows you're real.</div>
+        <button class="btn wide" onclick="App.verifyMyEmail()">Send me a code</button>
+      </div>` : `
       <div class="card composer">
-        <div class="composer-top">${this.avatar(this.me(), 42)}
+        <div class="composer-top">${this.avatar(meU, 42)}
           <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…"></textarea>
         </div>
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
@@ -316,7 +326,7 @@ const Social = {
         <div class="post-head">
           <div class="post-author" onclick="Social.viewProfile('${p.author}')">
             ${this.avatar(a, 44)}
-            <div class="post-who"><div class="pw-name">${esc(a.name)} ${a.level ? `<span class="lvl">${esc(a.level)}</span>` : ""}</div>
+            <div class="post-who"><div class="pw-name">${esc(a.name)}${this.vbadge(a)} ${a.level ? `<span class="lvl">${esc(a.level)}</span>` : ""}</div>
               <div class="pw-sub">@${esc(a.handle)} · ${this.timeAgo(p.ts)}</div></div>
           </div>
           ${(p.author === "me" || (typeof Cloud !== "undefined" && Cloud.me && p.author === Cloud.me)) ? `<button class="icon-btn" title="Delete" onclick="Social.removePost('${p.id}')">✕</button>` : ""}
@@ -538,6 +548,10 @@ const Social = {
   },
 
   publishPost() {
+    if (typeof Mailer !== "undefined" && Mailer.canSendCodes && Mailer.canSendCodes() && !this.me().verified) {
+      if (typeof App !== "undefined" && App.verifyMyEmail) App.verifyMyEmail();
+      return;
+    }
     const t = document.getElementById("post-text");
     const text = t ? t.value.trim() : "";
     const photos = this.pendingPhotos || [];
@@ -698,7 +712,7 @@ const Social = {
       </div>`;
   },
   memberCard(p) {
-    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}${this.followBtn(p.id)}</div></div>`;
+    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}${this.vbadge(p)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}${this.followBtn(p.id)}</div></div>`;
   },
   memberCta(uid) {
     if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.openDM('${uid}')">💬 Message</button>`;
@@ -778,7 +792,7 @@ const Social = {
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="view-profile">
         <div class="vp-hero">${this.avatar(u, 88)}
-          <div class="vp-id"><div class="vp-name">${esc(u.name)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
+          <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
             <div class="vp-handle">@${esc(u.handle)}</div>
             ${u.physique ? `<div class="vp-phys">🎯 ${esc(u.physique)}</div>` : ""}
           </div>

@@ -1078,6 +1078,13 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .susp-sub { font-size: 13px; }
 .suspended .btn { margin-top: 16px; }
 
+/* ===== Verified badge + email-verify gate ===== */
+.vbadge { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 999px; background: #1d9bf0; color: #fff; font-size: 10px; font-weight: 900; line-height: 1; vertical-align: middle; }
+.verify-gate { text-align: center; padding: 20px 16px; }
+.vg-ic { font-size: 34px; }
+.vg-title { font-weight: 800; font-size: 16px; margin: 6px 0 4px; }
+.vg-sub { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+
 /* ===== Flex reels (vertical scroll) ===== */
 .reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 14px; }
 .reels::-webkit-scrollbar { display: none; }

@@ -65,11 +65,26 @@ const Auth = {
     const account = {
       id: "u" + Date.now(),
       name, email, phone, salt, hash,
-      phoneVerified: false, provider: "email",
+      phoneVerified: false, emailVerified: false, provider: "email",
     };
-    // hold the account aside until the phone OTP is confirmed
-    this.pending = { account, otp: this.genOtp(), needsPhone: false, origin: "signup" };
+    // hold the account aside until the email verification code is confirmed
+    this.pending = { account, otp: this.genOtp(), needsPhone: false, origin: "signup", channel: "email", delivered: false };
     return { direct: false, otp: this.pending.otp };
+  },
+
+  // email the pending signup its 6-digit code. Returns { sent, otp } —
+  // when a mail backend delivered it, otp is null (user must fetch it from their inbox);
+  // with no backend configured we return the code so the UI can show it (demo mode).
+  async deliverCode() {
+    if (!this.pending) return { sent: false };
+    const acc = this.pending.account, code = this.pending.otp;
+    if (typeof Mailer !== "undefined" && Mailer.canSendCodes && Mailer.canSendCodes()) {
+      let r = null; try { r = await Mailer.sendCode(acc.email, code, acc.name); } catch (_) { r = null; }
+      this.pending.delivered = !!(r && r.sent);
+      return { sent: this.pending.delivered, otp: this.pending.delivered ? null : code };
+    }
+    this.pending.delivered = false;
+    return { sent: false, otp: code };
   },
 
   async login({ email, password }) {
@@ -115,10 +130,11 @@ const Auth = {
     // reuse ANY existing account with this email so data (diet, logs) follows the person
     let acc = this.data.accounts.find((a) => a.email && a.email.toLowerCase() === key);
     if (!acc) {
-      acc = { id: "u" + Date.now(), name: name || email, email, phone: "", salt: "", hash: "", phoneVerified: true, provider: "google" };
+      acc = { id: "u" + Date.now(), name: name || email, email, phone: "", salt: "", hash: "", phoneVerified: true, emailVerified: true, provider: "google" };
       this.data.accounts.push(acc);
     } else {
       acc.phoneVerified = true;
+      acc.emailVerified = true;
       if (name && !acc.name) acc.name = name;
     }
     this.setCurrent(acc.id);
@@ -138,7 +154,8 @@ const Auth = {
     if (!this.pending || !this.pending.otp) throw new Error("No code was sent. Please request one.");
     if (String(code).trim() !== this.pending.otp) throw new Error("Invalid code. Please try again.");
     const acc = this.pending.account;
-    acc.phoneVerified = true;
+    if (this.pending.channel === "email") acc.emailVerified = !!this.pending.delivered; // real only if actually emailed
+    else acc.phoneVerified = true;
     if (!this.data.accounts.find((a) => a.id === acc.id)) this.data.accounts.push(acc);
     this.setCurrent(acc.id);
     const user = acc;

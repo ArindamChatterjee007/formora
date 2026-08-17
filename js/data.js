@@ -28,6 +28,7 @@ const DEFAULT_PROFILE = {
   privacy: "public",          // "public" | "friends" — who can see profile & posts
   following: [],              // uids this user follows (one-way, LinkedIn-style)
   autoFollowed: [],           // uids auto-followed when connected (so unfollow = opt-out, no re-follow)
+  verified: false,            // email verified (real OTP) or Google sign-in
   onboarded: false,           // true once the user completes the details step
 };
 
