@@ -548,11 +548,11 @@ const App = {
     return `<div class="reel" data-id="${p.id}">
       <video class="reel-vid" src="${p.video}" playsinline loop muted preload="metadata" onclick="App.toggleReelPlay(this)"></video>
       <div class="reel-grad"></div>
-      <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">🔇</button>
+      <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">${this.ic("mute", { size: 20 })}</button>
       <div class="reel-actions">
-        <button class="reel-act like ${p.likedByMe ? "on" : ""}" onclick="App.reelLike('${p.id}',this)">${p.likedByMe ? "❤️" : "🤍"}<span>${p.likes}</span></button>
-        <button class="reel-act" onclick="Social.viewProfile('${p.author}')">💬<span>${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
-        <button class="reel-act reshare ${p.resharedByMe ? "on" : ""}" onclick="App.reelReshare('${p.id}',this)">🔁<span>${p.reshares || 0}</span></button>
+        <button class="reel-act like ${p.likedByMe ? "on" : ""}" onclick="App.reelLike('${p.id}',this)">${this.ic("heart", { size: 29, solid: p.likedByMe })}<span>${p.likes}</span></button>
+        <button class="reel-act" onclick="App.openReelComments('${p.id}')">${this.ic("comment", { size: 29 })}<span id="rcnt-${p.id}">${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
+        <button class="reel-act reshare ${p.resharedByMe ? "on" : ""}" onclick="App.reelReshare('${p.id}',this)">${this.ic("reshare", { size: 28 })}<span>${p.reshares || 0}</span></button>
       </div>
       <div class="reel-info" onclick="Social.viewProfile('${p.author}')">
         ${Social.avatar(a, 40)}
@@ -576,21 +576,102 @@ const App = {
     if (vids[0]) vids[0].play().catch(() => {});
   },
   toggleReelPlay(v) { if (v.paused) v.play().catch(() => {}); else v.pause(); },
-  toggleReelMute(btn) { const r = btn.closest(".reel"); const v = r && r.querySelector(".reel-vid"); if (!v) return; v.muted = !v.muted; btn.textContent = v.muted ? "🔇" : "🔊"; },
+  toggleReelMute(btn) { const r = btn.closest(".reel"); const v = r && r.querySelector(".reel-vid"); if (!v) return; v.muted = !v.muted; btn.innerHTML = this.ic(v.muted ? "mute" : "volume", { size: 20 }); },
   reelLike(id, btn) {
     Social.likePost(id);
     const src = Social.cloud.feed.find((x) => x.id === id);
     if (!src) return;
     const p = Social._cloudPost(src);
     btn.classList.toggle("on", p.likedByMe);
-    btn.innerHTML = (p.likedByMe ? "❤️" : "🤍") + `<span>${p.likes}</span>`;
+    btn.innerHTML = this.ic("heart", { size: 29, solid: p.likedByMe }) + `<span>${p.likes}</span>`;
   },
   reelReshare(id, btn) {
     Social.resharePost(id);
     const src = Social.cloud.feed.find((x) => x.id === id);
     const p = src ? Social._cloudPost(src) : { reshares: 0, resharedByMe: false };
     btn.classList.toggle("on", p.resharedByMe);
-    btn.innerHTML = "🔁" + `<span>${p.reshares || 0}</span>`;
+    btn.innerHTML = this.ic("reshare", { size: 28 }) + `<span>${p.reshares || 0}</span>`;
+  },
+
+  // ---- premium inline icon set (24-grid, stroke-based, inherits currentColor) ----
+  _ICONS: {
+    heart: '<path d="M19.5 4.9a5 5 0 0 0-7.1 0l-.4.4-.4-.4a5 5 0 1 0-7.1 7.1l.4.4L12 20l7.1-7.2.4-.4a5 5 0 0 0 0-7.1Z"/>',
+    comment: '<path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/>',
+    reshare: '<path d="m17 2 4 4-4 4"/><path d="M3 12v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 12v1a4 4 0 0 1-4 4H3"/>',
+    send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/>',
+    volume: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/>',
+    mute: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  },
+  ic(name, opts) {
+    opts = opts || {};
+    const size = opts.size || 24, solid = !!opts.solid, sw = opts.sw || 1.9;
+    return `<svg class="ic ic-${name}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="${solid ? "currentColor" : "none"}" stroke="${solid ? "none" : "currentColor"}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${this._ICONS[name] || ""}</svg>`;
+  },
+  // reusable app-branded send button (gradient paper-plane) — comments, reels & DMs
+  sendIcon(onclick, extra) {
+    return `<button class="send-ico ${extra || ""}" onclick="${onclick}" aria-label="Send" title="Send">${this.ic("send", { size: 18, sw: 2 })}</button>`;
+  },
+
+  // ---- Flex comments: in-app bottom sheet (no navigation away) ----
+  openReelComments(id) {
+    this._reelCmtId = id;
+    const v = document.querySelector(`.reel[data-id="${id}"] .reel-vid`); if (v) v.pause();
+    let ov = document.getElementById("reel-comments");
+    if (!ov) { ov = document.createElement("div"); ov.id = "reel-comments"; document.body.appendChild(ov); }
+    ov.className = "reel-comments open";
+    const n = Social.cloudActive() ? Social.commentCount(id) : 0;
+    ov.innerHTML = `<div class="rc-backdrop" onclick="App.closeReelComments()"></div>
+      <div class="rc-sheet">
+        <div class="rc-grip"></div>
+        <div class="rc-head"><div class="rc-title">${n} comment${n === 1 ? "" : "s"}</div><button class="icon-btn" onclick="App.closeReelComments()">✕</button></div>
+        <div class="rc-list" id="rc-list">${this._reelCommentsList(id)}</div>
+        <div class="rc-input-row">${Social.avatar(Social.me(), 32)}
+          <input id="rc-input" placeholder="Add a comment… @ to mention" onkeydown="if(event.key==='Enter')App.submitReelComment('${id}')">
+          ${this.sendIcon(`App.submitReelComment('${id}')`)}
+        </div>
+      </div>`;
+    setTimeout(() => { const i = document.getElementById("rc-input"); if (i) i.focus(); }, 60);
+  },
+  _reelCommentsList(id) {
+    if (!Social.cloudActive()) return `<div class="sub" style="padding:14px 4px;text-align:center">Sign in online to comment.</div>`;
+    const all = Social.commentsFor(id);
+    const tops = all.filter((c) => !c.parent_id);
+    if (!tops.length) return `<div class="sub" style="padding:18px 4px;text-align:center">No comments yet — be the first 👋</div>`;
+    const row = (c, isReply) => {
+      const who = Social._commenter(c.author);
+      return `<div class="cmt2 ${isReply ? "reply" : ""}"><span class="cmt2-av" onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${Social.avatar(who, isReply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${Social._renderMentions(c.body)} <span class="cmt2-time">${Social.timeAgo(c.ts)}</span>${isReply ? "" : ` <button class="cmt2-reply" onclick="App.reelReply('${c.author}')">Reply</button>`}</div></div>`;
+    };
+    return tops.map((c) => row(c, false) + all.filter((r) => r.parent_id === c.id).map((r) => row(r, true)).join("")).join("");
+  },
+  reelReply(author) {
+    const i = document.getElementById("rc-input");
+    if (i) { i.value = "@" + Social._commenter(author).handle + " "; i.focus(); }
+  },
+  submitReelComment(id) {
+    const i = document.getElementById("rc-input");
+    if (!i || !i.value.trim() || !Social.cloudActive()) return;
+    const body = i.value.trim(); i.value = "";
+    const post = Social.cloud.feed.find((p) => p.id === id);
+    const mentions = Social._parseMentions(body);
+    const nc = (typeof Cloud !== "undefined" && Cloud.addComment) ? Cloud.addComment(id, body, null, mentions, post ? post.author : null, null) : null;
+    if (nc) { if (!Social.cloud.comments) Social.cloud.comments = []; Social.cloud.comments.push(nc); }
+    const list = document.getElementById("rc-list"); if (list) { list.innerHTML = this._reelCommentsList(id); list.scrollTop = list.scrollHeight; }
+    const n = Social.commentCount(id);
+    const title = document.querySelector("#reel-comments .rc-title"); if (title) title.textContent = n + " comment" + (n === 1 ? "" : "s");
+    const badge = document.getElementById("rcnt-" + id); if (badge) badge.textContent = n;
+  },
+  closeReelComments() {
+    const id = this._reelCmtId;
+    const ov = document.getElementById("reel-comments");
+    if (ov) { ov.classList.remove("open"); ov.innerHTML = ""; }
+    this._reelCmtId = null;
+    const v = document.querySelector(`.reel[data-id="${id}"] .reel-vid`);
+    if (v) { const r = v.getBoundingClientRect(); if (r.top > -r.height && r.top < window.innerHeight) v.play().catch(() => {}); }
   },
 
   // route legacy/deep-link targets (feed, today, progress, nutrition, overview) to the new nav

@@ -431,6 +431,40 @@ window.runFormoraTests = async function () {
       ok("dmBody renders inbox row", Social.dmBody().includes("dm-row"));
       Social._dmWith = "u_a"; Social._dmMsgs = [{ from: "u_a", to: "u_me", body: "hi there" }];
       ok("dmBody renders thread bubble", Social.dmBody().includes("bubble"));
+
+      // ---- v51: premium icons + reel comments + chat tools ----
+      ok("icon set renders svg (solid heart filled)", App.ic("heart", { solid: true }).includes("<svg") && App.ic("heart", { solid: true }).includes('fill="currentColor"'));
+      ok("sendIcon is app-branded button", App.sendIcon("X()").includes("send-ico") && App.sendIcon("X()").includes("ic-send"));
+      const rslide = App.reelSlide(Social._cloudPost(Social.cloud.feed[0]));
+      ok("reel comment opens in-app overlay (not a page)", rslide.includes("openReelComments(") && rslide.includes("ic-comment"));
+      ok("reel actions use premium icons", rslide.includes("ic-heart") && rslide.includes("ic-reshare"));
+      ok("reel comments empty state", App._reelCommentsList("V1").includes("No comments"));
+      Social.cloud.comments = [{ id: "rc1", post_id: "V1", author: "u_a", body: "sick reel", ts: Date.now() }];
+      ok("reel comments list renders a comment", App._reelCommentsList("V1").includes("sick reel"));
+      ok("Cloud has editMessage + deleteMessage", typeof Cloud.editMessage === "function" && typeof Cloud.deleteMessage === "function");
+      ok("own bubble is tappable (edit/unsend)", Social.dmBubble({ id: "m1", from: "u_me", body: "yo" }, "u_me").includes("Social.msgMenu"));
+      ok("their bubble not tappable", !Social.dmBubble({ id: "m2", from: "u_a", body: "hey" }, "u_me").includes("msgMenu"));
+      ok("edited tag shows on edited msg", Social.dmBubble({ id: "m3", from: "u_me", body: "x", edited: true }, "u_me").includes("msg-edited"));
+      const _del = Cloud.deleteMessage, _editm = Cloud.editMessage, _cf = window.confirm;
+      Cloud.deleteMessage = () => true; Cloud.editMessage = () => true; window.confirm = () => true;
+      Social._dmWith = "u_a"; Social._dmMsgs = [{ id: "mA", from: "u_me", to: "u_a", body: "one" }, { id: "mB", from: "u_a", to: "u_me", body: "two" }];
+      Social.unsendMsg("mA");
+      ok("unsend removes my message locally", !(Social._dmMsgs || []).some((m) => m.id === "mA"));
+      Social._dmMsgs = [{ id: "mC", from: "u_me", to: "u_a", body: "old" }];
+      const _ei = document.createElement("input"); _ei.id = "dm-edit"; _ei.value = "new text"; document.body.appendChild(_ei);
+      Social._editMsg = { id: "mC", body: "old" }; Social.saveEditMsg();
+      const _mc = (Social._dmMsgs || []).find((m) => m.id === "mC");
+      ok("edit updates message body + edited flag", _mc && _mc.body === "new text" && _mc.edited === true);
+      document.body.removeChild(_ei);
+      Social._dmMsgs = [{ id: "mD", from: "u_me", to: "u_a", body: "keep" }, { id: "mE", from: "u_a", to: "u_me", body: "theirs" }];
+      Social.clearMyMessages("u_a");
+      ok("clear removes only my messages", !(Social._dmMsgs || []).some((m) => m.from === "u_me") && (Social._dmMsgs || []).some((m) => m.id === "mE"));
+      Cloud.deleteMessage = _del; Cloud.editMessage = _editm; window.confirm = _cf;
+      const _cd = Social.chatDetails; Social.chatDetails = () => {};
+      const _wasMuted = Social.isMuted("u_zz"); Social.toggleMute("u_zz");
+      ok("toggleMute flips mute state", Social.isMuted("u_zz") !== _wasMuted);
+      Social.toggleMute("u_zz"); Social.chatDetails = _cd; Social._editMsg = null;
+
       Social._dmWith = null; Social._dmInboxLoaded = false;
       Cloud.me = _me; Social.render = _render; if (typeof App !== "undefined") App.toast = _toast; Cloud.active = _active;
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };

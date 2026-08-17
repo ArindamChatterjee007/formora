@@ -189,6 +189,16 @@ const Cloud = {
     this.notify(toUid, "message", null, body);
     return { id, from: this.me, to: toUid, body, ts: Date.now() };
   },
+  async deleteMessage(id) {
+    if (!this.active() || !id) return false;
+    try { const r = await fetch(this.base + "/messages?id=eq." + encodeURIComponent(id) + "&from_uid=eq." + encodeURIComponent(this.me), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
+    catch (e) { return false; }
+  },
+  async editMessage(id, body) {
+    if (!this.active() || !id || !body) return false;
+    try { const r = await fetch(this.base + "/messages?id=eq." + encodeURIComponent(id) + "&from_uid=eq." + encodeURIComponent(this.me), { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ body }) }); return r.ok; }
+    catch (e) { return false; }
+  },
   async getMessages(withUid) {
     if (!this.active() || !this.me || !withUid) return [];
     try {

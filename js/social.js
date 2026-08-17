@@ -335,16 +335,16 @@ const Social = {
         ${p.text ? `<div class="post-text">${esc(p.text)}</div>` : ""}
         ${media}
         <div class="post-actions">
-          <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${p.likedByMe ? "❤️" : "🤍"} <span>${p.likes}</span></button>
-          <button class="pa" onclick="Social.toggleComments('${p.id}')">💬 <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
-          <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">🔁 <span>${p.reshares || 0}</span></button>
+          <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${App.ic("heart", { size: 22, solid: p.likedByMe })} <span>${p.likes}</span></button>
+          <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
+          <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">${App.ic("reshare", { size: 22 })} <span>${p.reshares || 0}</span></button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
           ${this.cloudActive() ? this.renderCommentThread(p.id) : comments}
           <div class="cmt-add">
             <input id="ci-${p.id}" placeholder="Add a comment… @ to mention" onkeydown="if(event.key==='Enter')Social.submitComment('${p.id}')">
-            <button class="btn ghost" onclick="Social.submitComment('${p.id}')">Send</button>
+            ${App.sendIcon(`Social.submitComment('${p.id}')`)}
           </div>
         </div>
       </div>`;
@@ -833,7 +833,7 @@ const Social = {
       <div class="chat-main">
         <div class="chat-head">${this.avatar(p, 36)}<div><div class="ch-name">${esc(p.name)}</div><div class="ch-sub">@${esc(p.handle)}</div></div></div>
         <div class="chat-thread" id="chat-thread">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.by === "me" ? "me" : "them"}">${esc(m.text)}</div>`).join("") : `<div class="sub">Say hi to ${esc(p.name.split(" ")[0])} 👋</div>`}</div>
-        <div class="chat-input"><input id="chat-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendChat()"><button class="btn" onclick="Social.sendChat()">Send</button></div>
+        <div class="chat-input"><input id="chat-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendChat()">${App.sendIcon("Social.sendChat()")}</div>
       </div>
     </div>`;
   },
@@ -843,14 +843,26 @@ const Social = {
     if (!this._dmInboxLoaded) { this._dmInboxLoaded = true; this.loadInbox(); }
     if (this._dmWith) {
       const u = (this._dmWith === meId) ? this.me() : (this.cloudUser(this._dmWith) || { name: "Member", handle: this._dmWith, colors: ["#8b93a7", "#262c3a"], avatar: null });
-      const msgs = this._dmMsgs || [];
+      const q = (this._dmSearch || "").trim().toLowerCase();
+      let msgs = this._dmMsgs || [];
+      if (q) msgs = msgs.filter((m) => (m.body || "").toLowerCase().includes(q));
       const thread = this._dmThreadLoading
         ? `<div class="sub" style="padding:20px;text-align:center">Loading…</div>`
-        : (msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === meId ? "me" : "them"}">${this._urlify2(m.body)}</div>`).join("") : `<div class="sub" style="padding:20px;text-align:center">Say hi to ${esc((u.name || "").split(" ")[0])} 👋</div>`);
+        : (msgs.length ? msgs.map((m) => this.dmBubble(m, meId)).join("")
+          : (q ? `<div class="sub" style="padding:20px;text-align:center">No messages match “${esc(this._dmSearch)}”.</div>`
+            : `<div class="sub" style="padding:20px;text-align:center">Say hi to ${esc((u.name || "").split(" ")[0])} 👋</div>`));
+      const input = this._editMsg
+        ? `<div class="chat-input editing"><span class="ci-tag">✏️ Editing</span><input id="dm-edit" placeholder="Edit message…" onkeydown="if(event.key==='Enter')Social.saveEditMsg();if(event.key==='Escape')Social.cancelEdit()"><button class="icon-btn" onclick="Social.cancelEdit()" title="Cancel">✕</button>${App.sendIcon("Social.saveEditMsg()")}</div>`
+        : `<div class="chat-input"><input id="dm-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendDM()">${App.sendIcon("Social.sendDM()")}</div>`;
       return `<div class="card chat-card">
-        <div class="dm-head"><button class="icon-btn" onclick="Social.closeDM()">←</button><div class="dm-head-u" onclick="Social.viewProfile('${this._dmWith}')">${this.avatar(u, 38)}<div><div class="ch-name">${esc(u.name)}</div><div class="ch-sub">@${esc(u.handle)}</div></div></div></div>
+        <div class="dm-head">
+          <button class="icon-btn" onclick="Social.closeDM()">←</button>
+          <div class="dm-head-u" onclick="Social.chatDetails()">${this.avatar(u, 38)}<div><div class="ch-name">${esc(u.name)}${this.vbadge(u)}</div><div class="ch-sub">Tap for details</div></div></div>
+          <div class="dm-head-actions"><button class="icon-btn" onclick="Social.toggleDmSearch()" title="Search messages">${App.ic("search", { size: 20 })}</button><button class="icon-btn" onclick="Social.chatDetails()" title="Chat details">${App.ic("info", { size: 20 })}</button></div>
+        </div>
+        ${this._dmSearchOpen ? `<div class="dm-search"><input id="dm-q" placeholder="Search this chat…" value="${esc(this._dmSearch || "")}" oninput="Social.dmSearch(this.value)"><button class="icon-btn" onclick="Social.toggleDmSearch()">✕</button></div>` : ""}
         <div class="chat-thread" id="chat-thread">${thread}</div>
-        <div class="chat-input"><input id="dm-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendDM()"><button class="btn" onclick="Social.sendDM()">Send</button></div>
+        ${input}
       </div>`;
     }
     const convos = this._dmConvos || [];
@@ -858,13 +870,92 @@ const Social = {
     const startRow = crew.length ? `<div class="dm-newrow">${crew.map((u) => `<button class="dm-new" onclick="Social.openDM('${u.id}')" title="${esc(u.name)}">${this.avatar(u, 52)}<span>${esc(u.name.split(" ")[0])}</span></button>`).join("")}</div>` : "";
     const rows = convos.map((c) => {
       const u = this.cloudUser(c.uid) || { name: "Member", handle: c.uid, colors: ["#8b93a7", "#262c3a"], avatar: null };
-      return `<div class="dm-row" onclick="Social.openDM('${c.uid}')">${this.avatar(u, 48)}<div class="dm-meta"><div class="dm-name">${esc(u.name)}</div><div class="dm-last">${esc((c.last || "").slice(0, 46))}</div></div><div class="dm-time">${this.timeAgo(c.ts)}</div></div>`;
+      return `<div class="dm-row" onclick="Social.openDM('${c.uid}')">${this.avatar(u, 48)}<div class="dm-meta"><div class="dm-name">${esc(u.name)}${this.isMuted(c.uid) ? " 🔕" : ""}</div><div class="dm-last">${esc((c.last || "").slice(0, 46))}</div></div><div class="dm-time">${this.timeAgo(c.ts)}</div></div>`;
     }).join("");
     return `<div class="card">
       <div class="card-head"><h2>Messages</h2><span class="tag">💬</span></div>
       ${startRow}
       ${this._dmInboxLoading ? `<div class="sub" style="padding:10px 2px">Loading chats…</div>` : (convos.length ? `<div class="dm-list">${rows}</div>` : `<div class="sub" style="padding:10px 2px">No messages yet. Tap a crew member above to start a chat, or connect with people in Search.</div>`)}
     </div>`;
+  },
+  // a single message bubble; my own messages are tappable for edit/unsend
+  dmBubble(m, meId) {
+    const mine = m.from === meId;
+    const edited = m.edited ? ` <span class="msg-edited">· edited</span>` : "";
+    return `<div class="bubble ${mine ? "me" : "them"}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}</div>`;
+  },
+  msgMenu(id) {
+    const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
+    this.mediaSheet("Message", [
+      { label: `${App.ic("edit", { size: 18 })} <span>Edit</span>`, action: () => Social.editMsg(id) },
+      { label: `${App.ic("undo", { size: 18 })} <span>Unsend</span>`, action: () => Social.unsendMsg(id) },
+      { label: `${App.ic("copy", { size: 18 })} <span>Copy</span>`, action: () => { try { navigator.clipboard.writeText(m.body); if (App.toast) App.toast("Copied"); } catch (_) {} } },
+    ]);
+  },
+  editMsg(id) {
+    const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
+    this._editMsg = { id, body: m.body };
+    this.render();
+    setTimeout(() => { const i = document.getElementById("dm-edit"); if (i) { i.value = m.body; i.focus(); i.setSelectionRange(m.body.length, m.body.length); } }, 30);
+  },
+  saveEditMsg() {
+    const i = document.getElementById("dm-edit"); if (!i || !this._editMsg) return;
+    const body = i.value.trim(); if (!body) return this.cancelEdit();
+    const id = this._editMsg.id;
+    const m = (this._dmMsgs || []).find((x) => x.id === id);
+    if (m && m.body !== body) { m.body = body; m.edited = true; if (typeof Cloud !== "undefined" && Cloud.editMessage) Cloud.editMessage(id, body); }
+    this._editMsg = null; this.render(); this.scrollChat();
+    if (typeof App !== "undefined" && App.toast) App.toast("Message edited");
+  },
+  cancelEdit() { this._editMsg = null; this.render(); },
+  unsendMsg(id) {
+    if (typeof window !== "undefined" && window.confirm && !window.confirm("Unsend this message? It will be removed for both of you.")) return;
+    this._dmMsgs = (this._dmMsgs || []).filter((x) => x.id !== id);
+    if (typeof Cloud !== "undefined" && Cloud.deleteMessage) Cloud.deleteMessage(id);
+    this.render(); this.scrollChat();
+    if (typeof App !== "undefined" && App.toast) App.toast("Message unsent");
+  },
+  toggleDmSearch() {
+    this._dmSearchOpen = !this._dmSearchOpen; if (!this._dmSearchOpen) this._dmSearch = "";
+    this.render();
+    if (this._dmSearchOpen) setTimeout(() => { const i = document.getElementById("dm-q"); if (i) i.focus(); }, 30);
+  },
+  dmSearch(q) {
+    this._dmSearch = q; this.render();
+    const i = document.getElementById("dm-q"); if (i) { i.focus(); const v = i.value.length; i.setSelectionRange(v, v); }
+  },
+  isMuted(uid) { try { return JSON.parse(localStorage.getItem("fm_muted") || "[]").includes(uid); } catch (e) { return false; } },
+  toggleMute(uid) {
+    let arr = []; try { arr = JSON.parse(localStorage.getItem("fm_muted") || "[]"); } catch (e) { arr = []; }
+    if (arr.includes(uid)) arr = arr.filter((x) => x !== uid); else arr.push(uid);
+    localStorage.setItem("fm_muted", JSON.stringify(arr));
+    if (typeof App !== "undefined" && App.toast) App.toast(arr.includes(uid) ? "Notifications muted" : "Unmuted");
+    this.chatDetails();
+  },
+  chatDetails() {
+    const uid = this._dmWith; if (!uid) return;
+    const u = this.cloudUser(uid) || { name: "Member", handle: uid, avatar: null, colors: ["#8b93a7", "#262c3a"] };
+    const mine = (this._dmMsgs || []).filter((m) => m.from === Cloud.me).length;
+    const card = document.getElementById("modal-card"); if (!card) return;
+    card.innerHTML = `<div class="modal-head"><h2>Chat details</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <div class="chat-details">
+        <div class="cd-hero">${this.avatar(u, 76)}<div class="cd-name">${esc(u.name)}${this.vbadge(u)}</div><div class="cd-handle">@${esc(u.handle)}</div></div>
+        <div class="cd-actions">
+          <button class="btn ghost wide" onclick="App.closeModal();Social.viewProfile('${uid}')">👤 View profile</button>
+          <button class="btn ghost wide" onclick="App.closeModal();Social.toggleDmSearch()">🔍 Search messages</button>
+          <button class="btn ghost wide" onclick="Social.toggleMute('${uid}')">${this.isMuted(uid) ? "🔔 Unmute notifications" : "🔕 Mute notifications"}</button>
+          <button class="btn ghost wide danger" onclick="Social.clearMyMessages('${uid}')">🗑️ Unsend all my messages</button>
+        </div>
+        <div class="cd-meta">${(this._dmMsgs || []).length} message${(this._dmMsgs || []).length === 1 ? "" : "s"} · ${mine} from you</div>
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  clearMyMessages(uid) {
+    if (typeof window !== "undefined" && window.confirm && !window.confirm("Unsend ALL your messages in this chat? This removes them for both of you.")) return;
+    (this._dmMsgs || []).filter((m) => m.from === Cloud.me).forEach((m) => { if (typeof Cloud !== "undefined" && Cloud.deleteMessage) Cloud.deleteMessage(m.id); });
+    this._dmMsgs = (this._dmMsgs || []).filter((m) => m.from !== Cloud.me);
+    if (typeof App !== "undefined") { App.closeModal(); if (App.toast) App.toast("Your messages unsent"); }
+    this.render();
   },
   _urlify2(s) { return esc(s || ""); },
   loadInbox() {
