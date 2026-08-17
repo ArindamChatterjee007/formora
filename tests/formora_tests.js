@@ -44,6 +44,169 @@ window.runFormoraTests = async function () {
     const rimg = new Image(); await new Promise((res, rej) => { rimg.onload = res; rimg.onerror = rej; rimg.src = resized; });
     ok("resizeImage caps longest side to 256", rimg.width <= 256 && rimg.height <= 256, rimg.width + "x" + rimg.height);
 
+    /* ---------------- MODULE COVERAGE: storage / engine / nutrition / auth ---------------- */
+    // ---- Store ----
+    Store.load("gymcoach_v1_COV_STORE_" + Date.now());
+    Store.state.weightLog = []; Store.state.workoutLog = []; Store.state.foodLog = []; Store.state.restDays = [];
+    Store.state.profile.startWeightKg = 72;
+    ok("latestWeight falls back to startWeight", Store.latestWeight() === 72);
+    Store.logWeight(75, "2026-01-01"); Store.logWeight(76, "2026-01-02");
+    ok("logWeight new dates", Store.state.weightLog.length === 2 && Store.latestWeight() === 76);
+    Store.logWeight(77, "2026-01-02");
+    ok("logWeight same date updates", Store.state.weightLog.length === 2 && Store.latestWeight() === 77);
+    Store.logRestDay("2026-01-03"); Store.logRestDay("2026-01-03");
+    ok("logRestDay adds + dedupes", Store.state.restDays.filter((d) => d === "2026-01-03").length === 1);
+    Store.logWorkout({ date: "2026-01-03", split: "push", exercises: [], volume: 0 });
+    ok("logWorkout clears rest mark", !Store.state.restDays.includes("2026-01-03") && !!Store.workoutOn("2026-01-03"));
+    ok("workoutOn missing → undefined", Store.workoutOn("1999-01-01") === undefined);
+    Store.logFood({ text: "eggs", kcal: 200, protein: 18 }, "2026-01-04");
+    Store.logFood({ text: "rice", kcal: 300, protein: 6 }, "2026-01-04");
+    ok("logFood appends to day", Store.foodOn("2026-01-04").items.length === 2);
+    Store.removeFood("2026-01-04", 0);
+    ok("removeFood removes item", Store.foodOn("2026-01-04").items.length === 1 && Store.foodOn("2026-01-04").items[0].text === "rice");
+    ok("foodOn missing → empty", Store.foodOn("1999-01-01").items.length === 0);
+    Store.removeFood("1999-01-01", 0); ok("removeFood missing day safe", true);
+    Store.state.weightLog = null; Store.state.profile = null; Store.normalize();
+    ok("normalize restores arrays + profile", Array.isArray(Store.state.weightLog) && !!Store.state.profile);
+    Store.state = { profile: { name: "L", onboarded: false }, weightLog: [{ date: "2026-02-01", kg: 80 }], workoutLog: [], foodLog: [{ date: "2026-02-01", items: [{ text: "a" }] }], restDays: ["2026-02-01"], updatedAt: 1 };
+    const merged = Store.merge({ profile: { name: "C", onboarded: true }, weightLog: [{ date: "2026-01-01", kg: 70 }], workoutLog: [], foodLog: [{ date: "2026-02-01", items: [{ text: "b" }] }], restDays: ["2026-01-30"], updatedAt: 5 });
+    ok("merge unions weight dates", merged.weightLog.length === 2);
+    ok("merge unions food items per date", merged.foodLog.find((f) => f.date === "2026-02-01").items.length === 2);
+    ok("merge unions restDays", merged.restDays.includes("2026-01-30") && merged.restDays.includes("2026-02-01"));
+    ok("merge newer profile wins", merged.profile.name === "C");
+    ok("merge onboarded = either true", merged.profile.onboarded === true);
+    ok("merge null cloud → state", Store.merge(null) === Store.state);
+    Store.reset();
+    ok("reset reloads fresh state", !!Store.state && !!Store.state.profile);
+    ok("todayISO format", /^\d{4}-\d{2}-\d{2}$/.test(todayISO()));
+    ok("pad works", pad(3) === "03" && pad(11) === "11");
+    ok("daysBetween", daysBetween("2026-01-01", "2026-01-08") === 7);
+    ok("prettyDate returns string", typeof prettyDate("2026-01-01") === "string" && prettyDate("2026-01-01").length > 0);
+
+    // ---- Engine ----
+    Store.load("gymcoach_v1_COV_ENGINE_" + Date.now());
+    Object.assign(Store.state.profile, { gender: "male", age: 26, heightCm: 178, activityFactor: 1.55, physique: "lean_aesthetic", diet: "veg", onboarded: true });
+    Store.state.workoutLog = []; Store.state.restDays = [];
+    Store.state.weightLog = [{ date: todayISO(), kg: 75 }];
+    ok("engine stats healthy bmi", Engine.stats().bmiClass === "Healthy");
+    Store.state.weightLog = [{ date: todayISO(), kg: 50 }];
+    ok("engine bmi underweight", Engine.stats().bmiClass === "Underweight");
+    Store.state.weightLog = [{ date: todayISO(), kg: 100 }];
+    ok("engine bmi obese", Engine.stats().bmiClass === "Obese");
+    Store.state.weightLog = [{ date: todayISO(), kg: 85 }];
+    ok("engine bmi overweight", Engine.stats().bmiClass === "Overweight");
+    Store.state.profile.gender = "female";
+    ok("engine female bmr positive", Engine.stats().bmr > 0);
+    Store.state.profile.gender = "male";
+    ok("getPhysique valid", Engine.getPhysique().id === "lean_aesthetic");
+    Store.state.profile.physique = "nonexistent_xyz";
+    ok("getPhysique fallback", !!Engine.getPhysique().id);
+    Store.state.profile.physique = "lean_aesthetic";
+    ok("isEmphasized returns bool", typeof Engine.isEmphasized("Chest") === "boolean");
+    ok("daysSinceSplit never → Infinity", Engine.daysSinceSplit("push") === Infinity);
+    ok("recommendSplit returns split", typeof Engine.recommendSplit() === "string" && Engine.recommendSplit().length > 0);
+    ok("splitReason no history", /No workout history/.test(Engine.splitReason(Engine.recommendSplit())));
+    ok("lastPerformance none → null", Engine.lastPerformance("bench_press") === null);
+    Store.state.workoutLog = [{ date: todayISO(), split: "push", exercises: [{ id: "bench_press", name: "Bench", muscle: "Chest", sets: [{ reps: 8, weight: 40 }, { reps: 6, weight: 50 }] }], volume: 700 }];
+    const lp = Engine.lastPerformance("bench_press");
+    ok("lastPerformance best set", lp && lp.best.weight === 50);
+    ok("splitReason with history", typeof Engine.splitReason("push") === "string");
+    ok("overloadHint no last", /First time/.test(Engine.overloadHint("squat")));
+    ok("overloadHint with last", /Last/.test(Engine.overloadHint("bench_press")));
+    ok("buildWorkout has slots", Engine.buildWorkout("push").length > 0);
+    ok("recommendExtras returns array", Array.isArray(Engine.recommendExtras("push")));
+    ok("weeklyFrequency >=1", Engine.weeklyFrequency() >= 1);
+    ok("muscleBalance push counted", Engine.muscleBalance().push > 0);
+    ok("streak >=1 today", Engine.streak() >= 1);
+    ok("totalWorkouts = 1", Engine.totalWorkouts() === 1);
+    Store.state.weightLog = [{ date: "2026-01-01", kg: 70 }, { date: "2026-02-01", kg: 73 }];
+    ok("weightTrend up", Engine.weightTrend().dir === "up" && Engine.weightTrend().delta === 3);
+    Store.state.weightLog = [{ date: "2026-01-01", kg: 73 }, { date: "2026-02-01", kg: 70 }];
+    ok("weightTrend down", Engine.weightTrend().dir === "down");
+    Store.state.weightLog = [{ date: "2026-01-01", kg: 70 }];
+    ok("weightTrend flat when <2", Engine.weightTrend().dir === "flat");
+    ok("guidance returns messages", Array.isArray(Engine.guidance()) && Engine.guidance().length > 0);
+
+    // ---- Nutrition ----
+    const est = FoodEstimator.parse("2 rotis and a bowl of dal with chicken curry, tea with sugar");
+    ok("parse returns kcal+protein", est.kcal > 0 && est.protein > 0 && Array.isArray(est.items));
+    ok("parse adds sugar item", est.items.some((i) => i.name === "Sugar"));
+    const noSugar = FoodEstimator.parse("tea with no sugar");
+    ok("parse respects no sugar", noSugar.sawNoSugar === true && !noSugar.items.some((i) => i.name === "Sugar"));
+    ok("matchQty digit", FoodEstimator.matchQty("3 eggs") === 3);
+    ok("matchQty word", FoodEstimator.matchQty("two eggs") === 2);
+    ok("matchQty default 1", FoodEstimator.matchQty("egg") === 1);
+    ok("pretty capitalizes", FoodEstimator.pretty("dal") === "Dal");
+    ok("parse tracks unknown", FoodEstimator.parse("xyzzy blorp").unknown.length >= 1);
+    for (const diet of ["veg", "vegan", "nonveg", "egg"]) {
+      const mp = MealPlanner.generate("high protein muscle", diet, { calTarget: 2400, proteinG: 150 }, 1);
+      ok("mealplan " + diet + " plan+targets", mp.plan.length > 0 && mp.totalK > 1500 && mp.totalP > 50);
+      ok("mealplan " + diet + " respects diet", mp.plan.every((x) => dietAllows(x.meal.diet, diet)));
+    }
+
+    // ---- Auth ----
+    Auth.load();
+    const h1 = await Auth.hash("pw", "salt"), h2 = await Auth.hash("pw", "salt"), h3 = await Auth.hash("pw", "other");
+    ok("hash deterministic + 64 hex", h1 === h2 && h1 !== h3 && h1.length === 64);
+    ok("randHex length", Auth.randHex(8).length === 16);
+    ok("genOtp 6 digits", /^\d{6}$/.test(Auth.genOtp()));
+    ok("validEmail cases", Auth.validEmail("a@b.co") && !Auth.validEmail("a@b") && !Auth.validEmail("") && !Auth.validEmail("no"));
+    ok("validPhone cases", Auth.validPhone("9876543210") && Auth.validPhone("+91 98765-43210") && !Auth.validPhone("123"));
+    const em2 = "cov_auth_" + Date.now() + "@x.com";
+    const su = await Auth.signup({ name: "T", email: em2, phone: "9876543210", password: "secret1" });
+    ok("signup returns otp (local)", su.direct === false && /^\d{6}$/.test(su.otp));
+    const vu = Auth.verifyOtp(Auth.pending.otp);
+    ok("verifyOtp commits + sets current", vu.email === em2 && Auth.currentUser().email === em2 && vu.phoneVerified === true);
+    let dupThrew = false; try { await Auth.signup({ name: "T", email: em2, phone: "9", password: "y" }); } catch (e) { dupThrew = true; }
+    ok("signup duplicate throws", dupThrew);
+    let badPw = false; try { await Auth.login({ email: em2, password: "wrong" }); } catch (e) { badPw = true; }
+    ok("login wrong password throws", badPw);
+    ok("login correct works", (await Auth.login({ email: em2, password: "secret1" })).email === em2);
+    let noAcc = false; try { await Auth.login({ email: "nobody" + Date.now() + "@x.com", password: "x" }); } catch (e) { noAcc = true; }
+    ok("login no account throws", noAcc);
+    Auth.pending = null;
+    let noPending = false; try { Auth.verifyOtp("123456"); } catch (e) { noPending = true; }
+    ok("verifyOtp no pending throws", noPending);
+    const gs = Auth.googleStart({ name: "G", email: "g_" + Date.now() + "@x.com" });
+    ok("googleStart pending", !!gs && gs.origin === "google");
+    Auth.sendPhoneOtp("9998887776");
+    ok("sendPhoneOtp sets otp+phone", /^\d{6}$/.test(Auth.pending.otp) && Auth.pending.account.phone === "9998887776");
+    ok("resendOtp new otp", /^\d{6}$/.test(Auth.resendOtp()));
+    let badCode = false; try { Auth.verifyOtp("000000"); } catch (e) { badCode = true; }
+    ok("verifyOtp wrong code throws", badCode);
+    Auth.pending = null;
+    ok("findByEmail case-insensitive", !!Auth.findByEmail(em2.toUpperCase()));
+    Auth.logout();
+    ok("logout clears current", Auth.currentUser() === null && Auth.isLoggedIn() === false);
+
+    // remote (Google Sheets) backend paths — mocked
+    const _postSheet = Auth.postSheet;
+    window.SHEETS_API = "https://fake.example";
+    ok("Auth.remote() true when configured", Auth.remote() === true);
+    Auth.postSheet = async (payload) => (payload.action === "signup" ? { ok: true } : { ok: true, user: { name: "R", phone: "9" } });
+    ok("remote signup direct", (await Auth.signup({ name: "R", email: "rem_" + Date.now() + "@x.com", phone: "9", password: "p" })).direct === true);
+    ok("remote login creates account", (await Auth.login({ email: "rem2_" + Date.now() + "@x.com", password: "p" })).remote === true);
+    Auth.postSheet = async () => ({ ok: false, error: "nope" });
+    let remoteErr = false; try { await Auth.signup({ name: "x", email: "e" + Date.now() + "@x.com", phone: "9", password: "p" }); } catch (e) { remoteErr = true; }
+    ok("remote signup error throws", remoteErr);
+    Auth.postSheet = _postSheet; window.SHEETS_API = "";
+    ok("Auth.remote() false when unset", Auth.remote() === false);
+    const gem = "gx_" + Date.now() + "@x.com";
+    Auth.data.accounts.push({ id: "uG", name: "G", email: gem, phone: "", phoneVerified: true, provider: "google" });
+    const gs2 = Auth.googleStart({ name: "G2", email: gem });
+    ok("googleStart reuses existing account", gs2.account.id === "uG" && gs2.needsPhone === false);
+
+    // Store.save quota-exceeded → sheds on-device avatar to protect logs
+    Store.load("gymcoach_v1_COV_QUOTA_" + Date.now());
+    Store.state.profile.avatar = "data:image/jpeg;base64,AAAA";
+    const _setItem = localStorage.setItem.bind(localStorage);
+    let qcalls = 0;
+    localStorage.setItem = function (k, v) { if (k === Store.key && qcalls++ === 0) throw new Error("QuotaExceeded"); return _setItem(k, v); };
+    const _alert = window.alert; window.alert = () => {};
+    Store.save();
+    localStorage.setItem = _setItem; window.alert = _alert;
+    ok("save sheds avatar on quota (logs safe)", Store.state.profile.avatar === null);
+
     /* ---------------- E2E ---------------- */
     // account unify by email (fixes diet/data forking between login methods)
     Auth.load();
