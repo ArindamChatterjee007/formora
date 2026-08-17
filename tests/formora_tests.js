@@ -414,6 +414,9 @@ window.runFormoraTests = async function () {
       ok("postCard renders <video> for reel", Social.postCard(Social._cloudPost(Social.cloud.feed[0])).includes("<video"));
       ok("postCard renders carousel for multi-photo", Social.postCard(Social._cloudPost(Social.cloud.feed[1])).includes("carousel"));
       ok("postCard shows reshared note", Social.postCard(Social._cloudPost(Social.cloud.feed[2])).includes("reshared"));
+      const vpost = Social.postCard(Social._cloudPost(Social.cloud.feed[0]));
+      ok("feed video is Instagram-style (no native controls, tap + mute)", !/controls/.test(vpost) && vpost.includes("tapFeedVideo") && vpost.includes("fv-mute"));
+      ok("Social._bindFeedVideos exists", typeof Social._bindFeedVideos === "function");
       const rs = App.reelSlide(Social._cloudPost(Social.cloud.feed[0]));
       ok("reelSlide builds video + actions", rs.includes("reel-vid") && rs.includes("reel-act"));
       App.renderFlex();

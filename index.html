@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 52;
+      var V = 53;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=52" />
+  <link rel="stylesheet" href="css/styles.css?v=53" />
 </head>
 <body>
   <!-- animated background -->
@@ -89,17 +89,17 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=52"></script>
-  <script src="js/data.js?v=52"></script>
-  <script src="js/storage.js?v=52"></script>
-  <script src="js/engine.js?v=52"></script>
-  <script src="js/charts.js?v=52"></script>
-  <script src="js/nutrition.js?v=52"></script>
-  <script src="js/auth.js?v=52"></script>
-  <script src="js/social.js?v=52"></script>
-  <script src="js/cloud.js?v=52"></script>
-  <script src="js/camera.js?v=52"></script>
-  <script src="js/mailer.js?v=52"></script>
-  <script src="js/app.js?v=52"></script>
+  <script src="js/config.js?v=53"></script>
+  <script src="js/data.js?v=53"></script>
+  <script src="js/storage.js?v=53"></script>
+  <script src="js/engine.js?v=53"></script>
+  <script src="js/charts.js?v=53"></script>
+  <script src="js/nutrition.js?v=53"></script>
+  <script src="js/auth.js?v=53"></script>
+  <script src="js/social.js?v=53"></script>
+  <script src="js/cloud.js?v=53"></script>
+  <script src="js/camera.js?v=53"></script>
+  <script src="js/mailer.js?v=53"></script>
+  <script src="js/app.js?v=53"></script>
 </body>
 </html>

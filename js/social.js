@@ -235,9 +235,26 @@ const Social = {
     const nav = [["feed", App.ic("flame", { size: 16 }) + " Feed"], ["crew", App.ic("users", { size: 16 }) + " Crew"], ["chat", App.ic("chat", { size: 16 }) + " Chat"], ["challenges", App.ic("trophy", { size: 16 }) + " Challenges"]];
     const body = sub2 === "feed" ? this.feedBody() : sub2 === "crew" ? this.crewBody() : sub2 === "chat" ? this.chatBody() : this.challengesBody();
     el.innerHTML = `<div class="social-subnav">${nav.map(([n, l]) => `<button class="ssub ${n === sub2 ? "active" : ""}" onclick="Social.feedTab('${n}')">${l}</button>`).join("")}</div>${body}`;
+    if (sub2 === "feed") this._bindFeedVideos();
     if (sub2 === "chat") this.scrollChat();
   },
   feedTab(n) { this.sub = n; this.render(); },
+  // Instagram-style feed video: muted autoplay in view, tap to play/pause, button for sound
+  tapFeedVideo(v) { if (v.paused) v.play().catch(() => {}); else v.pause(); },
+  toggleFeedMute(btn) {
+    const wrap = btn.closest(".post-media.video"); const v = wrap && wrap.querySelector("video"); if (!v) return;
+    v.muted = !v.muted; if (!v.muted) v.play().catch(() => {});
+    btn.innerHTML = App.ic(v.muted ? "mute" : "volume", { size: 18 });
+  },
+  _bindFeedVideos() {
+    const vids = document.querySelectorAll("#view-feed .post-media.video video");
+    if (!vids.length) { if (this._feedVidObs) { this._feedVidObs.disconnect(); this._feedVidObs = null; } return; }
+    if (this._feedVidObs) this._feedVidObs.disconnect();
+    this._feedVidObs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { const v = e.target; if (e.isIntersecting && e.intersectionRatio > 0.6) v.play().catch(() => {}); else v.pause(); });
+    }, { threshold: [0, 0.6, 1] });
+    vids.forEach((v) => this._feedVidObs.observe(v));
+  },
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
@@ -332,7 +349,7 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video"><video src="${p.video}" controls playsinline preload="metadata" loop></video><span class="reel-badge">💪 Flex</span></div>`
+      ? `<div class="post-media video" data-fv="${p.id}"><video src="${p.video}" playsinline preload="metadata" loop muted onclick="Social.tapFeedVideo(this)"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic("mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
       : pics.length
       ? (pics.length > 1
         ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${src}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`

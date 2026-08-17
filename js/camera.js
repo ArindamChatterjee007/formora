@@ -148,7 +148,7 @@ const Camera = {
   },
   async start() {
     this.stop();
-    const constraints = { audio: true, video: { facingMode: this.facing, width: { ideal: 1280 }, height: { ideal: 1280 } } };
+    const constraints = { audio: { echoCancellation: true, noiseSuppression: true }, video: { facingMode: this.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } };
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     const v = document.getElementById("cam-video");
     if (v) { v.srcObject = this.stream; v.style.transform = this.facing === "user" ? "scaleX(-1)" : "none"; await v.play().catch(() => {}); }
@@ -245,12 +245,15 @@ const Camera = {
   },
   snapPhoto() {
     const canvas = this._frameCanvas();
-    canvas.toBlob((blob) => { if (blob) this.openEditor(blob, false); }, "image/jpeg", 0.9);
+    canvas.toBlob((blob) => { if (blob) this.openEditor(blob, false); }, "image/jpeg", 0.95);
   },
   startRec() {
     if (this.recording || !this.stream) return;
     const v = document.getElementById("cam-video");
-    const w = Math.min(v.videoWidth || 720, 1080), h = Math.min(v.videoHeight || 1280, 1920);
+    // preserve the real aspect ratio (drawing 16:9 into a square squished the video)
+    let w = v.videoWidth || 1080, h = v.videoHeight || 1920;
+    const scale = Math.min(1, 1080 / w, 1920 / h);
+    w = Math.round(w * scale); h = Math.round(h * scale);
     const canvas = document.getElementById("cam-canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -268,7 +271,8 @@ const Camera = {
     const audio = this.stream.getAudioTracks();
     const mixed = new MediaStream([...canvasStream.getVideoTracks(), ...audio]);
     const mime = ["video/mp4;codecs=h264,aac", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
-    try { this.recorder = new MediaRecorder(mixed, mime ? { mimeType: mime, videoBitsPerSecond: 2500000 } : { videoBitsPerSecond: 2500000 }); }
+    const recOpts = { videoBitsPerSecond: 8000000, audioBitsPerSecond: 128000 };
+    try { this.recorder = new MediaRecorder(mixed, mime ? { mimeType: mime, ...recOpts } : recOpts); }
     catch (e) { this.recorder = new MediaRecorder(mixed); }
     this.chunks = [];
     this.recorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
@@ -363,7 +367,7 @@ const Camera = {
       const ctx = out.getContext("2d");
       ctx.drawImage(img, 0, 0, out.width, out.height);
       if (pcvs && pcvs.width) ctx.drawImage(pcvs, 0, 0, out.width, out.height);
-      finalBlob = await new Promise((r) => out.toBlob(r, "image/jpeg", 0.9)) || d.blob;
+      finalBlob = await new Promise((r) => out.toBlob(r, "image/jpeg", 0.95)) || d.blob;
     }
     const isVid = d.isVid;
     const ext = isVid ? ((finalBlob.type.includes("mp4")) ? "mp4" : "webm") : "jpg";
