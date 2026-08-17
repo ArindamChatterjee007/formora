@@ -465,6 +465,23 @@ window.runFormoraTests = async function () {
       ok("toggleMute flips mute state", Social.isMuted("u_zz") !== _wasMuted);
       Social.toggleMute("u_zz"); Social.chatDetails = _cd; Social._editMsg = null;
 
+      // ---- v52: presence + public body stats + premium logo icons ----
+      ok("Engine.fitnessScore is a 0..100 number", (() => { const s = Engine.fitnessScore(); return typeof s === "number" && s >= 0 && s <= 100; })());
+      ok("premium logo icons render", App.ic("flame").includes("ic-flame") && App.ic("users").includes("<svg") && App.ic("trophy").includes("<svg") && App.ic("dumbbell").includes("<svg") && App.ic("grid").includes("<svg"));
+      Social.cloud.users = [{ uid: "u_on", name: "On", username: "on", seen: Date.now() }, { uid: "u_off", name: "Off", username: "off", seen: Date.now() - 5 * 60000 }];
+      ok("isOnline: recent seen = online", Social.isOnline("u_on") === true);
+      ok("isOnline: stale seen = offline", Social.isOnline("u_off") === false);
+      ok("isOnline: me is always online", Social.isOnline("me") === true && Social.isOnline("u_me") === true);
+      ok("lastSeenText shows active-ago", /Active/.test(Social.lastSeenText("u_off")));
+      ok("avatarP adds dot only when online", Social.avatarP({ id: "u_on", name: "On" }, 40).includes("online-dot") && !Social.avatarP({ id: "u_off", name: "Off" }, 40).includes("online-dot"));
+      Social.cloud.users = [{ uid: "u_bod", name: "Bod", username: "bod", heightCm: 180, weightKg: 78, bmi: 24.1, score: 82, workouts: 12, seen: Date.now() }];
+      const cu = Social.cloudUser("u_bod");
+      ok("cloudUser exposes height/weight/bmi/score", cu.heightCm === 180 && cu.weightKg === 78 && cu.bmi === 24.1 && cu.score === 82);
+      Social.viewProfile("u_bod"); Social.vpTab("u_bod", "stats");
+      const vph = document.getElementById("modal-card").innerHTML;
+      ok("public profile shows body stats + score", /180cm/.test(vph) && /78kg/.test(vph) && /Fitness score/.test(vph) && vph.includes("82"));
+      if (typeof App !== "undefined" && App.closeModal) App.closeModal();
+
       Social._dmWith = null; Social._dmInboxLoaded = false;
       Cloud.me = _me; Social.render = _render; if (typeof App !== "undefined") App.toast = _toast; Cloud.active = _active;
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };

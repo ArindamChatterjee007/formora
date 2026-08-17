@@ -606,6 +606,20 @@ const App = {
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>',
     copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2 2.5Z"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+    chat: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+    trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22"/><path d="M14 14.7V17c0 .6.5 1 1 1.2C16.1 18.8 17 20.2 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3.5"/>',
+    film: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 12h18"/><path d="M3 7.5h4"/><path d="M17 7.5h4"/><path d="M3 16.5h4"/><path d="M17 16.5h4"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/>',
+    dumbbell: '<path d="M4 9v6"/><path d="M20 9v6"/><path d="M7 7.5v9"/><path d="M17 7.5v9"/><path d="M7 12h10"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
+    apple: '<path d="M12 7C10 4 6 4 5 7c-1 2-1 5 1 8 1 2 3 4 6 4s5-2 6-4c2-3 2-6 1-8-1-3-5-3-7 0Z"/><path d="M12 7c.4-2 2-3.5 3.5-3.5"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',
+    bell: '<path d="M6 9a6 6 0 1 1 12 0c0 5 2 7 2 7H4s2-2 2-7Z"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -686,7 +700,7 @@ const App = {
   renderCoach(sub) {
     this.coachSub = sub || this.coachSub || "overview";
     const s = this.coachSub;
-    const nav = [["overview", "🏠 Overview"], ["today", "🏋️ Today"], ["progress", "📈 Progress"], ["nutrition", "🍽️ Nutrition"]];
+    const nav = [["overview", this.ic("home", { size: 15 }) + " Overview"], ["today", this.ic("dumbbell", { size: 15 }) + " Today"], ["progress", this.ic("chart", { size: 15 }) + " Progress"], ["nutrition", this.ic("apple", { size: 15 }) + " Nutrition"]];
     const sn = document.getElementById("coach-subnav");
     if (sn) sn.innerHTML = nav.map(([n, l]) => `<button class="ssub ${n === s ? "active" : ""}" onclick="App.renderCoach('${n}')">${l}</button>`).join("");
     const views = { overview: "view-home", today: "view-today", progress: "view-progress", nutrition: "view-nutrition" };
@@ -1808,6 +1822,9 @@ const App = {
     });
     Cloud.setPaused(false);
     this.pollNotifs();
+    // presence heartbeat — refresh my profile.seen so others see me "online"
+    if (this._hb) clearInterval(this._hb);
+    this._hb = setInterval(() => { if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.me) Cloud.registerMe(Store.state.profile); }, 60000);
   },
   async pollNotifs() {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;

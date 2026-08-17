@@ -70,11 +70,20 @@ const Cloud = {
   registerMe(profile) {
     if (!this.active()) return;
     const p = profile || (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
+    let weightKg = 0, bmi = 0, score = 0, workouts = 0;
+    try {
+      weightKg = (typeof Store !== "undefined" && Store.latestWeight) ? (Store.latestWeight() || 0) : (p.startWeightKg || 0);
+      if (typeof Engine !== "undefined" && Engine.stats) bmi = Engine.stats().bmi || 0;
+      if (typeof Engine !== "undefined" && Engine.fitnessScore) score = Engine.fitnessScore();
+      if (typeof Engine !== "undefined" && Engine.totalWorkouts) workouts = Engine.totalWorkouts();
+    } catch (e) {}
     const data = {
       username: p.username || "", name: p.name || "", avatar: p.avatar || "",
       physique: (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "",
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
       socials: p.socials || {}, privacy: p.privacy || "public", following: p.following || [],
+      verified: !!p.verified, gender: p.gender || "", heightCm: p.heightCm || 0,
+      weightKg: Math.round(weightKg * 10) / 10, bmi, score, workouts, seen: Date.now(),
     };
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },

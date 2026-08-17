@@ -1085,11 +1085,11 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .vg-title { font-weight: 800; font-size: 16px; margin: 6px 0 4px; }
 .vg-sub { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
 
-/* ===== Flex reels (vertical scroll) ===== */
-.reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 14px; }
+/* ===== Flex reels (Instagram-style full-bleed viewer) ===== */
+.reels { height: calc(100dvh - 128px); overflow-y: auto; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: -8px -16px 0; background: #000; border-radius: 0; }
 .reels::-webkit-scrollbar { display: none; }
 .reel { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; background: #000; overflow: hidden; display: flex; }
-.reel-vid { width: 100%; height: 100%; object-fit: contain; background: #000; margin: auto; }
+.reel-vid { width: 100%; height: 100%; object-fit: cover; background: #000; margin: auto; }
 .reel-grad { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.6), transparent 32%, transparent 72%, rgba(0,0,0,.35)); }
 .reel-mute { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(0,0,0,.42); color: #fff; font-size: 17px; cursor: pointer; z-index: 3; backdrop-filter: blur(6px); }
 .reel-actions { position: absolute; right: 12px; bottom: 96px; display: flex; flex-direction: column; gap: 18px; z-index: 3; }
@@ -1150,6 +1150,24 @@ svg.ic { display: inline-block; vertical-align: -0.16em; flex: none; }
 .cd-actions { display: flex; flex-direction: column; gap: 8px; }
 .cd-actions .danger { color: #ef4444; }
 .cd-meta { text-align: center; color: var(--muted); font-size: 12px; margin-top: 14px; }
+
+/* ===== v52: icon labels + presence + public body stats ===== */
+.ssub .ic, .photo-btn .ic, .vp-tab .ic { vertical-align: -0.18em; margin-right: 5px; }
+.cd-actions .btn { display: flex; align-items: center; gap: 9px; justify-content: flex-start; text-align: left; }
+.dm-name .ic { vertical-align: -0.1em; opacity: .65; }
+.av-wrap { position: relative; display: inline-flex; flex: none; }
+.online-dot { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; border-radius: 50%; background: #22c55e; border: 2px solid var(--card); }
+.online-dot.sm { position: static; display: inline-block; width: 8px; height: 8px; border: none; margin-right: 3px; vertical-align: middle; }
+.vp-online { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.vp-online.on { color: #16a34a; font-weight: 700; }
+.vp-body { display: flex; gap: 6px; margin: 0 0 12px; }
+.vp-body > div { flex: 1; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 4px; text-align: center; }
+.vp-body b { font-size: 16px; display: block; font-weight: 800; }
+.vp-body b i { font-size: 11px; font-weight: 600; font-style: normal; color: var(--muted); margin-left: 1px; }
+.vp-body span { font-size: 11px; color: var(--muted); }
+.vp-stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; border: none; }
+.vp-stats > div { flex: 1 1 30%; min-width: 92px; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 6px; text-align: center; }
+.vp-goal { text-align: center; color: var(--muted); font-size: 13px; margin: 12px 0; }
 
 /* ===== profile counts + follow ===== */
 .vp-counts { display: flex; gap: 6px; margin: 14px 0 12px; text-align: center; }

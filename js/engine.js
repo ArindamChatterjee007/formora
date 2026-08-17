@@ -163,6 +163,20 @@ const Engine = {
 
   totalWorkouts() { return Store.state.workoutLog.length; },
 
+  // 0–100 fitness score: BMI in the healthy band (40) + streak (30) + total workouts (30)
+  fitnessScore() {
+    try {
+      const bmi = this.stats().bmi || 0;
+      let score = 0;
+      if (bmi >= 18.5 && bmi <= 24.9) score += 40;
+      else if (bmi > 0) score += Math.max(0, 40 - (bmi < 18.5 ? 18.5 - bmi : bmi - 24.9) * 6);
+      score += Math.min(30, this.streak() || 0);
+      score += Math.min(30, (this.totalWorkouts() || 0) / 2);
+      score = Math.round(score);
+      return isNaN(score) ? 0 : Math.max(0, Math.min(100, score));
+    } catch (e) { return 0; }
+  },
+
   weightTrend() {
     const log = [...Store.state.weightLog].sort((a, b) => a.date.localeCompare(b.date));
     if (log.length < 2) return { delta: 0, dir: "flat" };

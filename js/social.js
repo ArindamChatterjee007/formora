@@ -52,7 +52,9 @@ const Social = {
     const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
     const phys = (typeof Engine !== "undefined" && Engine.getPhysique) ? Engine.getPhysique().name : "Lean Aesthetic";
     const streak = (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0;
-    return { id: "me", name: p.name || "You", handle: p.username || (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null, verified: !!p.verified, email: p.email || "" };
+    const st = (typeof Engine !== "undefined" && Engine.stats) ? Engine.stats() : {};
+    const wt = (typeof Store !== "undefined" && Store.latestWeight) ? (Store.latestWeight() || p.startWeightKg || 0) : (p.startWeightKg || 0);
+    return { id: "me", name: p.name || "You", handle: p.username || (p.email || "you").split("@")[0], colors: ["#ff6b3d", "#ff3d7f"], physique: phys, bio: p.bio || "", level: streak > 60 ? "Elite" : streak > 30 ? "Pro" : streak > 7 ? "Rising" : "Rookie", streak, avatar: p.avatar || null, verified: !!p.verified, email: p.email || "", heightCm: p.heightCm || 0, weightKg: Math.round(wt * 10) / 10, bmi: st.bmi || 0, score: (typeof Engine !== "undefined" && Engine.fitnessScore) ? Engine.fitnessScore() : 0, workouts: (typeof Engine !== "undefined" && Engine.totalWorkouts) ? Engine.totalWorkouts() : 0, seen: Date.now() };
   },
   persona(id) {
     if (id === "me") return this.me();
@@ -135,10 +137,27 @@ const Social = {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified, heightCm: u.heightCm || 0, weightKg: u.weightKg || 0, bmi: u.bmi || 0, score: u.score || 0, workouts: u.workouts || 0, gender: u.gender || "", seen: u.seen || 0 };
   },
   // small ✓ shown next to a verified member's name (email confirmed or Google sign-in)
   vbadge(u) { return (u && u.verified) ? ` <span class="vbadge" title="Verified — email confirmed">✓</span>` : ""; },
+  // ---- presence (green dot / last-active) from profile.seen heartbeat ----
+  isOnline(uid) {
+    if (!uid) return false;
+    if (uid === "me" || (typeof Cloud !== "undefined" && uid === Cloud.me)) return true;
+    const u = (this.cloud.users || []).find((x) => x.uid === uid);
+    return !!(u && u.seen && (Date.now() - u.seen) < 90000);
+  },
+  lastSeenText(uid) {
+    if (this.isOnline(uid)) return "Active now";
+    const u = (this.cloud.users || []).find((x) => x.uid === uid);
+    return (u && u.seen) ? "Active " + this.timeAgo(u.seen) + " ago" : "";
+  },
+  avatarP(entity, size) {
+    const e = typeof entity === "string" ? this.persona(entity) : entity;
+    const on = e && e.id && this.isOnline(e.id);
+    return `<span class="av-wrap">${this.avatar(e, size)}${on ? '<span class="online-dot"></span>' : ""}</span>`;
+  },
   // ---- follow (one-way, LinkedIn-style) + counts ----
   myFollowing() { return (typeof Store !== "undefined" && Store.state.profile && Store.state.profile.following) || []; },
   isFollowing(uid) { return this.myFollowing().includes(uid); },
@@ -213,7 +232,7 @@ const Social = {
     const el = document.getElementById("view-feed");
     if (!el) return;
     const sub2 = this.sub || "feed";
-    const nav = [["feed", "🔥 Feed"], ["crew", "🤝 Crew"], ["chat", "💬 Chat"], ["challenges", "🏆 Challenges"]];
+    const nav = [["feed", App.ic("flame", { size: 16 }) + " Feed"], ["crew", App.ic("users", { size: 16 }) + " Crew"], ["chat", App.ic("chat", { size: 16 }) + " Chat"], ["challenges", App.ic("trophy", { size: 16 }) + " Challenges"]];
     const body = sub2 === "feed" ? this.feedBody() : sub2 === "crew" ? this.crewBody() : sub2 === "chat" ? this.chatBody() : this.challengesBody();
     el.innerHTML = `<div class="social-subnav">${nav.map(([n, l]) => `<button class="ssub ${n === sub2 ? "active" : ""}" onclick="Social.feedTab('${n}')">${l}</button>`).join("")}</div>${body}`;
     if (sub2 === "chat") this.scrollChat();
@@ -252,8 +271,8 @@ const Social = {
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         ${this.pendingVideo ? `<div class="composer-video"><video src="${this.pendingVideo}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
         <div class="composer-actions">
-          <button class="photo-btn" onclick="Social.pickPhotos()">📷 Photo</button>
-          <button class="photo-btn" onclick="Social.pickReel()">🎬 Flex</button>
+          <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
+          <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
@@ -712,7 +731,7 @@ const Social = {
       </div>`;
   },
   memberCard(p) {
-    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatar(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}${this.vbadge(p)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}${this.followBtn(p.id)}</div></div>`;
+    return `<div class="crew-card"><div class="crew-click" onclick="Social.viewProfile('${p.id}')">${this.avatarP(p, 52)}<div class="crew-info"><div class="crew-name">${esc(p.name)}${this.vbadge(p)}</div><div class="crew-sub">@${esc(p.handle)}${p.physique ? " · " + esc(p.physique) : ""}</div><div class="crew-bio">${esc(p.bio || "")}</div></div></div><div class="crew-cta">${this.memberCta(p.id)}${this.followBtn(p.id)}</div></div>`;
   },
   memberCta(uid) {
     if (this.inCrew(uid) || (this.cloud.connections || []).includes(uid)) return `<button class="btn ghost sm" onclick="event.stopPropagation();Social.openDM('${uid}')">💬 Message</button>`;
@@ -779,7 +798,19 @@ const Social = {
     let tabHtml;
     if (locked) tabHtml = `<div class="vp-locked"><div class="vp-lock-ic">🔒</div><div><b>Friends only</b><br>Connect with ${esc(u.name)} to see their posts &amp; clips.</div></div>`;
     else if (tab === "clips") tabHtml = clips.length ? `<div class="vp-clips">${clips.map((p) => `<div class="vp-clip"><img src="${p.photo}" alt="clip"></div>`).join("")}</div>` : `<div class="sub" style="text-align:center;padding:16px 0">No clips yet — posts with a photo show here 🎬</div>`;
-    else if (tab === "stats") tabHtml = `<div class="vp-stats"><div><b>${posts.length}</b><span>Posts</span></div><div><b>${u.streak || 0}</b><span>Day streak</span></div>${u.physique ? `<div><b>🎯</b><span>${esc(u.physique)}</span></div>` : ""}</div>${isMe ? `<button class="btn ghost wide" onclick="App.closeModal();App.goTab('progress')">Open my progress graph →</button>` : `<div class="sub" style="padding:10px 0;text-align:center">Detailed progress stays private to each member.</div>`}`;
+    else if (tab === "stats") {
+      const bmi = u.bmi || 0;
+      const bmiCls = bmi ? (bmi < 18.5 ? "Underweight" : bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese") : "—";
+      const cell = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+      tabHtml = `<div class="vp-stats">
+        ${cell(u.heightCm ? u.heightCm + "cm" : "—", "Height")}
+        ${cell(u.weightKg ? u.weightKg + "kg" : "—", "Weight")}
+        ${cell(bmi ? bmi.toFixed(1) : "—", "BMI · " + bmiCls)}
+        ${cell((u.score || 0) + "/100", "Fitness score")}
+        ${cell(u.streak || 0, "Day streak")}
+        ${cell(u.workouts || 0, "Workouts")}
+      </div>${u.physique ? `<div class="vp-goal">Training for <b>${esc(u.physique)}</b></div>` : ""}${isMe ? `<button class="btn ghost wide" onclick="App.closeModal();App.goTab('progress')">Open my progress graph →</button>` : `<div class="sub" style="padding:10px 0;text-align:center">Detailed workout history stays private to each member.</div>`}`;
+    }
     else tabHtml = posts.length ? posts.map((x) => this.postCard(this.cloudActive() ? this._cloudPost(x) : x)).join("") : `<div class="sub" style="text-align:center;padding:16px 0">No posts yet.</div>`;
     const card = document.getElementById("modal-card");
     const vpCounts = `<div class="vp-counts">
@@ -788,23 +819,30 @@ const Social = {
       <div><b>${(u.following || []).length}</b><span>Following</span></div>
       ${isMe ? `<div><b>${this.connectionsCount()}</b><span>Connections</span></div>` : ""}
     </div>`;
+    const vpBody = (!locked && (u.heightCm || u.weightKg || u.bmi || u.score)) ? `<div class="vp-body">
+      ${u.heightCm ? `<div><b>${u.heightCm}<i>cm</i></b><span>Height</span></div>` : ""}
+      ${u.weightKg ? `<div><b>${u.weightKg}<i>kg</i></b><span>Weight</span></div>` : ""}
+      ${u.bmi ? `<div><b>${(u.bmi).toFixed(1)}</b><span>BMI</span></div>` : ""}
+      ${u.score ? `<div><b>${u.score}</b><span>Score</span></div>` : ""}
+    </div>` : "";
     card.innerHTML = `
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="view-profile">
-        <div class="vp-hero">${this.avatar(u, 88)}
+        <div class="vp-hero">${this.avatarP(u, 88)}
           <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
             <div class="vp-handle">@${esc(u.handle)}</div>
-            ${u.physique ? `<div class="vp-phys">🎯 ${esc(u.physique)}</div>` : ""}
+            ${!isMe ? `<div class="vp-online ${this.isOnline(uid) ? "on" : ""}">${this.isOnline(uid) ? '<span class="online-dot"></span> Active now' : (this.lastSeenText(uid) || (u.physique ? "Training for " + esc(u.physique) : ""))}</div>` : (u.physique ? `<div class="vp-phys">Training for ${esc(u.physique)}</div>` : "")}
           </div>
         </div>
         ${vpCounts}
+        ${vpBody}
         ${u.bio ? `<div class="vp-bio">${esc(u.bio)}</div>` : ""}
         ${links ? `<div class="vp-socials">${links}</div>` : ""}
         ${isMe ? "" : `<div class="vp-actions">${cta}${this.followBtn(uid)}</div>`}
         ${locked ? "" : `<div class="vp-tabs">
-          <button class="vp-tab ${tab === "posts" ? "active" : ""}" onclick="Social.vpTab('${uid}','posts')">📝 Posts</button>
-          <button class="vp-tab ${tab === "clips" ? "active" : ""}" onclick="Social.vpTab('${uid}','clips')">🎬 Clips</button>
-          <button class="vp-tab ${tab === "stats" ? "active" : ""}" onclick="Social.vpTab('${uid}','stats')">📊 Stats</button>
+          <button class="vp-tab ${tab === "posts" ? "active" : ""}" onclick="Social.vpTab('${uid}','posts')">${App.ic("grid", { size: 15 })} Posts</button>
+          <button class="vp-tab ${tab === "clips" ? "active" : ""}" onclick="Social.vpTab('${uid}','clips')">${App.ic("film", { size: 15 })} Clips</button>
+          <button class="vp-tab ${tab === "stats" ? "active" : ""}" onclick="Social.vpTab('${uid}','stats')">${App.ic("chart", { size: 15 })} Stats</button>
         </div>`}
         <div class="vp-content">${tabHtml}</div>
       </div>`;
@@ -857,7 +895,7 @@ const Social = {
       return `<div class="card chat-card">
         <div class="dm-head">
           <button class="icon-btn" onclick="Social.closeDM()">←</button>
-          <div class="dm-head-u" onclick="Social.chatDetails()">${this.avatar(u, 38)}<div><div class="ch-name">${esc(u.name)}${this.vbadge(u)}</div><div class="ch-sub">Tap for details</div></div></div>
+          <div class="dm-head-u" onclick="Social.chatDetails()">${this.avatarP(u, 38)}<div><div class="ch-name">${esc(u.name)}${this.vbadge(u)}</div><div class="ch-sub">${this.isOnline(this._dmWith) ? '<span class="online-dot sm"></span> Active now' : (this.lastSeenText(this._dmWith) || "Tap for details")}</div></div></div>
           <div class="dm-head-actions"><button class="icon-btn" onclick="Social.toggleDmSearch()" title="Search messages">${App.ic("search", { size: 20 })}</button><button class="icon-btn" onclick="Social.chatDetails()" title="Chat details">${App.ic("info", { size: 20 })}</button></div>
         </div>
         ${this._dmSearchOpen ? `<div class="dm-search"><input id="dm-q" placeholder="Search this chat…" value="${esc(this._dmSearch || "")}" oninput="Social.dmSearch(this.value)"><button class="icon-btn" onclick="Social.toggleDmSearch()">✕</button></div>` : ""}
@@ -870,7 +908,7 @@ const Social = {
     const startRow = crew.length ? `<div class="dm-newrow">${crew.map((u) => `<button class="dm-new" onclick="Social.openDM('${u.id}')" title="${esc(u.name)}">${this.avatar(u, 52)}<span>${esc(u.name.split(" ")[0])}</span></button>`).join("")}</div>` : "";
     const rows = convos.map((c) => {
       const u = this.cloudUser(c.uid) || { name: "Member", handle: c.uid, colors: ["#8b93a7", "#262c3a"], avatar: null };
-      return `<div class="dm-row" onclick="Social.openDM('${c.uid}')">${this.avatar(u, 48)}<div class="dm-meta"><div class="dm-name">${esc(u.name)}${this.isMuted(c.uid) ? " 🔕" : ""}</div><div class="dm-last">${esc((c.last || "").slice(0, 46))}</div></div><div class="dm-time">${this.timeAgo(c.ts)}</div></div>`;
+      return `<div class="dm-row" onclick="Social.openDM('${c.uid}')">${this.avatarP(u, 48)}<div class="dm-meta"><div class="dm-name">${esc(u.name)}${this.isMuted(c.uid) ? " " + App.ic("bell", { size: 12 }) : ""}</div><div class="dm-last">${esc((c.last || "").slice(0, 46))}</div></div><div class="dm-time">${this.timeAgo(c.ts)}</div></div>`;
     }).join("");
     return `<div class="card">
       <div class="card-head"><h2>Messages</h2><span class="tag">💬</span></div>
@@ -882,11 +920,13 @@ const Social = {
   dmBubble(m, meId) {
     const mine = m.from === meId;
     const edited = m.edited ? ` <span class="msg-edited">· edited</span>` : "";
-    return `<div class="bubble ${mine ? "me" : "them"}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}</div>`;
+    const t = m.ts ? esc(this.timeAgo(m.ts) + " ago") : "";
+    return `<div class="bubble ${mine ? "me" : "them"}" title="${t}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}</div>`;
   },
   msgMenu(id) {
     const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
-    this.mediaSheet("Message", [
+    const when = m.ts ? "Sent " + this.timeAgo(m.ts) + " ago" + (m.edited ? " · edited" : "") : "Message";
+    this.mediaSheet(when, [
       { label: `${App.ic("edit", { size: 18 })} <span>Edit</span>`, action: () => Social.editMsg(id) },
       { label: `${App.ic("undo", { size: 18 })} <span>Unsend</span>`, action: () => Social.unsendMsg(id) },
       { label: `${App.ic("copy", { size: 18 })} <span>Copy</span>`, action: () => { try { navigator.clipboard.writeText(m.body); if (App.toast) App.toast("Copied"); } catch (_) {} } },
@@ -941,10 +981,10 @@ const Social = {
       <div class="chat-details">
         <div class="cd-hero">${this.avatar(u, 76)}<div class="cd-name">${esc(u.name)}${this.vbadge(u)}</div><div class="cd-handle">@${esc(u.handle)}</div></div>
         <div class="cd-actions">
-          <button class="btn ghost wide" onclick="App.closeModal();Social.viewProfile('${uid}')">👤 View profile</button>
-          <button class="btn ghost wide" onclick="App.closeModal();Social.toggleDmSearch()">🔍 Search messages</button>
-          <button class="btn ghost wide" onclick="Social.toggleMute('${uid}')">${this.isMuted(uid) ? "🔔 Unmute notifications" : "🔕 Mute notifications"}</button>
-          <button class="btn ghost wide danger" onclick="Social.clearMyMessages('${uid}')">🗑️ Unsend all my messages</button>
+          <button class="btn ghost wide" onclick="App.closeModal();Social.viewProfile('${uid}')">${App.ic("user", { size: 16 })} View profile</button>
+          <button class="btn ghost wide" onclick="App.closeModal();Social.toggleDmSearch()">${App.ic("search", { size: 16 })} Search messages</button>
+          <button class="btn ghost wide" onclick="Social.toggleMute('${uid}')">${App.ic("bell", { size: 16 })} ${this.isMuted(uid) ? "Unmute notifications" : "Mute notifications"}</button>
+          <button class="btn ghost wide danger" onclick="Social.clearMyMessages('${uid}')">${App.ic("undo", { size: 16 })} Unsend all my messages</button>
         </div>
         <div class="cd-meta">${(this._dmMsgs || []).length} message${(this._dmMsgs || []).length === 1 ? "" : "s"} · ${mine} from you</div>
       </div>`;
