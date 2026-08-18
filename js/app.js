@@ -1027,57 +1027,77 @@ const App = {
       Core: "fit woman abs core workout gym",
     })[group] || "fit woman workout gym";
   },
-  async _fetchFemalePool(group) {
+  // a specific query for ONE exercise (e.g. "woman barbell bench press gym") so the photo matches the movement, not just the muscle
+  _femaleExQueryFor(ex) {
+    const raw = (ex && (ex.name || ex.id)) || "";
+    const name = raw.replace(/[_-]+/g, " ").replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+    return name ? `woman ${name} gym` : "";
+  },
+  async _fetchFemaleQuery(q, n) {
     try {
       const res = await fetch(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(this._femaleExQuery(group))}&per_page=12&orientation=portrait`,
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=${n || 6}&orientation=portrait`,
         { headers: { Authorization: window.PEXELS_KEY } });
       if (!res.ok) return [];
       const data = await res.json();
       return (data.photos || []).map((ph) => ph.src.portrait || ph.src.large || ph.src.medium).filter(Boolean);
     } catch { return []; }
   },
-  // stable hash so each exercise keeps ONE photo (thumbnail == preview, unchanged across re-renders)
+  async _fetchFemalePool(group) { return this._fetchFemaleQuery(this._femaleExQuery(group), 12); },
+  // stable hash so a group-pool exercise keeps ONE photo across re-renders (used by the browse picker)
   _hash(s) { s = String(s == null ? "" : s); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); },
   async _femalePool(group) {
     if (!this.exFemalePool) this.exFemalePool = {};
-    // don't cache an empty result — a transient failure should retry on the next render
     if (!this.exFemalePool[group] || !this.exFemalePool[group].length) {
       this.exFemalePool[group] = (await this._fetchFemalePool(group)) || [];
     }
     return this.exFemalePool[group];
   },
-  // deterministic photo for one exercise within its muscle-group pool
   _femaleSrc(pool, exKey) { return pool.length ? pool[this._hash(exKey) % pool.length] : ""; },
-  // swap any [data-exmuscle] thumbnails to female imagery in-place; only for female profiles with a Pexels key
+  // exact per-exercise photos, cached by exercise id (specific query → muscle-group fallback)
+  async _femalePhotosFor(key, specificQ, group) {
+    if (!this.exFemalePhotos) this.exFemalePhotos = {};
+    if (this.exFemalePhotos[key] && this.exFemalePhotos[key].length) return this.exFemalePhotos[key];
+    let photos = specificQ ? await this._fetchFemaleQuery(specificQ, 6) : [];
+    if (!photos.length) photos = await this._fetchFemaleQuery(this._femaleExQuery(group), 6);
+    photos = photos.slice(0, 4);
+    if (photos.length) this.exFemalePhotos[key] = photos; // don't cache an empty result — retry next render
+    return photos;
+  },
+  // swap female exercise thumbnails in place; data-exq → exact per-exercise photo, else the muscle-group pool
   async loadFemaleExPhotos(root) {
     const p = Store.state.profile;
     if (!window.PEXELS_KEY || !p || p.gender !== "female") return;
     const scope = root || document;
-    const thumbs = Array.from(scope.querySelectorAll("[data-exmuscle]:not([data-fem])"));
+    const thumbs = Array.from(scope.querySelectorAll("[data-exkey]:not([data-fem])"));
     if (!thumbs.length) return;
-    const groups = [...new Set(thumbs.map((t) => t.getAttribute("data-exmuscle") || "_"))];
-    await Promise.all(groups.map((g) => this._femalePool(g)));
-    thumbs.forEach((t) => {
-      const pool = this.exFemalePool[t.getAttribute("data-exmuscle") || "_"] || [];
-      if (!pool.length) return; // leave it for a later render to retry
-      const src = this._femaleSrc(pool, t.getAttribute("data-exkey") || t.getAttribute("data-exmuscle"));
+    await Promise.all(thumbs.map(async (t) => {
+      const key = t.getAttribute("data-exkey");
+      const specificQ = t.getAttribute("data-exq");
+      let src;
+      if (specificQ != null) {
+        const photos = await this._femalePhotosFor(key, specificQ, t.getAttribute("data-exmuscle") || "");
+        src = photos[0];
+      } else {
+        const pool = await this._femalePool(t.getAttribute("data-exmuscle") || "_");
+        src = this._femaleSrc(pool, key);
+      }
+      if (!src) return; // leave it for a later render to retry
       t.setAttribute("data-fem", "1");
       const im = t.querySelector("img");
       if (im) { im.src = src; im.style.display = ""; }
       else { t.classList.remove("noimg"); t.innerHTML = `<img src="${src}" alt="exercise" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">`; }
-    });
+    }));
   },
-  // exercise preview for women: the SAME photo as the thumbnail + one more (parity with men's two frames)
-  async _loadFemaleHero(exKey, group) {
+  // exercise preview for women: the SAME photos as the thumbnail (exact per-exercise), two of them for parity with men
+  async _loadFemaleHero(exKey, specificQ, group) {
     if (!document.getElementById("exp-hero")) return;
-    const pool = await this._femalePool(group);
+    const photos = await this._femalePhotosFor(exKey, specificQ, group);
     const box = document.getElementById("exp-hero"); if (!box) return;
-    if (!pool.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
-    const i = this._hash(exKey) % pool.length;
-    const j = pool.length > 1 ? (i + 1) % pool.length : i;
+    if (!photos.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
+    const a = photos[0], b = photos[1] || photos[0];
     box.classList.remove("noimg");
-    box.innerHTML = [pool[i], pool[j]].map((src) => `<img src="${src}" alt="reference" loading="lazy" onerror="this.style.display='none'">`).join("");
+    box.innerHTML = [a, b].map((src) => `<img src="${src}" alt="reference" loading="lazy" onerror="this.style.display='none'">`).join("");
   },
 
   physiqueDetail() {
@@ -1290,7 +1310,7 @@ const App = {
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
           <div class="slot-lead">
-            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" data-exkey="${esc(String(it.ex ? it.ex.id : it.selected))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" data-exkey="${esc(String(it.ex ? it.ex.id : it.selected))}" data-exq="${esc(this._femaleExQueryFor(ex))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
             <div class="slot-txt">
               <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
               <div class="ex-name">${esc(ex.name)}</div>
@@ -1392,7 +1412,7 @@ const App = {
         ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
-    if (female) this._loadFemaleHero(it.ex ? it.ex.id : it.selected, this._exGroupOf(ex));
+    if (female) this._loadFemaleHero(it.ex ? it.ex.id : it.selected, this._femaleExQueryFor(ex), this._exGroupOf(ex));
   },
   addExtra(exId) {
     if (!exId) return;
