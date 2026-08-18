@@ -26,6 +26,9 @@ const Engine = {
     const fatG = Math.round((calTarget * 0.25) / 9);
     const carbG = Math.round((calTarget - proteinG * 4 - fatG * 9) / 4);
     const bmi = w / Math.pow(p.heightCm / 100, 2);
+    // estimated body fat — Deurenberg (BMI + age + sex). Same BMI reads ~10.8% higher for women.
+    const male = p.gender !== "female";
+    const bodyFat = Math.max(4, Math.min(55, +(1.20 * bmi + 0.23 * (p.age || 25) - 10.8 * (male ? 1 : 0) - 5.4).toFixed(1)));
     return {
       weight: w,
       bmr: Math.round(bmr),
@@ -36,7 +39,33 @@ const Engine = {
       calAdj: phys.calAdj || 0,
       bmi: +bmi.toFixed(1),
       bmiClass: bmi < 18.5 ? "Underweight" : bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese",
+      bodyFat,
     };
+  },
+
+  bodyFat() { return this.stats().bodyFat; },
+  // gender-specific body-composition read + goal (men → muscular physique, women → toned figure)
+  bodyComp() {
+    const p = Store.state.profile;
+    const male = p.gender !== "female";
+    const bf = this.stats().bodyFat;
+    // gender-specific body-fat bands (ACE)
+    const cats = male
+      ? [[6, "Athletic"], [14, "Fit"], [18, "Average"], [25, "High"], [200, "Very high"]]
+      : [[14, "Athletic"], [21, "Fit"], [25, "Average"], [32, "High"], [200, "Very high"]];
+    const bfClass = (cats.find(([hi]) => bf < hi) || cats[cats.length - 1])[1];
+    const target = male ? { lo: 10, hi: 14, look: "sharp, muscular physique" } : { lo: 20, hi: 24, look: "toned, sculpted figure" };
+    let advice;
+    if (bf > target.hi + 4) advice = male
+      ? `Lean toward ${target.lo}–${target.hi}% body fat to carve out that ${target.look}.`
+      : `Trim toward ${target.lo}–${target.hi}% body fat to reveal a ${target.look} — keep training glutes & shoulders.`;
+    else if (bf < target.lo - 2) advice = male
+      ? `Very lean already — add lean muscle in a small surplus to build the ${target.look}.`
+      : `Very lean already — a little more shape on glutes & legs gives a stronger ${target.look}.`;
+    else advice = male
+      ? `You're in the aesthetic range — recomp: build muscle while holding body fat for that ${target.look}.`
+      : `You're in the aesthetic range — sculpt curves (glutes, waist, shoulders) for that ${target.look}.`;
+    return { bodyFat: bf, bfClass, targetLo: target.lo, targetHi: target.hi, look: target.look, advice, male };
   },
 
   // days since a split was last trained (Infinity if never)
@@ -188,6 +217,8 @@ const Engine = {
   // human guidance shown after a workout / on dashboard
   guidance() {
     const msgs = [];
+    const comp = this.bodyComp();
+    msgs.push(`Body fat ~${comp.bodyFat}% (${comp.bfClass}) — ${comp.advice}`);
     const freq = this.weeklyFrequency();
     if (freq === 0) msgs.push("No sessions logged in the last 7 days — let's get one in today.");
     else if (freq >= 5) msgs.push(`${freq} sessions this week — strong. Make sure you're recovering.`);

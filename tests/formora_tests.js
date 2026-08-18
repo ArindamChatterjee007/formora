@@ -646,6 +646,36 @@ window.runFormoraTests = async function () {
     App.setUnit("kg");
     ok("setUnit converts session weight lbs→kg", (() => { const it = App.session.items.find((x) => x.selected === "Dip_Machine"); return it && Math.abs((+it.sets[0].weight) - 49.9) < 1 && App._unit() === "kg"; })());
     window.confirm = _cf; App.session = null;
+
+    // v59: gender-aware body composition — same BMI reads higher body-fat for women, and goals differ
+    {
+      const _g = Store.state.profile.gender, _age = Store.state.profile.age;
+      Store.state.profile.age = 25;
+      Store.state.profile.gender = "male";
+      const bfM = Engine.bodyFat(), compM = Engine.bodyComp();
+      Store.state.profile.gender = "female";
+      const bfF = Engine.bodyFat(), compF = Engine.bodyComp();
+      ok("female body-fat estimate reads higher than male at same BMI/age", bfF > bfM + 8);
+      ok("male body-comp coaches a muscular physique", /physique/i.test(compM.advice) && compM.male === true);
+      ok("female body-comp coaches a toned figure", /figure/i.test(compF.advice) && compF.male === false);
+      ok("body-fat class is gender-specific", typeof compM.bfClass === "string" && typeof compF.bfClass === "string");
+      ok("stats() exposes body-fat", typeof Engine.stats().bodyFat === "number" && Engine.stats().bodyFat > 0);
+      ok("guidance leads with the body-fat read", (Engine.guidance()[0] || "").toLowerCase().includes("body fat"));
+      Store.state.profile.gender = _g; Store.state.profile.age = _age;
+    }
+
+    // v59: Pexels reference photo un-hides the #pd-photo box (female looks were staying hidden)
+    {
+      const _f = window.fetch, _k = window.PEXELS_KEY;
+      window.PEXELS_KEY = "testkey";
+      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/ref.jpg" }, photographer: "Tester" }] }) });
+      const box = document.createElement("div"); box.id = "pd-photo"; box.className = "pd-photo none"; document.body.appendChild(box);
+      App.pexelsCache = {};
+      await App.loadPexelsPhoto("hourglass");
+      ok("pexels photo shows + un-hides the box", !box.classList.contains("none") && box.innerHTML.includes("http://x/ref.jpg") && box.innerHTML.includes("Pexels"));
+      document.body.removeChild(box);
+      window.fetch = _f; window.PEXELS_KEY = _k;
+    }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

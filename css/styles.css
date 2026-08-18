@@ -639,10 +639,11 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .hh-goal { text-align: right; flex: 0 0 auto; }
 .hh-goal-l { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
 .hh-goal-v { font-weight: 800; color: var(--accent); }
-.hh-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+.hh-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; margin-top: 16px; }
 .hh-stats .stat { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; text-align: center; }
 .stat-v { font-size: 19px; font-weight: 800; }
 .stat-v small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+.comp-advice { margin-top: 12px; padding: 11px 13px; background: color-mix(in srgb, var(--accent) 9%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--text); }
 .stat-l { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .home-card { margin: 0; display: flex; flex-direction: column; }

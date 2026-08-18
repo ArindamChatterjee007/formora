@@ -794,6 +794,7 @@ const App = {
           <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.weight}" data-dec="${Number.isInteger(s.weight) ? 0 : 1}">0</span><small>kg</small></div><div class="stat-l">Weight</div></div>
           <div class="stat"><div class="stat-v">🔥 <span class="cnt" data-to="${Engine.streak()}">0</span></div><div class="stat-l">Day streak</div></div>
           <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.bmi}" data-dec="1">0</span></div><div class="stat-l">BMI · ${s.bmiClass}</div></div>
+          <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.bodyFat}" data-dec="1">0</span><small>%</small></div><div class="stat-l">Body fat</div></div>
           <div class="stat"><div class="stat-v"><span class="cnt" data-to="${s.calTarget}">0</span></div><div class="stat-l">Target kcal</div></div>
         </div>
       </section>
@@ -987,7 +988,7 @@ const App = {
     if (!box || !window.PEXELS_KEY) return;
     if (!this.pexelsCache) this.pexelsCache = {};
     if (this.pexelsCache[id]) {
-      box.innerHTML = this.pexelsCache[id];
+      box.classList.remove("none"); box.innerHTML = this.pexelsCache[id];
       return;
     }
     const query = (window.PHOTO_QUERIES || {})[id] || "fitness athlete";
@@ -1004,7 +1005,8 @@ const App = {
       const html = `<img src="${src}" alt="reference physique" loading="lazy">
         <span class="pd-credit">Photo: ${esc(pick.photographer || "Pexels")} · Pexels</span>`;
       this.pexelsCache[id] = html;
-      if (document.getElementById("pd-photo")) document.getElementById("pd-photo").innerHTML = html;
+      const b2 = document.getElementById("pd-photo");
+      if (b2) { b2.classList.remove("none"); b2.innerHTML = html; } // un-hide (the missing static jpg added .none)
     } catch { /* stay on the illustrated figure */ }
   },
 
@@ -1785,6 +1787,7 @@ const App = {
         <div class="stat-grid">
           <div class="stat"><div class="v">${Store.latestWeight()}<small>kg</small></div><div class="l">${p.targetWeightKg ? "Goal " + p.targetWeightKg + "kg" : "Current weight"}</div></div>
           <div class="stat"><div class="v">${s.bmi}</div><div class="l">BMI · ${s.bmiClass}</div></div>
+          <div class="stat"><div class="v">${s.bodyFat}<small>%</small></div><div class="l">Body fat · ${Engine.bodyComp().bfClass}</div></div>
           <div class="stat"><div class="v">${Engine.streak()}</div><div class="l">Day streak 🔥</div></div>
           <div class="stat"><div class="v">${(Store.state.workoutLog || []).length}</div><div class="l">Workouts logged</div></div>
           <div class="stat"><div class="v">${s.proteinG}<small>g</small></div><div class="l">Protein / day</div></div>
@@ -1792,6 +1795,7 @@ const App = {
           <div class="stat"><div class="v">${s.bmr}</div><div class="l">BMR kcal</div></div>
           <div class="stat"><div class="v">${s.tdee}</div><div class="l">TDEE kcal</div></div>
         </div>
+        <div class="comp-advice">${esc(Engine.bodyComp().advice)}</div>
       </div>
       <div class="card">
         <h2>Target physique</h2>
