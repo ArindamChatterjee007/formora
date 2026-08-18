@@ -58,6 +58,25 @@ const Exercises = {
   GROUPS: ["Chest", "Back", "Shoulders", "Arms", "Legs", "Core"],
   EQUIPS: ["Machine", "Barbell", "Dumbbell", "Cable", "Bodyweight"],
 
+  // built-in plan exercises → best free-exercise-db demo photo (every URL verified 200)
+  CURATED_IMG: {
+    bench_press: "Barbell_Bench_Press_-_Medium_Grip/0.jpg", incline_db_press: "Incline_Dumbbell_Press/0.jpg", incline_bb_press: "Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg",
+    flat_db_press: "Dumbbell_Bench_Press/0.jpg", chest_dip: "Dip_Machine/0.jpg", cable_fly: "Cable_Crossover/0.jpg", pec_deck: "Butterfly/0.jpg", pushup: "Pushups/0.jpg",
+    ohp: "Standing_Military_Press/0.jpg", db_shoulder_press: "Seated_Dumbbell_Press/0.jpg", arnold_press: "Arnold_Dumbbell_Press/0.jpg", lateral_raise: "Side_Lateral_Raise/0.jpg",
+    cable_lateral: "Cable_Seated_Lateral_Raise/0.jpg", upright_row: "Upright_Cable_Row/0.jpg", rear_delt_fly: "Reverse_Machine_Flyes/0.jpg", face_pull: "Face_Pull/0.jpg",
+    close_grip_bench: "Close-Grip_Barbell_Bench_Press/0.jpg", rope_pushdown: "Triceps_Pushdown_-_Rope_Attachment/0.jpg", overhead_ext: "Standing_Overhead_Barbell_Triceps_Extension/0.jpg",
+    skull_crusher: "Lying_Triceps_Press/0.jpg", triceps_dip: "Dips_-_Triceps_Version/0.jpg", pullup: "Pullups/0.jpg", lat_pulldown: "Wide-Grip_Lat_Pulldown/0.jpg",
+    barbell_row: "Bent_Over_Barbell_Row/0.jpg", cable_row: "Seated_Cable_Rows/0.jpg", db_row: "One-Arm_Dumbbell_Row/0.jpg", tbar_row: "T-Bar_Row_with_Handle/0.jpg",
+    straight_arm: "Straight-Arm_Pulldown/0.jpg", deadlift: "Barbell_Deadlift/0.jpg", barbell_curl: "Barbell_Curl/0.jpg", db_curl: "Dumbbell_Bicep_Curl/0.jpg",
+    incline_curl: "Incline_Dumbbell_Curl/0.jpg", hammer_curl: "Hammer_Curls/0.jpg", preacher_curl: "Preacher_Curl/0.jpg", cable_curl: "Standing_Biceps_Cable_Curl/0.jpg",
+    back_squat: "Barbell_Squat/0.jpg", front_squat: "Front_Barbell_Squat/0.jpg", leg_press: "Leg_Press/0.jpg", bulgarian: "Barbell_Side_Split_Squat/0.jpg", hack_squat: "Hack_Squat/0.jpg",
+    leg_extension: "Leg_Extensions/0.jpg", walking_lunge: "Dumbbell_Lunges/0.jpg", rdl: "Romanian_Deadlift/0.jpg", lying_leg_curl: "Lying_Leg_Curls/0.jpg",
+    seated_leg_curl: "Seated_Leg_Curl/0.jpg", good_morning: "Good_Morning/0.jpg", hip_thrust: "Barbell_Hip_Thrust/0.jpg", glute_bridge: "Butt_Lift_Bridge/0.jpg",
+    standing_calf: "Standing_Calf_Raises/0.jpg", seated_calf: "Seated_Calf_Raise/0.jpg", hanging_leg_raise: "Hanging_Leg_Raise/0.jpg", cable_crunch: "Cable_Crunch/0.jpg",
+    plank: "Plank/0.jpg", ab_wheel: "Ab_Roller/0.jpg", bicycle_crunch: "Air_Bike/0.jpg",
+  },
+  imgForCurated(id) { const p = this.CURATED_IMG[id]; return p ? this.CDN + "/exercises/" + p : ""; },
+
   search(q, group, equip) {
     const list = this._cat || [];
     const s = (q || "").trim().toLowerCase();

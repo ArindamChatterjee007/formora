@@ -1198,6 +1198,11 @@ const App = {
   },
 
   _exOf(it) { return (it && it.ex) || EXERCISES[it && it.selected] || { name: (it && it.selected) || "Exercise", muscle: "", equip: "", tip: "" }; },
+  _exImg(it) {
+    if (typeof Exercises === "undefined") return "";
+    if (it && it.ex) return Exercises.imgFor(it.ex);
+    return Exercises.imgForCurated(it && it.selected) || "";
+  },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
   _toKg(v) { const n = +v || 0; return this._unit() === "lbs" ? Math.round(n * 0.453592 * 10) / 10 : n; },
@@ -1206,12 +1211,12 @@ const App = {
     const ex = this._exOf(it);
     const done = it.sets.some((s) => s.reps !== "");
     const priority = ex.muscle && Engine.isEmphasized(ex.muscle);
-    const img = (typeof Exercises !== "undefined") ? Exercises.imgFor(it.ex || ex) : "";
+    const img = this._exImg(it);
     const canCycle = it.options && it.options.length > 1;
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
           <div class="slot-lead">
-            <span class="ex-thumb ${img ? "" : "noimg"}">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <span class="ex-thumb ${img ? "" : "noimg"}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
             <div class="slot-txt">
               <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
               <div class="ex-name">${esc(ex.name)}</div>
@@ -1291,6 +1296,23 @@ const App = {
       it.slotName = ex.muscle || it.slotName;
       App.renderToday();
     });
+  },
+  // tap a slot photo to see the movement (start + end frames) and the cue
+  exPreview(i) {
+    const it = this.session && this.session.items[i]; if (!it) return;
+    const ex = this._exOf(it);
+    const base = this._exImg(it);
+    let frames = [];
+    if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
+    else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
+    const card = document.getElementById("modal-card"); if (!card) return;
+    card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <div class="ex-preview">
+        ${frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`}
+        <div class="exp-sub">${esc(ex.muscle || "")}${ex.equip ? " · " + esc(ex.equip) : ""}</div>
+        ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
   },
   addExtra(exId) {
     if (!exId) return;

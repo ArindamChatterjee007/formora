@@ -606,6 +606,13 @@ window.runFormoraTests = async function () {
     ok("_exOf resolves EXERCISES id", App._exOf({ selected: "bench_press" }).name === EXERCISES.bench_press.name);
     ok("_exOf resolves catalog ex", App._exOf({ selected: "a", ex: { id: "a", name: "Dip Machine", muscle: "Chest", equip: "Machine" } }).name === "Dip Machine");
     ok("_exOf unknown id is safe", App._exOf({ selected: "zzz" }).name === "zzz");
+    ok("curated exercise has a real photo", Exercises.imgForCurated("bench_press").includes("cdn.jsdelivr.net") && /Bench_Press/.test(Exercises.imgForCurated("bench_press")));
+    ok("every built-in exercise is mapped to a photo", Object.keys(EXERCISES).every((id) => !!Exercises.imgForCurated(id)));
+    ok("_exImg resolves curated photo", /Bench_Press/.test(App._exImg({ selected: "bench_press" })));
+    ok("_exImg resolves catalog image", App._exImg({ ex: { images: ["Dip_Machine/0.jpg"] } }).includes("Dip_Machine"));
+    App.session = { split: "push", items: [{ selected: "bench_press", options: ["bench_press", "x"], reps: "6-10", targetSets: 4, slotName: "Chest", sets: [{ reps: "", weight: "" }], kind: "primary" }] };
+    ok("plan slot renders a photo", App.itemCard(App.session.items[0], 0).includes("cdn.jsdelivr.net"));
+    App.session = null;
 
     const _unitSave = Store.state.profile.unit;
     Store.state.profile.unit = "kg";
