@@ -51,6 +51,7 @@ const Charts = {
 
   // horizontal bars for muscle balance
   bars(el, counts) {
+    if (!el) return;
     const entries = Object.entries(counts);
     const max = Math.max(1, ...entries.map(([, v]) => v));
     el.innerHTML = entries.map(([k, v]) => {
@@ -61,5 +62,18 @@ const Charts = {
         <span class="bar-val">${v} sets</span>
       </div>`;
     }).join("");
+  },
+
+  // circular progress ring (0–100)
+  ring(el, pct, label) {
+    if (!el) return;
+    pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    const r = 52, C = 2 * Math.PI * r, off = C * (1 - pct / 100);
+    el.innerHTML = `<svg viewBox="0 0 130 130" class="ring">
+      <circle cx="65" cy="65" r="${r}" class="ring-bg"/>
+      <circle cx="65" cy="65" r="${r}" class="ring-fg" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 65 65)"/>
+      <text x="65" y="62" class="ring-pct">${pct}%</text>
+      <text x="65" y="84" class="ring-lbl">${label || ""}</text>
+    </svg>`;
   },
 };

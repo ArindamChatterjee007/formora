@@ -752,6 +752,46 @@ window.runFormoraTests = async function () {
       ok("exact path falls back to a muscle-group photo when specific is empty", fb === "GROUP0");
       window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
     }
+
+    // v65: experience level, natural-language logging, strength/weakness, progress-to-goal
+    {
+      const _exp = Store.state.profile.experience;
+      Store.state.profile.experience = "advanced";
+      ok("experiencePlan reflects the level", Engine.experiencePlan().freq === 5 && Engine.experiencePlan().incKg === 5);
+      Store.state.profile.experience = "beginner";
+      ok("beginner plan is lighter + form-focused", Engine.experiencePlan().freq === 3 && /form/i.test(Engine.experiencePlan().tip));
+      Store.state.profile.experience = _exp;
+
+      // parser — the user's exact example
+      const r = Engine.parseWorkoutText("Overhead Barbell Press 1 set 15kg 2 sets 20 kg", "kg")[0];
+      ok("text log matches the exercise to a known id", r && r.id === "ohp" && r.matched);
+      ok("text log parses '1 set 15 / 2 sets 20' into 3 sets", r && r.sets.length === 3 && r.sets[0].weight === 15 && r.sets[2].weight === 20);
+      const r2 = Engine.parseWorkoutText("Bench Press 3x10 60kg")[0];
+      ok("text log parses NxR W into N sets of R@W", r2 && r2.id === "bench_press" && r2.sets.length === 3 && r2.sets[0].reps === 10 && r2.sets[0].weight === 60);
+      const r3 = Engine.parseWorkoutText("Lat Pulldown 3 sets of 12 reps 50kg")[0];
+      ok("text log parses 'N sets of R reps W'", r3 && r3.sets.length === 3 && r3.sets[0].reps === 12 && r3.sets[0].weight === 50);
+      const r4 = Engine.parseWorkoutText("Bench Press 100lbs x 5", "lbs")[0];
+      ok("text log converts lbs to kg", r4 && Math.abs(r4.sets[0].weight - 45.4) < 0.6);
+      const r5 = Engine.parseWorkoutText("Zercher Carry 40kg x 10")[0];
+      ok("unrecognised exercise still parses its sets", r5 && r5.sets.length === 1 && r5.sets[0].weight === 40);
+      ok("text log parses multiple lines", Engine.parseWorkoutText("Bench Press 3x10 60kg\nSquat 100kg x 5").length === 2);
+
+      // strength / weakness + progress on a temp profile with logs
+      Store.load("gymcoach_v1_TEST_ENGINE_" + Date.now());
+      Object.assign(Store.state.profile, { gender: "male", heightCm: 178, startWeightKg: 75, age: 25, experience: "intermediate", physique: "lean_aesthetic" });
+      Store.state.weightLog = [{ date: "2026-08-01", kg: 75 }];
+      Store.state.workoutLog = [
+        { date: "2026-08-10", split: "push", exercises: [{ id: "bench_press", name: "Bench", muscle: "Chest", sets: [{ reps: 10, weight: 60 }, { reps: 10, weight: 60 }] }], volume: 1200 },
+        { date: "2026-08-11", split: "push", exercises: [{ id: "ohp", name: "OHP", muscle: "Shoulders", sets: [{ reps: 10, weight: 40 }] }], volume: 400 },
+        { date: "2026-08-12", split: "pull", exercises: [{ id: "lat_pulldown", name: "Lat", muscle: "Lats", sets: [{ reps: 12, weight: 50 }] }], volume: 600 },
+      ];
+      const sp = Engine.strengthProfile();
+      ok("strengthProfile flags push strongest, legs weakest", sp.enough && sp.strongest.split === "push" && sp.weakest.split === "legs");
+      ok("weaknessRecs suggests exercises for the weak split", Engine.weaknessRecs().length > 0);
+      const gp = Engine.goalProgress();
+      ok("goalProgress returns a 0–100 overall + atGoal flag", gp.overall >= 0 && gp.overall <= 100 && typeof gp.atGoal === "boolean");
+      ok("_splitForMuscles infers push/legs from muscles", Engine._splitForMuscles(["Chest", "Shoulders"]) === "push" && Engine._splitForMuscles(["Quads"]) === "legs");
+    }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

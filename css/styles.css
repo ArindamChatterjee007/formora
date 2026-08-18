@@ -324,6 +324,33 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .exp-load { grid-column: 1 / -1; text-align: center; padding: 60px 0; color: var(--muted); }
 .exp-sub { font-weight: 700; margin: 12px 0 4px; }
 
+/* natural-language text logging */
+.tl-text { width: 100%; min-height: 120px; resize: vertical; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font: inherit; line-height: 1.55; }
+.tl-text:focus { outline: none; border-color: var(--accent); }
+.tl-preview { margin-top: 12px; display: grid; gap: 8px; }
+.tl-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 10px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; }
+.tl-row.tl-unmatched { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.tl-name { font-weight: 700; }
+.tl-sets { color: var(--muted); font-size: 13px; text-align: right; }
+.tl-warn { color: var(--accent); font-weight: 600; font-size: 12px; }
+.tl-actions { display: flex; gap: 10px; margin-top: 14px; }
+.tl-actions .btn { flex: 1; }
+
+/* progress-to-goal ring + strength/weakness */
+.goal-flex { display: flex; align-items: center; gap: 18px; margin-top: 8px; flex-wrap: wrap; }
+.ring { width: 130px; height: 130px; flex: none; }
+.ring-bg { fill: none; stroke: var(--line); stroke-width: 11; }
+.ring-fg { fill: none; stroke: var(--accent); stroke-width: 11; stroke-linecap: round; transition: stroke-dashoffset .7s ease; }
+.ring-pct { fill: var(--text); font-size: 26px; font-weight: 800; text-anchor: middle; }
+.ring-lbl { fill: var(--muted); font-size: 11px; text-anchor: middle; letter-spacing: .5px; text-transform: uppercase; }
+.goal-legend { flex: 1; min-width: 190px; display: grid; gap: 8px; }
+.gl-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.gl-row span { color: var(--muted); }
+.gl-row small { color: var(--muted); font-weight: 600; }
+.gl-note { margin-top: 4px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.strength-bars { display: grid; gap: 10px; margin-top: 6px; }
+.weak-recs { margin-top: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 9%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); border-radius: 10px; font-size: 13px; line-height: 1.55; }
+
 /* kg / lbs toggle */
 .unit-toggle { display: flex; align-items: center; gap: 6px; margin: 10px 0 2px; font-size: 12px; color: var(--muted); }
 .ut { border: 1px solid var(--line); background: var(--bg2); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer; }

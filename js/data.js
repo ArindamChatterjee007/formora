@@ -30,6 +30,7 @@ const DEFAULT_PROFILE = {
   autoFollowed: [],           // uids auto-followed when connected (so unfollow = opt-out, no re-follow)
   verified: false,            // email verified (real OTP) or Google sign-in
   unit: "kg",                 // weight unit for logging (kg | lbs); stored canonically in kg
+  experience: "beginner",     // beginner | intermediate | advanced | returning — tunes progression, targets & coaching
   onboarded: false,           // true once the user completes the details step
 };
 

@@ -294,6 +294,13 @@ const App = {
               <option value="1.55" selected>Moderate (3–5 days)</option>
               <option value="1.725">High (6–7 days)</option>
             </select></div>
+          <div class="field"><label>Gym experience</label>
+            <select id="d-exp">
+              <option value="beginner">Beginner — new to the gym</option>
+              <option value="intermediate">Intermediate — 6+ months</option>
+              <option value="advanced">Advanced — 2+ years</option>
+              <option value="returning">Returning after a break</option>
+            </select></div>
           <div class="field"><label>Diet preference</label>
             <select id="d-diet">
               ${Object.keys(DIETS).map((k) => `<option value="${k}">${DIETS[k]}</option>`).join("")}
@@ -416,6 +423,7 @@ const App = {
     const tw = parseFloat(document.getElementById("d-tw").value);
     const act = parseFloat(document.getElementById("d-act").value);
     const diet = document.getElementById("d-diet").value;
+    const exp = (document.getElementById("d-exp") || {}).value || "beginner";
     if (!dob) { this.authErr("Please enter your date of birth."); return null; }
     if (!h || h < 90 || h > 250) { this.authErr("Enter a valid height in cm."); return null; }
     if (!w || w < 25 || w > 400) { this.authErr("Enter a valid current weight in kg."); return null; }
@@ -423,6 +431,7 @@ const App = {
     const patch = {
       gender: g, dob, heightCm: h, startWeightKg: w,
       activityFactor: act, diet, physique: (physEl && physEl.value) || PHYSIQUES[g][0].id, physiqueChosen: true, onboarded: true,
+      experience: exp,
       age: Math.max(13, Math.floor(daysBetween(dob, todayISO()) / 365.25)),
     };
     if (tw && tw >= 25 && tw <= 400) patch.targetWeightKg = tw;
@@ -914,6 +923,7 @@ const App = {
         <span class="pick-label">or pick your day:</span>
         ${SPLIT_ROTATION.map((s) => `<button class="day-chip ${s === rec ? "rec" : ""}" onclick="App.startSession('${s}')">${SPLITS[s].label}${s === rec ? " ★" : ""}</button>`).join("")}
       </div>
+      <button class="btn ghost wide" style="margin-top:10px" onclick="App.openTextLog()">${this.ic("edit", { size: 16 })} Already trained? Type what you did</button>
       <div class="hint" style="margin-top:12px">ℹ️ ${Engine.splitReason(rec)}</div>
       </div>`;
     html += this.guidanceCard();
@@ -1462,12 +1472,83 @@ const App = {
     this.renderToday();
   },
 
+  /* ---------------- TEXT (NATURAL-LANGUAGE) LOGGING ---------------- */
+  openTextLog() {
+    const card = document.getElementById("modal-card"); if (!card) return;
+    const u = this._unit();
+    card.innerHTML = `<div class="modal-head"><h2>Type your workout</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <div class="sub">Write what you did — one exercise per line. I'll find the exercise and log your sets. Forgot the reps? I'll fill 10 — edit before saving.</div>
+      <textarea id="tl-text" class="tl-text" rows="6" placeholder="Overhead Barbell Press 1 set 15${u} 2 sets 20${u}\nBench Press 3x10 60${u}\nLat Pulldown 3 sets of 12 reps 50${u}"></textarea>
+      <div id="tl-preview" class="tl-preview"></div>
+      <div class="tl-actions">
+        <button class="btn ghost" onclick="App.closeModal()">Cancel</button>
+        <button class="btn" onclick="App.commitTextLog()">Add to today →</button>
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+    const ta = document.getElementById("tl-text");
+    if (ta) { ta.oninput = () => this.previewTextLog(); ta.focus(); }
+  },
+  previewTextLog() {
+    const box = document.getElementById("tl-preview"); if (!box) return;
+    const parsed = Engine.parseWorkoutText((document.getElementById("tl-text") || {}).value || "", this._unit());
+    if (!parsed.length) { box.innerHTML = ""; return; }
+    const u = this._unit();
+    box.innerHTML = parsed.map((r) => {
+      const setTxt = r.sets.length
+        ? r.sets.map((s) => `${s.reps > 0 ? s.reps + "×" : ""}${this._fromKg(s.weight)}${u}`).join(", ")
+        : "add a weight so I can log it";
+      return `<div class="tl-row ${r.matched ? "" : "tl-unmatched"}">
+        <div class="tl-name">${esc(r.name)}${r.matched ? "" : ' <span class="tl-warn">— logged as typed</span>'}</div>
+        <div class="tl-sets">${esc(setTxt)}</div></div>`;
+    }).join("");
+  },
+  commitTextLog() {
+    const parsed = Engine.parseWorkoutText((document.getElementById("tl-text") || {}).value || "", this._unit());
+    const withSets = parsed.filter((r) => r.sets.length);
+    if (!withSets.length) { alert("Add at least one exercise with a weight, e.g. “Bench Press 3x10 60kg”."); return; }
+    const items = withSets.map((r) => {
+      const known = r.id && EXERCISES[r.id];
+      const it = {
+        kind: "primary",
+        slotName: r.muscle || r.name,
+        targetSets: r.sets.length,
+        reps: "8–12",
+        options: known ? [r.id] : [],
+        selected: r.id || r.name,
+        sets: r.sets.map((s) => ({ reps: String(s.reps > 0 ? s.reps : 10), weight: String(this._fromKg(s.weight)) })),
+      };
+      if (!known) it.ex = { id: r.id || r.name, name: r.name, muscle: r.muscle || "", equip: "", images: [], photo: "", tip: "" };
+      return it;
+    });
+    if (this.session) this.session.items = this.session.items.concat(items);
+    else this.session = { split: Engine._splitForMuscles(withSets.map((r) => r.muscle)), items };
+    this.closeModal();
+    this.renderToday();
+    if (this.toast) this.toast(`Added ${items.length} exercise${items.length > 1 ? "s" : ""} — review the reps and save`);
+  },
+
   /* ---------------- PROGRESS ---------------- */
   renderProgress() {
     const el = document.getElementById("view-progress");
     const t = Engine.weightTrend();
     const arrow = t.dir === "up" ? "▲" : t.dir === "down" ? "▼" : "▬";
+    const gp = Engine.goalProgress();
+    const sp = Engine.strengthProfile();
+    const recs = Engine.weaknessRecs();
     el.innerHTML = `
+      <div class="card goal-card">
+        <h2>Progress to your goal</h2>
+        <div class="sub">${esc(Engine.getPhysique().name)} — a ${esc(gp.look)}</div>
+        <div class="goal-flex">
+          <div id="goal-ring"></div>
+          <div class="goal-legend">
+            <div class="gl-row"><span>Body fat</span><b>${gp.bodyFat}% <small>→ ${gp.targetLo}–${gp.targetHi}%</small></b></div>
+            <div class="gl-row"><span>Consistency</span><b>${gp.consistency}%</b></div>
+            ${gp.wScore != null ? `<div class="gl-row"><span>Weight goal</span><b>${gp.wScore}%</b></div>` : ""}
+            <div class="gl-note">${gp.atGoal ? "You're in your target range — maintain &amp; refine." : "Keep training and dialing in nutrition to close the gap."}</div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <h2>Weight journey</h2>
         <div class="sub">Current ${Store.latestWeight()} kg · ${arrow} ${Math.abs(t.delta)} kg since start · target ${Store.state.profile.targetWeightKg} kg</div>
@@ -1487,6 +1568,18 @@ const App = {
         </div>
       </div>
       <div class="card">
+        <h2>Strength &amp; weakness</h2>
+        <div class="sub">${sp.enough ? "Where you're developed vs lagging — across all your logs" : "Log 3+ workouts to reveal your strong &amp; weak areas"}</div>
+        <div class="strength-bars">
+          ${sp.data.map((d) => `<div class="bar-row">
+            <span class="bar-label">${d.label.replace(" Day", "")}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:${d.sessions ? d.dev : 0}%;background:${SPLITS[d.split].accent}"></div></div>
+            <span class="bar-val">${d.sessions ? d.dev + "%" : "—"}</span>
+          </div>`).join("")}
+        </div>
+        ${sp.enough && recs.length ? `<div class="weak-recs"><b>Bring up your ${esc(sp.weakest.label.toLowerCase())}:</b> ${recs.map((r) => esc(r.name)).join(" · ")}</div>` : ""}
+      </div>
+      <div class="card">
         <h2>Muscle balance</h2>
         <div class="sub">Sets per split · last 4 weeks</div>
         <div id="balance"></div>
@@ -1494,6 +1587,7 @@ const App = {
       <div class="card"><h2>Coach's read</h2>
         <ul class="guide">${Engine.guidance().map((m) => `<li>${m}</li>`).join("")}</ul>
       </div>`;
+    Charts.ring(document.getElementById("goal-ring"), gp.overall, "to goal");
     Charts.weightLine(document.getElementById("weight-chart"), Store.state.weightLog, Store.state.profile.targetWeightKg);
     Charts.bars(document.getElementById("balance"), Engine.muscleBalance());
   },

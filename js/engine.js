@@ -220,9 +220,11 @@ const Engine = {
     const comp = this.bodyComp();
     msgs.push(`Body fat ~${comp.bodyFat}% (${comp.bfClass}) — ${comp.advice}`);
     const freq = this.weeklyFrequency();
-    if (freq === 0) msgs.push("No sessions logged in the last 7 days — let's get one in today.");
+    if (freq === 0) msgs.push(this.totalWorkouts() > 0
+      ? "Missed a few days? No stress — one session today and you're right back on track."
+      : "No sessions yet — let's get your first one in today.");
     else if (freq >= 5) msgs.push(`${freq} sessions this week — strong. Make sure you're recovering.`);
-    else msgs.push(`${freq} session${freq > 1 ? "s" : ""} this week. Aim for 4–5 for steady growth.`);
+    else msgs.push(`${freq} session${freq > 1 ? "s" : ""} this week. Aim for ${this.experiencePlan().freq}–${this.experiencePlan().freq + 1} for steady growth.`);
 
     const bal = this.muscleBalance();
     const min = Object.entries(bal).sort((a, b) => a[1] - b[1])[0];
@@ -241,8 +243,144 @@ const Engine = {
       msgs.push(`For the ${phys.name} look you want to lean down — weight is up, trim ~200 calories.`);
     if (cutting && t.dir === "down")
       msgs.push(`Down ${Math.abs(t.delta)}kg on your ${phys.name} cut — nice, protein high to keep muscle.`);
+    const gp = this.goalProgress();
+    if (gp.atGoal)
+      msgs.push(`You're in your ${phys.name} target range — shift to MAINTAIN: train ~${this.experiencePlan().freq}×/week and hold calories near maintenance (${this.stats().tdee} kcal).`);
+    const sp = this.strengthProfile();
+    if (sp.enough && sp.strongest && sp.weakest && sp.weakest.volume < sp.strongest.volume * 0.7) {
+      const recs = this.weaknessRecs();
+      if (recs.length) msgs.push(`Your ${sp.weakest.label.toLowerCase()} is lagging behind — add ${recs.slice(0, 2).map((r) => r.name).join(" & ")} to balance it out.`);
+    }
     if (phys.emphasis && phys.emphasis.length)
       msgs.push(`Priority muscles for your look: ${phys.emphasis.join(", ")}. They get extra volume in your plan.`);
+    const ep = this.experiencePlan();
+    if (ep.tip) msgs.push(ep.tip);
     return msgs;
+  },
+
+  // ---- experience level (tunes frequency, progression & coaching) ----
+  experienceLevel() { return (Store.state.profile && Store.state.profile.experience) || "beginner"; },
+  experiencePlan() {
+    return ({
+      beginner:     { freq: 3, incKg: 2.5, incLbs: 5,  tip: "Beginner focus: nail your form on machines and the basics — add a little weight only once every rep feels easy." },
+      intermediate: { freq: 4, incKg: 2.5, incLbs: 5,  tip: "Progressive overload: add reps first, then weight once you hit the top of the range." },
+      advanced:     { freq: 5, incKg: 5,   incLbs: 10, tip: "Push intensity with free weights, chase PRs, and manage your weekly fatigue." },
+      returning:    { freq: 3, incKg: 2.5, incLbs: 5,  tip: "Ease back in — start ~20% lighter than your old numbers and rebuild over 2–3 weeks." },
+    })[this.experienceLevel()] || { freq: 4, incKg: 2.5, incLbs: 5, tip: "" };
+  },
+
+  // ---- strength & weakness (per split, from all logs) ----
+  strengthProfile() {
+    const splits = ["push", "pull", "legs"];
+    const data = splits.map((s) => {
+      const logs = Store.state.workoutLog.filter((w) => w.split === s);
+      let volume = 0, sets = 0;
+      logs.forEach((w) => w.exercises.forEach((e) => e.sets.forEach((st) => { volume += (+st.reps || 0) * (+st.weight || 0); sets += 1; })));
+      return { split: s, label: SPLITS[s].label, sessions: logs.length, sets, volume: Math.round(volume) };
+    });
+    const maxVol = Math.max(1, ...data.map((d) => d.volume));
+    data.forEach((d) => (d.dev = Math.round((d.volume / maxVol) * 100)));
+    const trained = data.filter((d) => d.sessions > 0);
+    const strongest = trained.length ? trained.reduce((a, b) => (b.volume > a.volume ? b : a)) : null;
+    const weakest = data.reduce((a, b) => (b.volume < a.volume ? b : a));
+    return { data, strongest, weakest, enough: this.totalWorkouts() >= 3 };
+  },
+  // a couple of exercises to bring up the weakest split (prefers your look's priority muscles)
+  weaknessRecs() {
+    const sp = this.strengthProfile();
+    if (!sp.enough || !sp.weakest) return [];
+    const slots = SPLIT_SLOTS[sp.weakest.split] || [];
+    const emph = this.getPhysique().emphasis || [];
+    const picks = [];
+    slots.forEach((slot) => {
+      const id = slot.options.find((x) => emph.includes(EXERCISES[x].muscle)) || slot.options[0];
+      if (id && !picks.includes(id)) picks.push(id);
+    });
+    return picks.slice(0, 3).map((id) => ({ id, name: EXERCISES[id].name, muscle: EXERCISES[id].muscle }));
+  },
+
+  // ---- progress toward the goal look (0–100) ----
+  goalProgress() {
+    const comp = this.bodyComp();
+    const mid = (comp.targetLo + comp.targetHi) / 2;
+    const bfScore = Math.max(0, Math.min(100, Math.round(100 - Math.abs(comp.bodyFat - mid) * 8)));
+    const consistency = Math.max(0, Math.min(100, Math.round(this.fitnessScore())));
+    const p = Store.state.profile;
+    let wScore = null;
+    if (p.targetWeightKg) {
+      const start = p.startWeightKg || Store.latestWeight();
+      const denom = p.targetWeightKg - start;
+      wScore = denom === 0 ? 100 : Math.max(0, Math.min(100, Math.round(((Store.latestWeight() - start) / denom) * 100)));
+    }
+    const parts = [bfScore, consistency].concat(wScore == null ? [] : [wScore]);
+    const overall = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+    return { overall: Math.max(0, Math.min(100, overall)), bfScore, consistency, wScore,
+             bodyFat: comp.bodyFat, targetLo: comp.targetLo, targetHi: comp.targetHi, look: comp.look,
+             atGoal: comp.bodyFat >= comp.targetLo && comp.bodyFat <= comp.targetHi };
+  },
+
+  // ---- natural-language workout logging ----
+  // "Overhead Barbell Press 1 set 15kg 2 sets 20kg" -> [{id,name,muscle,sets:[{reps,weight}],matched}]
+  parseWorkoutText(text, unit) {
+    const u = unit === "lbs" ? "lbs" : ((Store.state.profile && Store.state.profile.unit) || "kg");
+    return String(text || "").split(/\n|;/).map((l) => l.trim()).filter(Boolean)
+      .map((line) => this._parseWorkoutLine(line, u)).filter(Boolean);
+  },
+  _parseWorkoutLine(line, unit) {
+    const norm = " " + line.toLowerCase().replace(/×/g, "x").replace(/\bkgs\b/g, "kg").replace(/\b(?:pounds|lbs|lb)\b/g, "lbs").replace(/\bkilos?\b/g, "kg") + " ";
+    const cut = norm.search(/\d/);
+    const nameRaw = (cut === -1 ? norm : norm.slice(0, cut)).replace(/[^a-z\s\-()/&]/g, " ").replace(/\s+/g, " ").trim();
+    const sets = this._parseSets(cut === -1 ? "" : norm.slice(cut), unit);
+    const match = this._matchExercise(nameRaw);
+    return { input: line, id: match ? match.id : null,
+             name: match ? match.name : (nameRaw.replace(/\b\w/g, (c) => c.toUpperCase()) || "Exercise"),
+             muscle: match ? match.muscle : "", matched: !!match, sets };
+  },
+  _toKgU(w, unit) { if (w == null || isNaN(w)) return 0; return unit === "lbs" ? Math.round(w * 0.453592 * 10) / 10 : w; },
+  _parseSets(str, unit) {
+    const sets = [];
+    const re = /(\d+)\s*sets?\s*(?:of\s*)?(?:(\d+)\s*reps?\s*)?(?:@\s*|at\s*)?(\d+(?:\.\d+)?)?\s*(kg|lbs)?|(\d+)\s*x\s*(\d+)\s*(?:@\s*|at\s*)?(\d+(?:\.\d+)?)?\s*(kg|lbs)?|(\d+(?:\.\d+)?)\s*(kg|lbs)\s*(?:x|for)\s*(\d+)|(\d+(?:\.\d+)?)\s*(kg|lbs)/g;
+    let m;
+    while ((m = re.exec(str))) {
+      if (m[0].trim() === "") { re.lastIndex++; continue; }
+      if (m[1] != null) {
+        const n = +m[1], reps = m[2] ? +m[2] : 0, w = m[3] != null ? +m[3] : null, un = m[4] || unit;
+        for (let i = 0; i < n; i++) sets.push({ reps, weight: this._toKgU(w, un) });
+      } else if (m[5] != null) {
+        const n = +m[5], reps = +m[6], w = m[7] != null ? +m[7] : null, un = m[8] || unit;
+        for (let i = 0; i < n; i++) sets.push({ reps, weight: this._toKgU(w, un) });
+      } else if (m[9] != null) {
+        sets.push({ reps: +m[11], weight: this._toKgU(+m[9], m[10] || unit) });
+      } else if (m[12] != null) {
+        sets.push({ reps: 0, weight: this._toKgU(+m[12], m[13] || unit) });
+      }
+    }
+    return sets;
+  },
+  _matchExercise(q) {
+    const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    const qn = norm(q); if (!qn) return null;
+    const qt = qn.split(" ").filter(Boolean);
+    let best = null, bestScore = 0;
+    const consider = (id, name, muscle) => {
+      const nn = norm(name); if (!nn) return;
+      const nt = nn.split(" ").filter(Boolean);
+      const inter = qt.filter((tk) => nt.includes(tk)).length;
+      let score = inter / Math.max(qt.length, nt.length);
+      if (nn === qn) score = 1;
+      else if (nn.includes(qn) || qn.includes(nn)) score = Math.max(score, 0.85);
+      if (score > bestScore) { bestScore = score; best = { id, name, muscle }; }
+    };
+    for (const id in EXERCISES) consider(id, EXERCISES[id].name, EXERCISES[id].muscle);
+    if (typeof Exercises !== "undefined" && Exercises._cat) Exercises._cat.forEach((e) => consider(e.id, e.name, e.muscle));
+    return bestScore >= 0.5 ? best : null;
+  },
+  // infer push/pull/legs from the muscles in a parsed/logged workout
+  _splitForMuscles(muscles) {
+    const map = { push: ["Chest", "Upper Chest", "Shoulders", "Side Delts", "Triceps"], pull: ["Back", "Lats", "Biceps", "Rear Delts", "Traps", "Forearms"], legs: ["Quads", "Hamstrings", "Glutes", "Calves"] };
+    const score = { push: 0, pull: 0, legs: 0 };
+    (muscles || []).forEach((mu) => { for (const s in map) if (map[s].includes(mu)) score[s]++; });
+    const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0];
+    return best && best[1] > 0 ? best[0] : this.recommendSplit();
   },
 };
