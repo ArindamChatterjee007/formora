@@ -703,6 +703,19 @@ window.runFormoraTests = async function () {
       ok("_femaleExQuery maps every group to a woman query", /woman/.test(App._femaleExQuery("Legs")) && /woman/.test(App._femaleExQuery("")));
       window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
     }
+
+    // v62: female exercise preview shows TWO photos (parity with men's start/end frames)
+    {
+      const _f = window.fetch, _k = window.PEXELS_KEY;
+      window.PEXELS_KEY = "testkey";
+      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/a.jpg" } }, { src: { portrait: "http://x/b.jpg" } }, { src: { portrait: "http://x/c.jpg" } }] }) });
+      App.exFemalePool = {};
+      const box = document.createElement("div"); box.id = "exp-hero"; document.body.appendChild(box);
+      await App._loadFemaleHero("Chest");
+      ok("female preview shows two photos like men", box.querySelectorAll("img").length === 2);
+      document.body.removeChild(box);
+      window.fetch = _f; window.PEXELS_KEY = _k;
+    }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

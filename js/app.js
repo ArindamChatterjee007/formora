@@ -1067,8 +1067,12 @@ const App = {
     if (!pool) { pool = await this._fetchFemalePool(group); this.exFemalePool[group] = pool || []; }
     box = document.getElementById("exp-hero"); if (!box) return;
     if (!pool.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
-    const src = pool[Math.floor(Math.random() * Math.min(pool.length, 6))];
-    box.innerHTML = `<img src="${src}" alt="reference" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`;
+    // two distinct photos, matching the men's start/end frame layout
+    const cap = Math.min(pool.length, 8);
+    const a = Math.floor(Math.random() * cap);
+    let b = a; if (pool.length > 1) { let n = 0; while (b === a && n < 10) { b = Math.floor(Math.random() * cap); n++; } }
+    box.classList.remove("noimg");
+    box.innerHTML = [pool[a], pool[b]].map((src) => `<img src="${src}" alt="reference" loading="lazy" onerror="this.style.display='none'">`).join("");
   },
 
   physiqueDetail() {
@@ -1374,7 +1378,7 @@ const App = {
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
     const card = document.getElementById("modal-card"); if (!card) return;
     const media = female
-      ? `<div class="exp-frames hero" id="exp-hero"><div class="exp-load">Loading…</div></div>`
+      ? `<div class="exp-frames" id="exp-hero"><div class="exp-load">Loading…</div></div>`
       : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">
