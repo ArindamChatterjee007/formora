@@ -11,7 +11,7 @@
    Leave it empty to keep the illustrated figures instead.
    Photos are athletic/fitness references, filtered SFW.
    ============================================================ */
-window.PEXELS_KEY = "";
+window.PEXELS_KEY = "6preuKXIWe9vWGjazUSBcOOODs2cOTOpciCipifUZhcktiKjUu7LWz6K";
 
 /* ---- Google Sheets login backend (optional; for cross-device accounts) ----
    Deploy backend/Code.gs as a Web App, then paste its /exec URL here.
