@@ -1047,10 +1047,10 @@ const App = {
     if (!this.exFemalePool) this.exFemalePool = {};
     const byGroup = {};
     thumbs.forEach((t) => { const g = t.getAttribute("data-exmuscle") || "_"; (byGroup[g] = byGroup[g] || []).push(t); });
-    for (const g of Object.keys(byGroup)) {
+    await Promise.all(Object.keys(byGroup).map(async (g) => {
       let pool = this.exFemalePool[g];
       if (!pool) { pool = await this._fetchFemalePool(g); this.exFemalePool[g] = pool || []; }
-      if (!pool.length) continue;
+      if (!pool.length) return;
       byGroup[g].forEach((t, k) => {
         const src = pool[k % pool.length];
         t.setAttribute("data-fem", "1");
@@ -1058,7 +1058,7 @@ const App = {
         if (im) { im.src = src; im.style.display = ""; }
         else { t.classList.remove("noimg"); t.innerHTML = `<img src="${src}" alt="exercise" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">`; }
       });
-    }
+    }));
   },
   async _loadFemaleHero(group) {
     let box = document.getElementById("exp-hero"); if (!box) return;
