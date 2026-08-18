@@ -676,6 +676,33 @@ window.runFormoraTests = async function () {
       document.body.removeChild(box);
       window.fetch = _f; window.PEXELS_KEY = _k;
     }
+
+    // v60: female users get female exercise imagery (Pexels) swapped into thumbnails; men keep the form demo
+    {
+      const _f = window.fetch, _k = window.PEXELS_KEY, _g = Store.state.profile.gender;
+      window.PEXELS_KEY = "testkey";
+      Store.state.profile.gender = "female";
+      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/she1.jpg" } }, { src: { portrait: "http://x/she2.jpg" } }] }) });
+      App.exFemalePool = {};
+      const wrap = document.createElement("div");
+      wrap.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest"></span><span class="ex-thumb noimg" data-exmuscle="Chest"></span>';
+      document.body.appendChild(wrap);
+      await App.loadFemaleExPhotos(wrap);
+      const imgs = wrap.querySelectorAll("img");
+      ok("female thumbnails get a woman photo", imgs.length === 2 && /she[12]\.jpg/.test(imgs[0].src));
+      ok("adjacent same-muscle thumbs vary", imgs[0].src !== imgs[1].src);
+      ok("swapped thumbs are marked so they don't refetch", wrap.querySelectorAll('[data-fem="1"]').length === 2);
+      document.body.removeChild(wrap);
+      Store.state.profile.gender = "male";
+      const wrap2 = document.createElement("div");
+      wrap2.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest"></span>';
+      document.body.appendChild(wrap2);
+      await App.loadFemaleExPhotos(wrap2);
+      ok("male users keep the male form demo (no swap)", wrap2.querySelectorAll("img").length === 0);
+      document.body.removeChild(wrap2);
+      ok("_femaleExQuery maps every group to a woman query", /woman/.test(App._femaleExQuery("Legs")) && /woman/.test(App._femaleExQuery("")));
+      window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
+    }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

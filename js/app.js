@@ -878,6 +878,7 @@ const App = {
     if (this.session) {
       html += `</div>`;
       el.innerHTML = html + this.sessionCard();
+      this.loadFemaleExPhotos();
       return;
     }
 
@@ -1008,6 +1009,66 @@ const App = {
       const b2 = document.getElementById("pd-photo");
       if (b2) { b2.classList.remove("none"); b2.innerHTML = html; } // un-hide (the missing static jpg added .none)
     } catch { /* stay on the illustrated figure */ }
+  },
+
+  // gender-aware exercise imagery: female users see women training (Pexels), not the male form-demo photos
+  _exGroupOf(ex) {
+    const m = (ex && ex.muscle) || "";
+    if (typeof Exercises !== "undefined" && Exercises._groupFromMuscle) return Exercises._groupFromMuscle(m) || "";
+    return "";
+  },
+  _femaleExQuery(group) {
+    return ({
+      Chest: "fit woman chest press workout gym",
+      Back: "fit woman back workout gym",
+      Shoulders: "fit woman shoulder press workout gym",
+      Arms: "fit woman arms dumbbell workout gym",
+      Legs: "fit woman legs squat workout gym",
+      Core: "fit woman abs core workout gym",
+    })[group] || "fit woman workout gym";
+  },
+  async _fetchFemalePool(group) {
+    try {
+      const res = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(this._femaleExQuery(group))}&per_page=12&orientation=portrait`,
+        { headers: { Authorization: window.PEXELS_KEY } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.photos || []).map((ph) => ph.src.portrait || ph.src.large || ph.src.medium).filter(Boolean);
+    } catch { return []; }
+  },
+  // swap any [data-exmuscle] thumbnails to female imagery in-place; only for female profiles with a Pexels key
+  async loadFemaleExPhotos(root) {
+    const p = Store.state.profile;
+    if (!window.PEXELS_KEY || !p || p.gender !== "female") return;
+    const scope = root || document;
+    const thumbs = Array.from(scope.querySelectorAll("[data-exmuscle]:not([data-fem])"));
+    if (!thumbs.length) return;
+    if (!this.exFemalePool) this.exFemalePool = {};
+    const byGroup = {};
+    thumbs.forEach((t) => { const g = t.getAttribute("data-exmuscle") || "_"; (byGroup[g] = byGroup[g] || []).push(t); });
+    for (const g of Object.keys(byGroup)) {
+      let pool = this.exFemalePool[g];
+      if (!pool) { pool = await this._fetchFemalePool(g); this.exFemalePool[g] = pool || []; }
+      if (!pool.length) continue;
+      byGroup[g].forEach((t, k) => {
+        const src = pool[k % pool.length];
+        t.setAttribute("data-fem", "1");
+        const im = t.querySelector("img");
+        if (im) { im.src = src; im.style.display = ""; }
+        else { t.classList.remove("noimg"); t.innerHTML = `<img src="${src}" alt="exercise" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">`; }
+      });
+    }
+  },
+  async _loadFemaleHero(group) {
+    let box = document.getElementById("exp-hero"); if (!box) return;
+    if (!this.exFemalePool) this.exFemalePool = {};
+    let pool = this.exFemalePool[group];
+    if (!pool) { pool = await this._fetchFemalePool(group); this.exFemalePool[group] = pool || []; }
+    box = document.getElementById("exp-hero"); if (!box) return;
+    if (!pool.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
+    const src = pool[Math.floor(Math.random() * Math.min(pool.length, 6))];
+    box.innerHTML = `<img src="${src}" alt="reference" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`;
   },
 
   physiqueDetail() {
@@ -1220,7 +1281,7 @@ const App = {
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
           <div class="slot-lead">
-            <span class="ex-thumb ${img ? "" : "noimg"}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
             <div class="slot-txt">
               <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
               <div class="ex-name">${esc(ex.name)}</div>
@@ -1305,18 +1366,24 @@ const App = {
   exPreview(i) {
     const it = this.session && this.session.items[i]; if (!it) return;
     const ex = this._exOf(it);
+    const p = Store.state.profile;
+    const female = !!(window.PEXELS_KEY && p && p.gender === "female");
     const base = this._exImg(it);
     let frames = [];
     if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
     const card = document.getElementById("modal-card"); if (!card) return;
+    const media = female
+      ? `<div class="exp-frames hero" id="exp-hero"><div class="exp-load">Loading…</div></div>`
+      : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">
-        ${frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`}
+        ${media}
         <div class="exp-sub">${esc(ex.muscle || "")}${ex.equip ? " · " + esc(ex.equip) : ""}</div>
         ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
+    if (female) this._loadFemaleHero(this._exGroupOf(ex));
   },
   addExtra(exId) {
     if (!exId) return;

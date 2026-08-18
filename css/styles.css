@@ -321,6 +321,9 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .exp-frames { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-radius: 14px; overflow: hidden; }
 .exp-frames img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #fff; display: block; border-radius: 12px; }
 .exp-frames.noimg { min-height: 150px; background: linear-gradient(135deg, var(--accent), var(--blue)); border-radius: 14px; }
+.exp-frames.hero { grid-template-columns: 1fr; }
+.exp-frames.hero img { aspect-ratio: 3 / 4; max-height: 360px; }
+.exp-load { grid-column: 1 / -1; text-align: center; padding: 60px 0; color: var(--muted); }
 .exp-sub { font-weight: 700; margin: 12px 0 4px; }
 
 /* kg / lbs toggle */
