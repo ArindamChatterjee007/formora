@@ -585,6 +585,60 @@ window.runFormoraTests = async function () {
     const todays = Store.state.workoutLog.filter((w) => w.date === todayISO());
     ok("edit updates in place (no duplicate)", todays.length === 1, "count=" + todays.length);
     ok("edited set persisted", todays[0].exercises[0].sets[0].weight === 50, JSON.stringify(todays[0].exercises[0].sets[0]));
+
+    // ---- v55: exercise library (photos) + kg/lbs + delete/replace ----
+    ok("Exercises.imgFor builds CDN url", Exercises.imgFor({ images: ["Foo/0.jpg"] }).includes("cdn.jsdelivr.net") && Exercises.imgFor({ images: ["Foo/0.jpg"] }).endsWith("Foo/0.jpg"));
+    ok("Exercises.imgFor prefers explicit photo", Exercises.imgFor({ photo: "http://x/p.jpg", images: ["a/0.jpg"] }) === "http://x/p.jpg");
+    ok("muscle→group mapping", Exercises._groupFromMuscle("Chest") === "Chest" && Exercises._groupFromMuscle("lats") === "Back" && Exercises._groupFromMuscle("biceps") === "Arms" && Exercises._groupFromMuscle("quadriceps") === "Legs" && Exercises._groupFromMuscle("abdominals") === "Core");
+    ok("equipment bucket", Exercises._equipCat("machine") === "Machine" && Exercises._equipCat("body only") === "Bodyweight" && Exercises._equipCat("bands") === "Other");
+    const _savedCat = Exercises._cat;
+    Exercises._cat = [
+      { id: "a", name: "Dip Machine", muscle: "Chest", equip: "Machine", group: "Chest", equipCat: "Machine", images: ["Dip_Machine/0.jpg"] },
+      { id: "b", name: "Barbell Curl", muscle: "Biceps", equip: "Barbell", group: "Arms", equipCat: "Barbell", images: [] },
+      { id: "c", name: "Leg Press", muscle: "Quadriceps", equip: "Machine", group: "Legs", equipCat: "Machine", images: [] },
+    ];
+    ok("catalog search by text", Exercises.search("dip").length === 1 && Exercises.search("dip")[0].id === "a");
+    ok("catalog search by group", Exercises.search("", "Legs").length === 1 && Exercises.search("", "Legs")[0].id === "c");
+    ok("catalog search by equipment", Exercises.search("", "", "Machine").length === 2);
+    ok("Exercises.byId", Exercises.byId("a").name === "Dip Machine" && Exercises.byId("bench_press").name === EXERCISES.bench_press.name);
+    Exercises._cat = _savedCat;
+
+    ok("_exOf resolves EXERCISES id", App._exOf({ selected: "bench_press" }).name === EXERCISES.bench_press.name);
+    ok("_exOf resolves catalog ex", App._exOf({ selected: "a", ex: { id: "a", name: "Dip Machine", muscle: "Chest", equip: "Machine" } }).name === "Dip Machine");
+    ok("_exOf unknown id is safe", App._exOf({ selected: "zzz" }).name === "zzz");
+
+    const _unitSave = Store.state.profile.unit;
+    Store.state.profile.unit = "kg";
+    ok("kg passthrough", App._toKg(100) === 100 && App._fromKg(100) === 100);
+    Store.state.profile.unit = "lbs";
+    ok("lbs→kg conversion", Math.abs(App._toKg(220) - 99.8) < 0.6);
+    ok("kg→lbs conversion", Math.abs(App._fromKg(100) - 220.5) < 1);
+    ok("overloadHint is unit-aware", typeof Engine.overloadHint("bench_press", "lbs") === "string");
+    Store.state.profile.unit = _unitSave || "kg";
+
+    // full flow: add catalog exercise, log in lbs, verify kg storage + photo; delete keeps ≥1
+    const _cf = window.confirm; window.confirm = () => true;
+    Store.load("gymcoach_v1_TEST_EXLIB_" + Date.now());
+    Object.assign(Store.state.profile, { onboarded: true, physique: "lean_aesthetic", gender: "male", unit: "lbs" });
+    App.session = null; App.startSession("push");
+    const nStart = App.session.items.length;
+    App.removeItem(0);
+    ok("removeItem deletes an exercise", App.session.items.length === nStart - 1);
+    App.addExerciseFromCatalog({ id: "Dip_Machine", name: "Dip Machine", muscle: "Chest", equip: "Machine", images: ["Dip_Machine/0.jpg"] });
+    const li = App.session.items.length - 1;
+    ok("itemCard shows photo + replace + remove", (() => { const c = App.itemCard(App.session.items[li], li); return c.includes("Dip_Machine/0.jpg") && c.includes("replaceExercise") && c.includes("removeItem"); })());
+    App.session.items.forEach((it) => { it.sets = [{ reps: "", weight: "" }]; });
+    App.session.items[li].sets[0] = { reps: "10", weight: "110" }; // 110 lbs
+    App.finishSession();
+    const wlog = Store.workoutOn(todayISO());
+    const dip = wlog && wlog.exercises.find((e) => e.id === "Dip_Machine");
+    ok("catalog exercise logged with photo", !!dip && !!dip.photo && dip.photo.includes("Dip_Machine"));
+    ok("weight saved in kg from a lbs entry", dip && Math.abs(dip.sets[0].weight - 49.9) < 1);
+    App.editSession();
+    ok("editSession shows the lbs value back", (() => { const it = App.session.items.find((x) => x.selected === "Dip_Machine"); return it && Math.abs((+it.sets[0].weight) - 110) < 2; })());
+    App.setUnit("kg");
+    ok("setUnit converts session weight lbs→kg", (() => { const it = App.session.items.find((x) => x.selected === "Dip_Machine"); return it && Math.abs((+it.sets[0].weight) - 49.9) < 1 && App._unit() === "kg"; })());
+    window.confirm = _cf; App.session = null;
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

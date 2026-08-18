@@ -1131,15 +1131,20 @@ const App = {
       split: done.split,
       editing: true,
       origDate: done.date,
-      items: done.exercises.map((e) => ({
-        kind: "primary",
-        slotName: (EXERCISES[e.id] && EXERCISES[e.id].muscle) || e.muscle || e.name,
-        targetSets: e.sets.length || 3,
-        reps: "8–12",
-        options: [e.id],
-        selected: e.id,
-        sets: e.sets.map((s) => ({ reps: String(s.reps), weight: String(s.weight) })),
-      })),
+      items: done.exercises.map((e) => {
+        const known = EXERCISES[e.id];
+        const it = {
+          kind: "primary",
+          slotName: (known && known.muscle) || e.muscle || e.name,
+          targetSets: e.sets.length || 3,
+          reps: "8–12",
+          options: known ? [e.id] : [],
+          selected: e.id,
+          sets: e.sets.map((s) => ({ reps: String(s.reps), weight: String(this._fromKg(s.weight)) })),
+        };
+        if (!known) it.ex = { id: e.id, name: e.name, muscle: e.muscle || "", equip: e.equip || "", images: [], photo: e.photo || "", tip: "" };
+        return it;
+      }),
     };
     this.renderToday();
   },
@@ -1168,7 +1173,8 @@ const App = {
       </div>
       <div class="split-switch">
         ${SPLIT_ROTATION.map((s) => `<button class="seg ${s === split ? "active" : ""}" onclick="App.switchSplit('${s}')" title="${s === rec ? "Suggested — most rested" : ""}">${SPLITS[s].label.replace(" Day", "")}${s === rec ? " ★" : ""}</button>`).join("")}
-      </div>`;
+      </div>
+      <div class="unit-toggle"><span>Weight in</span><button class="ut ${this._unit() === "kg" ? "active" : ""}" onclick="App.setUnit('kg')">kg</button><button class="ut ${this._unit() === "lbs" ? "active" : ""}" onclick="App.setUnit('lbs')">lbs</button></div>`;
 
     let extrasStarted = false;
     this.session.items.forEach((it, i) => {
@@ -1183,37 +1189,42 @@ const App = {
     });
 
     html += `<div class="add-extra-wrap">
-        <select class="add-extra" onchange="App.addExtra(this.value); this.value='';">
-          <option value="">＋ Add another exercise (bench, biceps, anything)…</option>
-          ${this.extraOptionsHTML()}
-        </select>
+        <button class="btn ghost wide add-ex-btn" onclick="App.addExercisePicker()">${this.ic("grid", { size: 16 })} Add another exercise — browse with photos</button>
       </div>
-      <button class="btn wide" onclick="App.finishSession()">Finish &amp; save workout</button>
+      <button class="btn wide" onclick="App.finishSession()">${this.session.editing ? "Save changes" : "Finish &amp; save workout"}</button>
       <button class="btn ghost wide" style="margin-top:10px" onclick="App.cancelSession()">Cancel</button>
     </div>`;
     return html;
   },
 
+  _exOf(it) { return (it && it.ex) || EXERCISES[it && it.selected] || { name: (it && it.selected) || "Exercise", muscle: "", equip: "", tip: "" }; },
+  // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
+  _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
+  _toKg(v) { const n = +v || 0; return this._unit() === "lbs" ? Math.round(n * 0.453592 * 10) / 10 : n; },
+  _fromKg(kg) { const n = +kg || 0; return this._unit() === "lbs" ? Math.round(n * 2.20462 * 10) / 10 : n; },
   itemCard(it, i) {
-    const ex = EXERCISES[it.selected];
+    const ex = this._exOf(it);
     const done = it.sets.some((s) => s.reps !== "");
-    const priority = Engine.isEmphasized(ex.muscle);
-    const removeBtn = it.kind === "extra"
-      ? `<button class="icon-btn" title="Remove" onclick="App.removeExtra(${i})">✕</button>` : "";
+    const priority = ex.muscle && Engine.isEmphasized(ex.muscle);
+    const img = (typeof Exercises !== "undefined") ? Exercises.imgFor(it.ex || ex) : "";
+    const canCycle = it.options && it.options.length > 1;
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
-          <div>
-            <div class="slot-name">${it.slotName} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
-            <div class="ex-name">${ex.name}</div>
-            <div class="ex-meta">${ex.muscle} · ${ex.equip}</div>
-            <div class="ex-tip">💡 ${ex.tip}</div>
+          <div class="slot-lead">
+            <span class="ex-thumb ${img ? "" : "noimg"}">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <div class="slot-txt">
+              <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
+              <div class="ex-name">${esc(ex.name)}</div>
+              <div class="ex-meta">${esc(ex.muscle || "")}${ex.equip ? " · " + esc(ex.equip) : ""}</div>
+              ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
+            </div>
           </div>
           <div class="slot-actions">
-            <button class="swap" onclick="App.swap(${i})">⇄ Swap</button>
-            ${removeBtn}
+            <button class="swap" onclick="App.${canCycle ? `swap(${i})` : `replaceExercise(${i})`}">⇄ ${canCycle ? "Swap" : "Replace"}</button>
+            <button class="icon-btn" title="Remove exercise" onclick="App.removeItem(${i})">✕</button>
           </div>
         </div>
-        <div class="hint">${Engine.overloadHint(it.selected)}</div>
+        <div class="hint">${Engine.overloadHint(it.ex ? it.ex.id : it.selected, this._unit())}</div>
         <div class="sets" id="sets-${i}">${this.setRows(i)}</div>
         <button class="add-set" onclick="App.addSet(${i})">＋ Add set</button>
       </div>`;
@@ -1227,38 +1238,75 @@ const App = {
   },
 
   setRows(i) {
+    const u = this._unit();
     return this.session.items[i].sets.map((s, j) => `
       <div class="set-row">
         <span class="n">${j + 1}</span>
         <input type="number" inputmode="numeric" placeholder="reps" value="${s.reps}"
           oninput="App.updateSet(${i},${j},'reps',this.value)">
-        <input type="number" inputmode="decimal" placeholder="kg" value="${s.weight}"
+        <input type="number" inputmode="decimal" placeholder="${u}" value="${s.weight}"
           oninput="App.updateSet(${i},${j},'weight',this.value)">
+        <span class="set-unit">${u}</span>
         <button class="icon-btn" onclick="App.removeSet(${i},${j})">✕</button>
       </div>`).join("");
+  },
+  setUnit(u) {
+    const unit = u === "lbs" ? "lbs" : "kg", cur = this._unit();
+    if (cur === unit) return;
+    if (this.session) this.session.items.forEach((it) => it.sets.forEach((s) => {
+      if (s.weight === "" || s.weight == null) return;
+      const kg = cur === "lbs" ? (+s.weight || 0) * 0.453592 : (+s.weight || 0);
+      s.weight = String(unit === "lbs" ? Math.round(kg * 2.20462 * 10) / 10 : Math.round(kg * 10) / 10);
+    }));
+    Store.state.profile.unit = unit; Store.save();
+    this.renderToday();
   },
 
   swap(i) {
     const it = this.session.items[i];
+    if (!it.options || it.options.length < 2) return this.replaceExercise(i);
     const cur = it.options.indexOf(it.selected);
     it.selected = it.options[(cur + 1) % it.options.length];
+    it.ex = null;
     this.renderToday();
+  },
+  addExercisePicker() { if (typeof Exercises !== "undefined") Exercises.open((ex) => App.addExerciseFromCatalog(ex)); },
+  addExerciseFromCatalog(ex) {
+    if (!this.session || !ex) return;
+    this.session.items.push({
+      kind: "extra", slotName: (ex.muscle || "Custom") + " · added", targetSets: 3, reps: "8–12",
+      options: [], selected: ex.id,
+      ex: { id: ex.id, name: ex.name, muscle: ex.muscle || "", equip: ex.equip || "", images: ex.images || [], tip: ex.tip || "" },
+      sets: [{ reps: "", weight: "" }],
+    });
+    this.renderToday();
+    if (this.toast) this.toast("Added " + ex.name);
+  },
+  replaceExercise(i) {
+    if (typeof Exercises === "undefined") return;
+    Exercises.open((ex) => {
+      const it = App.session && App.session.items[i]; if (!it) return;
+      it.selected = ex.id; it.options = [];
+      it.ex = { id: ex.id, name: ex.name, muscle: ex.muscle || "", equip: ex.equip || "", images: ex.images || [], tip: ex.tip || "" };
+      it.slotName = ex.muscle || it.slotName;
+      App.renderToday();
+    });
   },
   addExtra(exId) {
     if (!exId) return;
     const group = groupOf(exId);
-    this.session.items.push({
-      kind: "extra",
-      slotName: `${group} · extra`,
-      targetSets: 3,
-      reps: "8–12",
-      options: MUSCLE_GROUPS[group],
-      selected: exId,
-      sets: [{ reps: "", weight: "" }],
-    });
+    this.session.items.push({ kind: "extra", slotName: `${group} · extra`, targetSets: 3, reps: "8–12", options: MUSCLE_GROUPS[group], selected: exId, sets: [{ reps: "", weight: "" }] });
     this.renderToday();
   },
-  removeExtra(i) { this.session.items.splice(i, 1); this.renderToday(); },
+  removeItem(i) {
+    if (!this.session) return;
+    if (this.session.items.length <= 1) { if (this.toast) this.toast("Keep at least one exercise"); return; }
+    const ex = this._exOf(this.session.items[i]);
+    if (!confirm("Remove " + (ex.name || "this exercise") + "?")) return;
+    this.session.items.splice(i, 1);
+    this.renderToday();
+  },
+  removeExtra(i) { this.removeItem(i); },
   addSet(i) { this.session.items[i].sets.push({ reps: "", weight: "" }); this.refreshSets(i); },
   removeSet(i, j) {
     if (this.session.items[i].sets.length > 1) this.session.items[i].sets.splice(j, 1);
@@ -1275,11 +1323,13 @@ const App = {
     this.session.items.forEach((it) => {
       const sets = it.sets
         .filter((s) => s.reps !== "")
-        .map((s) => ({ reps: +s.reps || 0, weight: +s.weight || 0 }));
+        .map((s) => ({ reps: +s.reps || 0, weight: this._toKg(s.weight) }));
       if (!sets.length) return;
-      const ex = EXERCISES[it.selected];
+      const ex = this._exOf(it);
       sets.forEach((s) => (volume += s.reps * s.weight));
-      exercises.push({ id: it.selected, name: ex.name, muscle: ex.muscle, sets });
+      const rec = { id: it.ex ? it.ex.id : it.selected, name: ex.name, muscle: ex.muscle, sets };
+      if (it.ex && typeof Exercises !== "undefined" && Exercises.imgFor(it.ex)) rec.photo = Exercises.imgFor(it.ex);
+      exercises.push(rec);
     });
     if (!exercises.length) { alert("Log at least one set before finishing."); return; }
     const date = this.session.editing ? this.session.origDate : todayISO();

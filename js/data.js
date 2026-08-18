@@ -29,6 +29,7 @@ const DEFAULT_PROFILE = {
   following: [],              // uids this user follows (one-way, LinkedIn-style)
   autoFollowed: [],           // uids auto-followed when connected (so unfollow = opt-out, no re-follow)
   verified: false,            // email verified (real OTP) or Google sign-in
+  unit: "kg",                 // weight unit for logging (kg | lbs); stored canonically in kg
   onboarded: false,           // true once the user completes the details step
 };
 

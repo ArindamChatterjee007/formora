@@ -297,13 +297,48 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 
 /* set logger */
 .sets { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.set-row { display: grid; grid-template-columns: 26px 1fr 1fr auto; gap: 8px; align-items: center; }
+.set-row { display: grid; grid-template-columns: 24px 1fr 1fr auto auto; gap: 8px; align-items: center; }
 .set-row .n { color: var(--muted); font-size: 13px; text-align: center; }
 .set-row input {
   background: var(--bg); border: 1px solid var(--line); color: var(--text);
   border-radius: 9px; padding: 9px 10px; width: 100%; font-size: 14px;
 }
 .set-row input:focus { outline: none; border-color: var(--accent); }
+.set-unit { font-size: 12px; color: var(--muted); font-weight: 700; min-width: 22px; }
+
+/* exercise thumbnail in a session slot */
+.slot-lead { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.ex-thumb { flex: none; width: 64px; height: 64px; border-radius: 12px; overflow: hidden; background: #0d1017; display: block; }
+.ex-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; background: #fff; }
+.ex-thumb.noimg { background: linear-gradient(135deg, var(--accent), var(--blue)); }
+.slot-txt { min-width: 0; }
+
+/* kg / lbs toggle */
+.unit-toggle { display: flex; align-items: center; gap: 6px; margin: 10px 0 2px; font-size: 12px; color: var(--muted); }
+.ut { border: 1px solid var(--line); background: var(--bg2); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ut.active { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.add-ex-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.add-ex-btn .ic { vertical-align: -0.18em; }
+
+/* exercise photo picker */
+.exp-search { margin: 4px 0 10px; }
+.exp-search input { width: 100%; }
+.exp-filters { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+.exp-chiprow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.exp-chiprow::-webkit-scrollbar { display: none; }
+.exp-chip { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 6px 13px; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.exp-chip.active { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.exp-chip.eq.active { background: linear-gradient(135deg, var(--blue), var(--accent2)); }
+.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.exp-card { display: flex; flex-direction: column; text-align: left; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; cursor: pointer; padding: 0; transition: border-color .15s, transform .1s; }
+.exp-card:hover { border-color: var(--accent); }
+.exp-card:active { transform: scale(.98); }
+.exp-thumb { width: 100%; aspect-ratio: 4 / 3; background: #0d1017; display: block; }
+.exp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; background: #fff; }
+.exp-thumb.noimg { background: linear-gradient(135deg, var(--accent), var(--blue)); }
+.exp-info { padding: 9px 11px 11px; }
+.exp-name { font-weight: 700; font-size: 13px; line-height: 1.25; }
+.exp-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .icon-btn {
   background: var(--bg); border: 1px solid var(--line); color: var(--muted);
   border-radius: 9px; width: 36px; height: 36px; font-size: 16px;

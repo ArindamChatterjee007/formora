@@ -118,13 +118,14 @@ const Engine = {
     return extras;
   },
 
-  // progressive-overload suggestion text
-  overloadHint(exId) {
+  // progressive-overload suggestion text (unit-aware; storage is always kg)
+  overloadHint(exId, unit) {
+    unit = unit === "lbs" ? "lbs" : "kg";
     const last = this.lastPerformance(exId);
     if (!last) return "First time — pick a weight you can control for the full range.";
-    const w = last.best.weight;
-    const suggest = w > 0 ? `${(w + 2.5).toFixed(1)} kg` : "add a rep";
-    return `Last: ${w > 0 ? w + " kg × " : ""}${last.best.reps} reps. Try ${w > 0 ? suggest : "+1 rep"} today.`;
+    const w = unit === "lbs" ? Math.round(last.best.weight * 2.20462 * 10) / 10 : last.best.weight;
+    const inc = unit === "lbs" ? 5 : 2.5;
+    return `Last: ${w > 0 ? w + " " + unit + " × " : ""}${last.best.reps} reps. Try ${w > 0 ? (Math.round((w + inc) * 10) / 10) + " " + unit : "+1 rep"} today.`;
   },
 
   // ---- analysis for the Progress tab ----
