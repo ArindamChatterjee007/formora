@@ -620,6 +620,8 @@ const App = {
     bell: '<path d="M6 9a6 6 0 1 1 12 0c0 5 2 7 2 7H4s2-2 2-7Z"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
+    cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -823,10 +825,10 @@ const App = {
       </div>
 
       <div class="home-quick">
-        <button class="quick" onclick="App.goTab('nutrition')"><span>🍽️</span>Plan meals</button>
-        <button class="quick" onclick="App.goTab('today')"><span>💪</span>Workout</button>
-        <button class="quick" onclick="App.goTab('progress')"><span>📈</span>Progress</button>
-        <button class="quick" onclick="App.goTab('profile')"><span>⚙️</span>Profile</button>
+        <button class="quick" onclick="App.goTab('nutrition')"><span>${this.ic("apple", { size: 20 })}</span>Plan meals</button>
+        <button class="quick" onclick="App.goTab('today')"><span>${this.ic("dumbbell", { size: 20 })}</span>Workout</button>
+        <button class="quick" onclick="App.goTab('progress')"><span>${this.ic("chart", { size: 20 })}</span>Progress</button>
+        <button class="quick" onclick="App.goTab('profile')"><span>${this.ic("cog", { size: 20 })}</span>Profile</button>
       </div>`;
     this.animateHome(el);
   },
@@ -903,8 +905,8 @@ const App = {
 
     const rec = Engine.recommendSplit();
     html += `<div class="choice">
-        <button class="btn-big go" onclick="App.startSession('${rec}')">Going to the gym 💪<small>Suggested: ${SPLITS[rec].label}</small></button>
-        <button class="btn-big rest" onclick="App.markRest()">Rest today 😴<small>Log a recovery day</small></button>
+        <button class="btn-big go" onclick="App.startSession('${rec}')">${this.ic("dumbbell", { size: 18 })} Going to the gym<small>Suggested: ${SPLITS[rec].label}</small></button>
+        <button class="btn-big rest" onclick="App.markRest()">${this.ic("moon", { size: 18 })} Rest today<small>Log a recovery day</small></button>
       </div>
       <div class="pick-day">
         <span class="pick-label">or pick your day:</span>
