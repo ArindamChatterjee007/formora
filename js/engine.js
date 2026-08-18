@@ -383,4 +383,98 @@ const Engine = {
     const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0];
     return best && best[1] > 0 ? best[0] : this.recommendSplit();
   },
+
+  // ---- suggested working weight (history-based overload, else estimate from bodyweight/BMI/experience/gender) ----
+  suggestWeight(ex, unit) {
+    unit = unit === "lbs" ? "lbs" : "kg";
+    const id = ex && ex.id;
+    const last = id ? this.lastPerformance(id) : null;
+    let kg;
+    if (last && last.best && last.best.weight > 0) kg = last.best.weight + this.experiencePlan().incKg;
+    else kg = this._estimateStartKg(ex);
+    if (kg <= 0) return { kg: 0, shown: 0, unit, text: "bodyweight", fromHistory: false };
+    const shown = unit === "lbs" ? Math.round((kg * 2.20462) / 2.5) * 2.5 : kg;
+    return { kg, shown, unit, text: `${shown} ${unit}`, fromHistory: !!(last && last.best && last.best.weight > 0) };
+  },
+  // starting working weight (~8–12 reps) as a fraction of bodyweight, tuned by movement, gender & experience
+  _estimateStartKg(ex) {
+    const p = Store.state.profile;
+    const bw = Store.latestWeight() || p.startWeightKg || 70;
+    const muscle = (ex && ex.muscle) || "";
+    const name = (ex && ex.name) || "";
+    const equip = ((ex && ex.equip) || "").toLowerCase();
+    if (/bodyweight|body only/.test(equip) || /push[- ]?up|pull[- ]?up|chin[- ]?up|plank|sit[- ]?up|crunch|mountain|burpee/i.test(name)) return 0;
+    let frac;
+    if (/quad|hamstring|glute|leg|calf/i.test(muscle)) frac = /deadlift/i.test(name) ? 0.9 : 0.65;
+    else if (/back|lat|trap/i.test(muscle)) frac = 0.5;
+    else if (/chest/i.test(muscle)) frac = 0.5;
+    else if (/shoulder|delt/i.test(muscle)) frac = 0.3;
+    else if (/bicep|tricep|arm|forearm/i.test(muscle)) frac = 0.2;
+    else if (/ab|core/i.test(muscle)) frac = 0.1;
+    else frac = 0.35;
+    if (/raise|fly|flye|curl|extension|pushdown|kickback|shrug|lateral|pec deck|reverse|cable cross/i.test(name)) frac *= 0.4; // isolation
+    if (/dumbbell/.test(equip)) frac *= 0.5; // per hand
+    if (p.gender === "female") frac *= 0.65;
+    const exp = this.experienceLevel();
+    frac *= exp === "beginner" ? 0.8 : exp === "advanced" ? 1.25 : exp === "returning" ? 0.7 : 1;
+    return Math.max(0, Math.round((bw * frac) / 2.5) * 2.5);
+  },
+
+  // ---- ask-the-coach: grounded rule-based advice from the user's own stats ----
+  coachAnswer(question) {
+    const s = this.stats(), comp = this.bodyComp(), phys = this.getPhysique();
+    const male = comp.male, ql = String(question || "").toLowerCase();
+    const has = (...w) => w.some((x) => ql.includes(x));
+    const emph = (phys.emphasis || []).slice(0, 3).join(", ");
+    if (has("belly", "abs", "six pack", "6 pack", "sixpack", "cut", "lean ", "lose fat", "fat loss", "lose weight", "weight loss", "tummy", "love handle", "shredded", "ripped")) {
+      return { title: "Getting leaner & visible abs", points: [
+        `Abs show when body fat drops — not from crunches alone. You're ~${comp.bodyFat}% now; abs usually appear around ${male ? "10–12%" : "18–20%"}.`,
+        `Eat in a modest deficit: ~${Math.max(1200, s.calTarget - 400)} kcal/day, protein ${s.proteinG}g to hold muscle while the fat comes off.`,
+        `Keep lifting 3–5×/week (not just cardio) so you lose fat, not muscle. Hit abs 2–3×/week: hanging leg raises, cable crunches, planks.`,
+        `Walk ~8–10k steps/day. Target ~0.5 kg loss/week — faster burns muscle. Be patient; a visible six-pack is mostly a body-fat number.`,
+      ] };
+    }
+    if (has("bulk", "gain muscle", "build muscle", "mass", "bigger", "grow", "gain weight", "skinny", "size", "hardgainer")) {
+      return { title: "Building muscle & size", points: [
+        `Eat in a slight surplus: ~${s.calTarget + 250} kcal/day, protein ${s.proteinG}g. Gain ~0.25–0.5 kg/week so it's mostly muscle.`,
+        `Progressive overload wins — add a rep or a little weight each week on the big lifts, and train each muscle 2×/week.`,
+        `Anchor sessions with compounds (bench, row, squat, overhead press, deadlift) plus your priority muscles${emph ? " (" + emph + ")" : ""}.`,
+        `Sleep 7–9h and don't skip meals — muscle is built in recovery, not just the gym.`,
+      ] };
+    }
+    if (has("chest", "pec")) return { title: "Growing your chest", points: [
+      `Train chest 2×/week with an incline press (upper-chest shelf) + a flat press + a fly for stretch.`,
+      `Progress the press weights over time; controlled tempo and a full stretch at the bottom grow the pecs.`,
+      `In a surplus you'll add size faster; ~${s.proteinG}g protein/day supports it.` ] };
+    if (has("arm", "bicep", "tricep")) return { title: "Bigger arms", points: [
+      `Triceps are ~2/3 of your arm — train them hard (dips, close-grip press, pushdowns) alongside curls.`,
+      `6–10 hard sets each per week, 8–15 reps, close to failure. Arms recover fast — 2×/week works.`,
+      `Arms follow overall mass — keep eating ${s.proteinG}g protein and progressing.` ] };
+    if (has("shoulder", "delt", "boulder")) return { title: "Rounder, wider shoulders", points: [
+      `Side delts create width — do lateral raises 3–4×/week, light and strict, high reps.`,
+      `Press overhead for size + rear-delt work (face pulls) for balance and posture.` ] };
+    if (has("back", "lat", "wide", "v taper", "v-taper")) return { title: "A wider, thicker back", points: [
+      `Vertical pulls (pulldowns/pull-ups) build width; rows build thickness — do both weekly.`,
+      `Focus on pulling with the elbows and a full stretch; add weight gradually.` ] };
+    if (has("leg", "quad", "glute", "booty", "hamstring", "squat")) return { title: "Legs & glutes", points: [
+      `Squats, hip thrusts, and Romanian deadlifts drive glutes and legs — train them 2×/week.`,
+      `Go deep with control and progress the load; glutes love hip thrusts and lunges.` ] };
+    if (has("protein", "diet", "eat", "nutrition", "food", "meal", "calorie", "macro")) return { title: "Your nutrition", points: [
+      `Daily target: ~${s.calTarget} kcal, ${s.proteinG}g protein, ${s.carbG}g carbs, ${s.fatG}g fat — built from your body & goal.`,
+      `Protein is the priority — spread ${s.proteinG}g across 3–4 meals. Whole foods first; a shake helps you hit the number.`,
+      `${(phys.calAdj || 0) > 0 ? "You're gaining, so eat slightly above maintenance." : (phys.calAdj || 0) < 0 ? "You're leaning down, so stay in a modest deficit." : "You're at maintenance — keep it steady."} Check the Nutrition tab for meal ideas.` ] };
+    if (has("sleep", "recover", "rest", "sore", "doms", "tired", "overtrain")) return { title: "Recovery", points: [
+      `Sleep 7–9h — it's when muscle is built and fat loss is easiest.`,
+      `Soreness is normal; train through mild DOMS but take a rest day if a joint hurts. 1–2 rest days/week is healthy.` ] };
+    if (has("motivat", "lazy", "consistent", "habit", "discipline", "give up", "quit")) return { title: "Staying consistent", points: [
+      `Consistency beats intensity. Aim for ${this.experiencePlan().freq}×/week and never miss twice in a row.`,
+      `Make it easy: pack your bag the night before, same time each day. Log it here — your streak is ${this.streak()} days.`,
+      `Missed a few days? No stress — just start again today.` ] };
+    return { title: "Your plan right now", points: [
+      `You're chasing the ${phys.name} look. Body fat ~${comp.bodyFat}% (target ${comp.targetLo}–${comp.targetHi}%).`,
+      comp.advice,
+      `Daily target: ${s.calTarget} kcal, ${s.proteinG}g protein. Train ${this.experiencePlan().freq}×/week.`,
+      `Try asking: "how do I lose belly fat", "how to grow my chest", "what should I eat", or "how to build muscle".`,
+    ] };
+  },
 };

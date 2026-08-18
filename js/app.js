@@ -839,6 +839,19 @@ const App = {
         <button class="quick" onclick="App.goTab('today')"><span>${this.ic("dumbbell", { size: 20 })}</span>Workout</button>
         <button class="quick" onclick="App.goTab('progress')"><span>${this.ic("chart", { size: 20 })}</span>Progress</button>
         <button class="quick" onclick="App.goTab('profile')"><span>${this.ic("cog", { size: 20 })}</span>Profile</button>
+      </div>
+
+      <div class="card ask-card">
+        <h2>${this.ic("chat", { size: 18 })} Ask your coach</h2>
+        <div class="sub">Any fitness question — answered from your own stats</div>
+        <div class="ask-row">
+          <input id="ask-q" placeholder="How do I lose belly fat and get abs?" onkeydown="if(event.key==='Enter')App.askCoach()">
+          <button class="btn" onclick="App.askCoach()">Ask</button>
+        </div>
+        <div class="ask-chips">
+          ${["How to lose belly fat", "Build bigger arms", "Grow my chest", "What should I eat"].map((q) => `<button class="ask-chip" onclick="App.askCoach('${q}')">${q}</button>`).join("")}
+        </div>
+        <div id="ask-answer" class="ask-answer"></div>
       </div>`;
     this.animateHome(el);
   },
@@ -869,6 +882,11 @@ const App = {
   /* ---------------- TODAY ---------------- */
   renderToday() {
     const el = document.getElementById("view-today");
+    // resume an in-progress workout saved earlier today; drop a stale one
+    const _draft = Store.state.draftSession;
+    if (!this.session && _draft && _draft.date === todayISO() && _draft.session) this.session = _draft.session;
+    else if (_draft && _draft.date && _draft.date !== todayISO()) Store.state.draftSession = null;
+    if (this.session && !this.session.editing) this._saveDraft();
     const today = todayISO();
     const done = Store.workoutOn(today);
     const isRest = Store.state.restDays.includes(today);
@@ -887,7 +905,6 @@ const App = {
     if (this.session) {
       html += `</div>`;
       el.innerHTML = html + this.sessionCard();
-      this.loadFemaleExPhotos();
       return;
     }
 
@@ -1294,8 +1311,10 @@ const App = {
 
     html += `<div class="add-extra-wrap">
         <button class="btn ghost wide add-ex-btn" onclick="App.addExercisePicker()">${this.ic("grid", { size: 16 })} Add another exercise — browse with photos</button>
+        <button class="btn ghost wide add-ex-btn" style="margin-top:8px" onclick="App.openTextLog()">${this.ic("edit", { size: 16 })} Add by typing what you did</button>
       </div>
       <button class="btn wide" onclick="App.finishSession()">${this.session.editing ? "Save changes" : "Finish &amp; save workout"}</button>
+      ${this.session.editing ? "" : `<button class="btn ghost wide" style="margin-top:10px" onclick="App.saveProgress()">${this.ic("clock", { size: 16 })} Save &amp; continue later</button>`}
       <button class="btn ghost wide" style="margin-top:10px" onclick="App.cancelSession()">Cancel</button>
     </div>`;
     return html;
@@ -1311,6 +1330,15 @@ const App = {
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
   _toKg(v) { const n = +v || 0; return this._unit() === "lbs" ? Math.round(n * 0.453592 * 10) / 10 : n; },
   _fromKg(kg) { const n = +kg || 0; return this._unit() === "lbs" ? Math.round(n * 2.20462 * 10) / 10 : n; },
+  _suggest(it) { return Engine.suggestWeight(this._exOf(it), this._unit()); },
+  _exHint(it) {
+    const id = it.ex ? it.ex.id : it.selected;
+    const last = Engine.lastPerformance(id);
+    if (last && last.best && last.best.weight > 0) return Engine.overloadHint(id, this._unit());
+    const sg = this._suggest(it);
+    if (!sg.kg) return "Bodyweight movement — add reps as it gets easier.";
+    return `Suggested start ~${sg.text} for your bodyweight &amp; level — use a weight you control for every rep.`;
+  },
   itemCard(it, i) {
     const ex = this._exOf(it);
     const done = it.sets.some((s) => s.reps !== "");
@@ -1333,7 +1361,7 @@ const App = {
             <button class="icon-btn" title="Remove exercise" onclick="App.removeItem(${i})">✕</button>
           </div>
         </div>
-        <div class="hint">${Engine.overloadHint(it.ex ? it.ex.id : it.selected, this._unit())}</div>
+        <div class="hint">${this._exHint(it)}</div>
         <div class="sets" id="sets-${i}">${this.setRows(i)}</div>
         <button class="add-set" onclick="App.addSet(${i})">＋ Add set</button>
       </div>`;
@@ -1348,12 +1376,14 @@ const App = {
 
   setRows(i) {
     const u = this._unit();
+    const sug = Engine.suggestWeight(this._exOf(this.session.items[i]), u);
+    const wph = sug.kg ? String(sug.shown) : u;
     return this.session.items[i].sets.map((s, j) => `
       <div class="set-row">
         <span class="n">${j + 1}</span>
         <input type="number" inputmode="numeric" placeholder="reps" value="${s.reps}"
           oninput="App.updateSet(${i},${j},'reps',this.value)">
-        <input type="number" inputmode="decimal" placeholder="${u}" value="${s.weight}"
+        <input type="number" inputmode="decimal" placeholder="${wph}" value="${s.weight}"
           oninput="App.updateSet(${i},${j},'weight',this.value)">
         <span class="set-unit">${u}</span>
         <button class="icon-btn" onclick="App.removeSet(${i},${j})">✕</button>
@@ -1405,16 +1435,12 @@ const App = {
   exPreview(i) {
     const it = this.session && this.session.items[i]; if (!it) return;
     const ex = this._exOf(it);
-    const p = Store.state.profile;
-    const female = !!(window.PEXELS_KEY && p && p.gender === "female");
     const base = this._exImg(it);
     let frames = [];
     if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
     const card = document.getElementById("modal-card"); if (!card) return;
-    const media = female
-      ? `<div class="exp-frames" id="exp-hero"><div class="exp-load">Loading…</div></div>`
-      : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
+    const media = frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`;
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">
         ${media}
@@ -1422,7 +1448,6 @@ const App = {
         ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
-    if (female) this._loadFemaleHero(it.ex ? it.ex.id : it.selected, this._femaleExQueryFor(ex), this._exGroupOf(ex));
   },
   addExtra(exId) {
     if (!exId) return;
@@ -1444,12 +1469,25 @@ const App = {
     if (this.session.items[i].sets.length > 1) this.session.items[i].sets.splice(j, 1);
     this.renderToday();
   },
-  updateSet(i, j, k, v) { this.session.items[i].sets[j][k] = v; },
+  updateSet(i, j, k, v) { this.session.items[i].sets[j][k] = v; this._saveDraft(); },
   refreshSets(i) { document.getElementById(`sets-${i}`).innerHTML = this.setRows(i); },
 
-  cancelSession() { this.session = null; this.renderToday(); },
+  cancelSession() { this.session = null; Store.state.draftSession = null; Store.save(); this.renderToday(); },
 
-  finishSession() {
+  askCoach(preset) {
+    const inp = document.getElementById("ask-q");
+    if (preset && inp) inp.value = preset;
+    const q = preset || (inp ? inp.value : "") || "";
+    const box = document.getElementById("ask-answer"); if (!box) return;
+    if (!q.trim()) { box.innerHTML = ""; return; }
+    const a = Engine.coachAnswer(q);
+    box.innerHTML = `<div class="ans-title">${esc(a.title)}</div>
+      <ul class="ans-list">${a.points.map((pt) => `<li>${esc(pt)}</li>`).join("")}</ul>
+      <div class="ans-foot">General guidance from your stats — not medical advice.</div>`;
+  },
+
+  // build a workout entry from the logged sets in the current session
+  _buildEntry() {
     const exercises = [];
     let volume = 0;
     this.session.items.forEach((it) => {
@@ -1463,11 +1501,37 @@ const App = {
       if (it.ex && typeof Exercises !== "undefined" && Exercises.imgFor(it.ex)) rec.photo = Exercises.imgFor(it.ex);
       exercises.push(rec);
     });
+    return { exercises, volume };
+  },
+  // persist the open session so it survives navigation/reload (resume later the same day)
+  _saveDraft() {
+    if (!this.session || this.session.editing) return;
+    Store.state.draftSession = { date: todayISO(), session: this.session };
+    clearTimeout(this._draftTimer);
+    this._draftTimer = setTimeout(() => { try { Store.save(); } catch (e) {} }, 400);
+  },
+  // save what's logged so far into today's workout WITHOUT ending the session
+  saveProgress() {
+    if (!this.session) return;
+    const { exercises, volume } = this._buildEntry();
+    const date = this.session.editing ? this.session.origDate : todayISO();
+    Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
+    if (exercises.length) Store.logWorkout({ date, split: this.session.split, exercises, volume });
+    Store.state.draftSession = { date: todayISO(), session: this.session };
+    Store.save();
+    this.renderChips();
+    this.renderToday();
+    if (this.toast) this.toast(exercises.length ? "Saved — resume and finish anytime today" : "Progress saved");
+  },
+  finishSession() {
+    const { exercises, volume } = this._buildEntry();
     if (!exercises.length) { alert("Log at least one set before finishing."); return; }
     const date = this.session.editing ? this.session.origDate : todayISO();
-    if (this.session.editing) Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
+    Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
     Store.logWorkout({ date, split: this.session.split, exercises, volume });
     this.session = null;
+    Store.state.draftSession = null;
+    Store.save();
     this.renderChips();
     this.renderToday();
   },

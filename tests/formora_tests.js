@@ -792,6 +792,43 @@ window.runFormoraTests = async function () {
       ok("goalProgress returns a 0–100 overall + atGoal flag", gp.overall >= 0 && gp.overall <= 100 && typeof gp.atGoal === "boolean");
       ok("_splitForMuscles infers push/legs from muscles", Engine._splitForMuscles(["Chest", "Shoulders"]) === "push" && Engine._splitForMuscles(["Quads"]) === "legs");
     }
+
+    // v66: weight suggestion, ask-coach, incremental save
+    {
+      Store.load("gymcoach_v1_TEST_V66_" + Date.now());
+      Object.assign(Store.state.profile, { gender: "male", heightCm: 178, startWeightKg: 80, age: 25, experience: "intermediate", physique: "lean_aesthetic", unit: "kg" });
+      Store.state.weightLog = [{ date: todayISO(), kg: 80 }];
+      const sq = Engine.suggestWeight({ id: "back_squat", name: "Barbell Back Squat", muscle: "Quads", equip: "Barbell" }, "kg");
+      const cu = Engine.suggestWeight({ id: "barbell_curl", name: "Barbell Curl", muscle: "Biceps", equip: "Barbell" }, "kg");
+      ok("suggested squat weight > suggested curl weight", sq.kg > cu.kg && sq.kg > 0);
+      ok("bodyweight move suggests bodyweight", Engine.suggestWeight({ id: "pushup", name: "Push-ups", muscle: "Chest", equip: "Bodyweight" }, "kg").kg === 0);
+      Store.state.profile.gender = "female";
+      const sqF = Engine.suggestWeight({ id: "back_squat", name: "Barbell Back Squat", muscle: "Quads", equip: "Barbell" }, "kg");
+      ok("female suggested weight is lighter than male", sqF.kg < sq.kg);
+      Store.state.profile.gender = "male";
+      Store.state.workoutLog = [{ date: todayISO(), split: "push", exercises: [{ id: "bench_press", name: "Bench", muscle: "Chest", sets: [{ reps: 8, weight: 60 }] }], volume: 480 }];
+      const bp = Engine.suggestWeight({ id: "bench_press", name: "Barbell Bench Press", muscle: "Chest", equip: "Barbell" }, "kg");
+      ok("history-based suggestion adds to last weight", bp.fromHistory && bp.kg > 60);
+
+      const abs = Engine.coachAnswer("how do i lose belly fat and get a six pack");
+      ok("coach answers fat-loss with body-fat context", /abs|body fat/i.test(abs.title + JSON.stringify(abs.points)) && abs.points.length >= 3);
+      const bulk = Engine.coachAnswer("how to build muscle and get bigger");
+      ok("coach answers muscle-building with a surplus", /muscle|size/i.test(bulk.title) && JSON.stringify(bulk.points).includes("surplus"));
+      ok("coach falls back to a grounded plan for vague questions", Engine.coachAnswer("hi").points.length > 0);
+
+      App.session = null; App.startSession("push");
+      App.session.items[0].sets[0] = { reps: "8", weight: "60" };
+      App.saveProgress();
+      ok("saveProgress keeps the session open", !!App.session);
+      ok("saveProgress writes today's workout", !!Store.workoutOn(todayISO()));
+      ok("saveProgress persists a resumable draft for today", !!(Store.state.draftSession && Store.state.draftSession.date === todayISO()));
+      App.session.items[0].sets.push({ reps: "8", weight: "62.5" });
+      App.saveProgress();
+      ok("saving again does NOT duplicate today's workout", Store.state.workoutLog.filter((w) => w.date === todayISO()).length === 1);
+      App.finishSession();
+      ok("finish clears the session and the draft", !App.session && !Store.state.draftSession);
+      ok("finished workout is saved once", Store.state.workoutLog.filter((w) => w.date === todayISO()).length === 1);
+    }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {

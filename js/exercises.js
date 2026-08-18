@@ -121,7 +121,6 @@ const Exercises = {
         <span class="exp-thumb" data-exmuscle="${esc(this._groupFromMuscle(e.muscle) || "")}" data-exkey="${esc(e.id)}">${this.imgFor(e) ? `<img src="${this.imgFor(e)}" alt="${esc(e.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
         <span class="exp-info"><span class="exp-name">${esc(e.name)}</span><span class="exp-meta">${esc(e.muscle)} · ${esc(e.equip)}</span></span>
       </button>`).join("") + (res.length > 60 ? `<div class="sub" style="grid-column:1/-1;text-align:center;padding:8px">Showing 60 of ${res.length} — refine your search to see more.</div>` : "");
-    if (typeof App !== "undefined" && App.loadFemaleExPhotos) App.loadFemaleExPhotos(el);
   },
   pick(id) {
     const ex = this.byId(id); if (!ex) return;
