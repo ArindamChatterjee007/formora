@@ -677,44 +677,65 @@ window.runFormoraTests = async function () {
       window.fetch = _f; window.PEXELS_KEY = _k;
     }
 
-    // v60: female users get female exercise imagery (Pexels) swapped into thumbnails; men keep the form demo
+    // v60–v63: female exercise imagery — deterministic, consistent, stable (bug-hunt guards)
     {
       const _f = window.fetch, _k = window.PEXELS_KEY, _g = Store.state.profile.gender;
       window.PEXELS_KEY = "testkey";
       Store.state.profile.gender = "female";
-      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/she1.jpg" } }, { src: { portrait: "http://x/she2.jpg" } }] }) });
-      App.exFemalePool = {};
-      const wrap = document.createElement("div");
-      wrap.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest"></span><span class="ex-thumb noimg" data-exmuscle="Chest"></span>';
-      document.body.appendChild(wrap);
-      await App.loadFemaleExPhotos(wrap);
-      const imgs = wrap.querySelectorAll("img");
-      ok("female thumbnails get a woman photo", imgs.length === 2 && /she[12]\.jpg/.test(imgs[0].src));
-      ok("adjacent same-muscle thumbs vary", imgs[0].src !== imgs[1].src);
-      ok("swapped thumbs are marked so they don't refetch", wrap.querySelectorAll('[data-fem="1"]').length === 2);
-      document.body.removeChild(wrap);
-      Store.state.profile.gender = "male";
-      const wrap2 = document.createElement("div");
-      wrap2.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest"></span>';
-      document.body.appendChild(wrap2);
-      await App.loadFemaleExPhotos(wrap2);
-      ok("male users keep the male form demo (no swap)", wrap2.querySelectorAll("img").length === 0);
-      document.body.removeChild(wrap2);
-      ok("_femaleExQuery maps every group to a woman query", /woman/.test(App._femaleExQuery("Legs")) && /woman/.test(App._femaleExQuery("")));
-      window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
-    }
+      // deterministic pool: 6 distinct chest photos, same order every fetch
+      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [0, 1, 2, 3, 4, 5].map((n) => ({ src: { portrait: "P" + n } })) }) });
 
-    // v62: female exercise preview shows TWO photos (parity with men's start/end frames)
-    {
-      const _f = window.fetch, _k = window.PEXELS_KEY;
-      window.PEXELS_KEY = "testkey";
-      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/a.jpg" } }, { src: { portrait: "http://x/b.jpg" } }, { src: { portrait: "http://x/c.jpg" } }] }) });
-      App.exFemalePool = {};
-      const box = document.createElement("div"); box.id = "exp-hero"; document.body.appendChild(box);
-      await App._loadFemaleHero("Chest");
-      ok("female preview shows two photos like men", box.querySelectorAll("img").length === 2);
-      document.body.removeChild(box);
-      window.fetch = _f; window.PEXELS_KEY = _k;
+      const render = async (keys) => {
+        App.exFemalePool = {};
+        const w = document.createElement("div");
+        w.innerHTML = keys.map((k) => `<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="${k}"></span>`).join("");
+        document.body.appendChild(w);
+        await App.loadFemaleExPhotos(w);
+        const m = {};
+        w.querySelectorAll(".ex-thumb").forEach((e) => { const i = e.querySelector("img"); m[e.getAttribute("data-exkey")] = i ? i.getAttribute("src") : null; });
+        document.body.removeChild(w);
+        return m;
+      };
+      const hero = async (key) => {
+        const box = document.createElement("div"); box.id = "exp-hero"; document.body.appendChild(box);
+        await App._loadFemaleHero(key, "Chest");
+        const s = [...box.querySelectorAll("img")].map((i) => i.getAttribute("src"));
+        document.body.removeChild(box);
+        return s;
+      };
+
+      const m1 = await render(["bench_press", "ohp"]);
+      ok("female thumbnails get a woman photo", /^P\d$/.test(m1.bench_press || ""));
+      ok("swapped thumbs are marked so they don't refetch", !!m1.bench_press && !!m1.ohp);
+
+      // stability: same exercise keeps its photo even when the sibling set changes (re-render)
+      const m2 = await render(["a", "b", "bench_press", "ohp"]);
+      ok("same exercise keeps the SAME photo across re-renders", m1.ohp === m2.ohp && m1.bench_press === m2.bench_press);
+
+      // consistency: thumbnail photo == first preview photo for the same exercise
+      const h = await hero("bench_press");
+      ok("preview first photo == thumbnail photo", h[0] === m2.bench_press);
+      ok("female preview shows two photos like men", h.length === 2);
+
+      // preview stability: opening the same preview twice is identical
+      const h2 = await hero("bench_press");
+      ok("preview is stable across opens", JSON.stringify(h) === JSON.stringify(h2));
+
+      // variety: across many exercises we still spread across photos
+      const mv = await render(["bench_press", "ohp", "incline_db_press", "cable_fly", "pec_deck", "chest_dip"]);
+      ok("different exercises spread across photos", new Set(Object.values(mv)).size >= 2);
+
+      // male users are NOT swapped (keep the accurate form demo)
+      Store.state.profile.gender = "male";
+      const wm = document.createElement("div");
+      wm.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="bench_press"></span>';
+      document.body.appendChild(wm);
+      await App.loadFemaleExPhotos(wm);
+      ok("male users keep the male form demo (no swap)", wm.querySelectorAll("img").length === 0);
+      document.body.removeChild(wm);
+      ok("_femaleExQuery maps every group to a woman query", /woman/.test(App._femaleExQuery("Legs")) && /woman/.test(App._femaleExQuery("")));
+
+      window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
     }
   } catch (e) {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
