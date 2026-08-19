@@ -116,12 +116,17 @@ const Exercises = {
     const res = this.search(this._q, this._group, this._equip);
     if (!res.length) { el.innerHTML = `<div class="sub" style="text-align:center;padding:24px">No exercises match. Try another word or clear the filters.</div>`; return; }
     const shown = res.slice(0, 60);
-    el.innerHTML = shown.map((e) => `
+    el.innerHTML = shown.map((e) => {
+      const demo = this.imgFor(e);
+      const fem = (typeof App !== "undefined" && App._femaleExUrl) ? App._femaleExUrl(e, e.id) : "";
+      const src = fem || demo;
+      const onerr = (fem && demo) ? `this.onerror=null;this.src='${demo}'` : "this.style.display='none';this.parentElement.classList.add('noimg')";
+      return `
       <button class="exp-card" onclick="Exercises.pick('${e.id}')">
-        <span class="exp-thumb" data-exmuscle="${esc(this._groupFromMuscle(e.muscle) || "")}" data-exkey="${esc(e.id)}">${this.imgFor(e) ? `<img src="${this.imgFor(e)}" alt="${esc(e.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+        <span class="exp-thumb">${src ? `<img src="${src}" alt="${esc(e.name)}" loading="lazy" onerror="${onerr}">` : ""}</span>
         <span class="exp-info"><span class="exp-name">${esc(e.name)}</span><span class="exp-meta">${esc(e.muscle)} · ${esc(e.equip)}</span></span>
-      </button>`).join("") + (res.length > 60 ? `<div class="sub" style="grid-column:1/-1;text-align:center;padding:8px">Showing 60 of ${res.length} — refine your search to see more.</div>` : "");
-    if (typeof App !== "undefined" && App.loadFemaleExPhotos) App.loadFemaleExPhotos(el);
+      </button>`;
+    }).join("") + (res.length > 60 ? `<div class="sub" style="grid-column:1/-1;text-align:center;padding:8px">Showing 60 of ${res.length} — refine your search to see more.</div>` : "");
   },
   pick(id) {
     const ex = this.byId(id); if (!ex) return;

@@ -905,7 +905,6 @@ const App = {
     if (this.session) {
       html += `</div>`;
       el.innerHTML = html + this.sessionCard();
-      this.loadFemaleExPhotos();
       return;
     }
 
@@ -1328,6 +1327,14 @@ const App = {
     if (it && it.ex) return Exercises.imgFor(it.ex);
     return Exercises.imgForCurated(it && it.selected) || "";
   },
+  // verified static female photo for the exercise's muscle group (female profiles only; deterministic, no API)
+  _femaleExUrl(ex, key) {
+    const p = Store.state.profile;
+    if (!p || p.gender !== "female") return "";
+    const urls = (window.FEMALE_EX_PHOTOS || {})[this._exGroupOf(ex)] || [];
+    if (!urls.length) return "";
+    return urls[this._hash(key || (ex && ex.id) || "") % urls.length];
+  },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
   _toKg(v) { const n = +v || 0; return this._unit() === "lbs" ? Math.round(n * 0.453592 * 10) / 10 : n; },
@@ -1345,12 +1352,15 @@ const App = {
     const ex = this._exOf(it);
     const done = it.sets.some((s) => s.reps !== "");
     const priority = ex.muscle && Engine.isEmphasized(ex.muscle);
-    const img = this._exImg(it);
+    const demo = this._exImg(it);
+    const femUrl = this._femaleExUrl(ex, it.ex ? it.ex.id : it.selected);
+    const img = femUrl || demo;
+    const thumbErr = (femUrl && demo) ? `this.onerror=null;this.src='${demo}'` : "this.style.display='none';this.parentElement.classList.add('noimg')";
     const canCycle = it.options && it.options.length > 1;
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
           <div class="slot-lead">
-            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" data-exkey="${esc(String(it.ex ? it.ex.id : it.selected))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <span class="ex-thumb ${img ? "" : "noimg"}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="${thumbErr}">` : ""}</span>
             <div class="slot-txt">
               <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
               <div class="ex-name">${esc(ex.name)}</div>
@@ -1437,15 +1447,14 @@ const App = {
   exPreview(i) {
     const it = this.session && this.session.items[i]; if (!it) return;
     const ex = this._exOf(it);
-    const p = Store.state.profile;
-    const female = !!(window.PEXELS_KEY && p && p.gender === "female");
     const base = this._exImg(it);
     let frames = [];
     if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
+    const femUrl = this._femaleExUrl(ex, it.ex ? it.ex.id : it.selected);
     const card = document.getElementById("modal-card"); if (!card) return;
-    const media = female
-      ? `<div class="exp-frames" id="exp-hero"><div class="exp-load">Loading…</div></div>`
+    const media = femUrl
+      ? `<div class="exp-frames one"><img src="${femUrl}" alt="reference" loading="lazy"${base ? ` onerror="this.onerror=null;this.src='${base}'"` : ""}></div>`
       : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">
@@ -1454,7 +1463,6 @@ const App = {
         ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
-    if (female) this._loadFemaleHero(it.ex ? it.ex.id : it.selected, this._exGroupOf(ex));
   },
   addExtra(exId) {
     if (!exId) return;

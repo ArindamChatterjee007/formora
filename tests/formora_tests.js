@@ -677,65 +677,18 @@ window.runFormoraTests = async function () {
       window.fetch = _f; window.PEXELS_KEY = _k;
     }
 
-    // Female exercise imagery — GROUP/browse-picker path (no data-exq): deterministic + stable
+    // Female exercise imagery — verified STATIC photos (no runtime API → never stuck loading), female-only + deterministic
     {
-      const _f = window.fetch, _k = window.PEXELS_KEY, _g = Store.state.profile.gender;
-      window.PEXELS_KEY = "testkey";
+      const _g = Store.state.profile.gender;
       Store.state.profile.gender = "female";
-      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [0, 1, 2, 3, 4, 5].map((n) => ({ src: { portrait: "P" + n } })) }) });
-      const render = async (keys) => {
-        App.exFemalePool = {}; App.exFemalePhotos = {};
-        const w = document.createElement("div");
-        w.innerHTML = keys.map((k) => `<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="${k}"></span>`).join("");
-        document.body.appendChild(w);
-        await App.loadFemaleExPhotos(w);
-        const m = {};
-        w.querySelectorAll(".ex-thumb").forEach((e) => { const i = e.querySelector("img"); m[e.getAttribute("data-exkey")] = i ? i.getAttribute("src") : null; });
-        document.body.removeChild(w);
-        return m;
-      };
-      const m1 = await render(["bench_press", "ohp"]);
-      ok("picker female thumbnail gets a woman photo", /^P\d$/.test(m1.bench_press || ""));
-      const m2 = await render(["a", "b", "bench_press", "ohp"]);
-      ok("picker: same exercise keeps the SAME photo across re-renders", m1.ohp === m2.ohp && m1.bench_press === m2.bench_press);
-      const mv = await render(["bench_press", "ohp", "incline_db_press", "cable_fly", "pec_deck", "chest_dip"]);
-      ok("picker: different exercises spread across photos", new Set(Object.values(mv)).size >= 2);
+      const chest = App._femaleExUrl({ muscle: "Chest", id: "bench_press" }, "bench_press");
+      ok("female gets a static woman photo (real CDN url)", /images\.pexels\.com\/photos\//.test(chest || ""));
+      ok("same exercise → same photo (deterministic, no API call)", App._femaleExUrl({ muscle: "Chest", id: "bench_press" }, "bench_press") === chest);
+      ok("different muscle groups map to different photos", App._femaleExUrl({ muscle: "Quads", id: "back_squat" }, "back_squat") !== chest);
+      ok("every muscle group has a verified female photo", ["Chest", "Back", "Shoulders", "Arms", "Legs", "Core"].every((gr) => (window.FEMALE_EX_PHOTOS[gr] || []).length > 0));
       Store.state.profile.gender = "male";
-      const wm = document.createElement("div");
-      wm.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="bench_press"></span>';
-      document.body.appendChild(wm);
-      await App.loadFemaleExPhotos(wm);
-      ok("male users keep the male form demo (no swap)", wm.querySelectorAll("img").length === 0);
-      document.body.removeChild(wm);
-      ok("_femaleExQuery maps every group to a woman query", /woman/.test(App._femaleExQuery("Legs")) && /woman/.test(App._femaleExQuery("")));
-      window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
-    }
-
-    // Female exercise imagery — preview matches the thumbnail (per-muscle pool + deterministic hash)
-    {
-      const _f = window.fetch, _k = window.PEXELS_KEY, _g = Store.state.profile.gender;
-      window.PEXELS_KEY = "testkey"; Store.state.profile.gender = "female";
-      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [0, 1, 2, 3, 4, 5].map((n) => ({ src: { portrait: "P" + n } })) }) });
-      App.exFemalePool = {};
-      const w = document.createElement("div");
-      w.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="bench_press"></span>';
-      document.body.appendChild(w); await App.loadFemaleExPhotos(w);
-      const thumbSrc = w.querySelector("img") && w.querySelector("img").getAttribute("src");
-      document.body.removeChild(w);
-      ok("female thumbnail gets a woman photo", /^P\d$/.test(thumbSrc || ""));
-      const box = document.createElement("div"); box.id = "exp-hero"; document.body.appendChild(box);
-      await App._loadFemaleHero("bench_press", "Chest");
-      const heroSrcs = [...box.querySelectorAll("img")].map((i) => i.getAttribute("src"));
-      document.body.removeChild(box);
-      ok("female preview[0] == thumbnail photo", heroSrcs[0] === thumbSrc);
-      ok("female preview shows two photos like men", heroSrcs.length === 2);
-      // opening the preview again is identical (deterministic)
-      const box2 = document.createElement("div"); box2.id = "exp-hero"; document.body.appendChild(box2);
-      await App._loadFemaleHero("bench_press", "Chest");
-      const again = [...box2.querySelectorAll("img")].map((i) => i.getAttribute("src"));
-      document.body.removeChild(box2);
-      ok("female preview is stable across opens", JSON.stringify(again) === JSON.stringify(heroSrcs));
-      window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
+      ok("male users get no female photo (keep the form demo)", App._femaleExUrl({ muscle: "Chest", id: "bench_press" }, "bench_press") === "");
+      Store.state.profile.gender = _g;
     }
 
     // v65: experience level, natural-language logging, strength/weakness, progress-to-goal
