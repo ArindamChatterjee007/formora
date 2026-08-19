@@ -32,7 +32,7 @@ window.SUPABASE_URL = "https://ptukgtxpigdkdzsewuvz.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0dWtndHhwaWdka2R6c2V3dXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MTUwNDEsImV4cCI6MjEwMjI5MTA0MX0.nlm6efF_qABMFaB3BgLk0RMCPbbmiiWd00BdSSJPYfA";
 // SECURITY: turn ON only AFTER enabling the Email provider in Supabase and running supabase/security.sql.
 // When true, users log in via Supabase Auth and every cloud request carries their JWT so RLS can sandbox them.
-window.USE_SUPABASE_AUTH = false;
+window.USE_SUPABASE_AUTH = true;
 window.SOCIAL_API = "";
 
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
