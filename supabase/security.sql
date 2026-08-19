@@ -174,6 +174,15 @@ create policy media_delete on storage.objects for delete to authenticated using 
 --   end; $$;
 
 -- ============================================================
+-- Grant the authenticated role DML on these tables (RLS still restricts WHICH
+-- rows). Without this, logged-in requests could be denied outright once RLS is on.
+-- ============================================================
+grant select, insert, update, delete on
+  public.profiles, public.posts, public.comments, public.messages,
+  public.notifications, public.stories, public.requests, public.accounts
+  to authenticated;
+
+-- ============================================================
 -- Lock the door on the anon role: with real logins, table access should go
 -- through the authenticated role only. (Auth endpoints /auth/v1 are unaffected.)
 -- ============================================================
