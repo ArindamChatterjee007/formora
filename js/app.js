@@ -1347,12 +1347,23 @@ const App = {
     const idx = pos >= 0 ? pos % urls.length : this._hash(k) % urls.length;
     return urls[idx];
   },
-  // the female photo(s) for the preview: both per-exercise matches if available, else the single thumbnail photo
+  // the female photo(s) for the preview: always up to two — verified per-exercise matches,
+  // padded with a same-muscle woman photo so the preview is never a lonely single image
   _femaleExList(ex, key) {
-    const one = this._femaleExUrl(ex, key);
-    if (!one) return [];
-    const exact = (window.FEMALE_EX_BY_ID || {})[key || (ex && ex.id) || ""];
-    return exact && exact.length ? exact.slice(0, 2) : [one];
+    const p = Store.state.profile;
+    if (!p || p.gender !== "female") return [];
+    const k = key || (ex && ex.id) || "";
+    const exact = (window.FEMALE_EX_BY_ID || {})[k];
+    const gurls = (window.FEMALE_EX_PHOTOS || {})[this._exGroupOf(ex)] || [];
+    if (exact && exact.length >= 2) return exact.slice(0, 2);
+    if (exact && exact.length === 1) {
+      const g = gurls.find((u) => u !== exact[0]) || gurls[0];
+      return g ? [exact[0], g] : [exact[0]];
+    }
+    if (!gurls.length) return [];
+    const pos = this._femaleGroupIds(this._exGroupOf(ex)).indexOf(k);
+    const i0 = pos >= 0 ? pos % gurls.length : this._hash(k) % gurls.length;
+    return gurls.length > 1 ? [gurls[i0], gurls[(i0 + 1) % gurls.length]] : [gurls[i0]];
   },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
