@@ -905,6 +905,7 @@ const App = {
     if (this.session) {
       html += `</div>`;
       el.innerHTML = html + this.sessionCard();
+      this.loadFemaleExPhotos();
       return;
     }
 
@@ -1116,15 +1117,16 @@ const App = {
       else { t.classList.remove("noimg"); t.innerHTML = `<img src="${src}" alt="exercise" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">`; }
     }));
   },
-  // exercise preview for women: the SAME photos as the thumbnail (exact per-exercise), two of them for parity with men
-  async _loadFemaleHero(exKey, specificQ, group) {
+  // exercise preview for women: the SAME photo as the thumbnail + one more (parity with men's two frames)
+  async _loadFemaleHero(exKey, group) {
     if (!document.getElementById("exp-hero")) return;
-    const photos = await this._femalePhotosFor(exKey, specificQ, group);
+    const pool = await this._femalePool(group);
     const box = document.getElementById("exp-hero"); if (!box) return;
-    if (!photos.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
-    const a = photos[0], b = photos[1] || photos[0];
+    if (!pool.length) { box.classList.add("noimg"); box.innerHTML = ""; return; }
+    const i = this._hash(exKey) % pool.length;
+    const j = pool.length > 1 ? (i + 1) % pool.length : i;
     box.classList.remove("noimg");
-    box.innerHTML = [a, b].map((src) => `<img src="${src}" alt="reference" loading="lazy" onerror="this.style.display='none'">`).join("");
+    box.innerHTML = [pool[i], pool[j]].map((src) => `<img src="${src}" alt="reference" loading="lazy" onerror="this.style.display='none'">`).join("");
   },
 
   physiqueDetail() {
@@ -1348,7 +1350,7 @@ const App = {
     return `<div class="slot ${done ? "done" : ""} ${it.kind === "extra" ? "extra" : ""}">
         <div class="slot-head">
           <div class="slot-lead">
-            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" data-exkey="${esc(String(it.ex ? it.ex.id : it.selected))}" data-exq="${esc(this._femaleExQueryFor(ex))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
+            <span class="ex-thumb ${img ? "" : "noimg"}" data-exmuscle="${esc(this._exGroupOf(ex))}" data-exkey="${esc(String(it.ex ? it.ex.id : it.selected))}" onclick="App.exPreview(${i})">${img ? `<img src="${img}" alt="${esc(ex.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('noimg')">` : ""}</span>
             <div class="slot-txt">
               <div class="slot-name">${esc(it.slotName)} · ${it.reps} reps · ${it.targetSets} sets ${priority ? '<span class="prio">★ priority</span>' : ""}</div>
               <div class="ex-name">${esc(ex.name)}</div>
@@ -1435,12 +1437,16 @@ const App = {
   exPreview(i) {
     const it = this.session && this.session.items[i]; if (!it) return;
     const ex = this._exOf(it);
+    const p = Store.state.profile;
+    const female = !!(window.PEXELS_KEY && p && p.gender === "female");
     const base = this._exImg(it);
     let frames = [];
     if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
     const card = document.getElementById("modal-card"); if (!card) return;
-    const media = frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`;
+    const media = female
+      ? `<div class="exp-frames" id="exp-hero"><div class="exp-load">Loading…</div></div>`
+      : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">
         ${media}
@@ -1448,6 +1454,7 @@ const App = {
         ${ex.tip ? `<div class="ex-tip">💡 ${esc(ex.tip)}</div>` : ""}
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
+    if (female) this._loadFemaleHero(it.ex ? it.ex.id : it.selected, this._exGroupOf(ex));
   },
   addExtra(exId) {
     if (!exId) return;

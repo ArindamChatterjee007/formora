@@ -711,45 +711,30 @@ window.runFormoraTests = async function () {
       window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
     }
 
-    // Female exercise imagery — EXACT per-exercise path (data-exq): thumbnail == preview, exercise-specific
+    // Female exercise imagery — preview matches the thumbnail (per-muscle pool + deterministic hash)
     {
       const _f = window.fetch, _k = window.PEXELS_KEY, _g = Store.state.profile.gender;
       window.PEXELS_KEY = "testkey"; Store.state.profile.gender = "female";
-      // photos echo the query so we can prove each exercise gets its OWN (not generic) photo
-      window.fetch = async (url) => {
-        const q = decodeURIComponent((String(url).match(/query=([^&]+)/) || [])[1] || "");
-        const tag = /bench/.test(q) ? "BENCH" : /overhead/.test(q) ? "OHP" : "GEN";
-        return { ok: true, json: async () => ({ photos: [0, 1, 2].map((n) => ({ src: { portrait: tag + n } })) }) };
-      };
-      ok("_femaleExQueryFor builds a specific per-exercise query", App._femaleExQueryFor({ name: "Barbell Bench Press" }) === "woman barbell bench press gym");
-      const thumb = async (key, q, grp) => {
-        App.exFemalePhotos = {};
-        const w = document.createElement("div");
-        w.innerHTML = `<span class="ex-thumb noimg" data-exkey="${key}" data-exq="${q}" data-exmuscle="${grp}"></span>`;
-        document.body.appendChild(w); await App.loadFemaleExPhotos(w);
-        const src = w.querySelector("img") && w.querySelector("img").getAttribute("src");
-        document.body.removeChild(w); return src;
-      };
-      const bench = await thumb("bench_press", "woman barbell bench press gym", "Chest");
-      const ohp = await thumb("ohp", "woman overhead barbell press gym", "Shoulders");
-      ok("exact thumbnails are exercise-specific (not generic)", bench === "BENCH0" && ohp === "OHP0");
-      // preview reuses the SAME cached exercise photos → matches the thumbnail + a 2nd photo
-      App.exFemalePhotos = {};
-      const b2 = await thumb("bench_press", "woman barbell bench press gym", "Chest");
+      window.fetch = async () => ({ ok: true, json: async () => ({ photos: [0, 1, 2, 3, 4, 5].map((n) => ({ src: { portrait: "P" + n } })) }) });
+      App.exFemalePool = {};
+      const w = document.createElement("div");
+      w.innerHTML = '<span class="ex-thumb noimg" data-exmuscle="Chest" data-exkey="bench_press"></span>';
+      document.body.appendChild(w); await App.loadFemaleExPhotos(w);
+      const thumbSrc = w.querySelector("img") && w.querySelector("img").getAttribute("src");
+      document.body.removeChild(w);
+      ok("female thumbnail gets a woman photo", /^P\d$/.test(thumbSrc || ""));
       const box = document.createElement("div"); box.id = "exp-hero"; document.body.appendChild(box);
-      await App._loadFemaleHero("bench_press", "woman barbell bench press gym", "Chest");
+      await App._loadFemaleHero("bench_press", "Chest");
       const heroSrcs = [...box.querySelectorAll("img")].map((i) => i.getAttribute("src"));
       document.body.removeChild(box);
-      ok("exact preview[0] == thumbnail photo", heroSrcs[0] === b2);
-      ok("exact preview shows two photos", heroSrcs.length === 2 && heroSrcs[1] === "BENCH1");
-      // fallback to the muscle-group query when the specific one returns nothing
-      App.exFemalePhotos = {};
-      window.fetch = async (url) => {
-        const q = decodeURIComponent((String(url).match(/query=([^&]+)/) || [])[1] || "");
-        return { ok: true, json: async () => ({ photos: /bench/.test(q) ? [] : [{ src: { portrait: "GROUP0" } }] }) };
-      };
-      const fb = await thumb("bench_press", "woman barbell bench press gym", "Chest");
-      ok("exact path falls back to a muscle-group photo when specific is empty", fb === "GROUP0");
+      ok("female preview[0] == thumbnail photo", heroSrcs[0] === thumbSrc);
+      ok("female preview shows two photos like men", heroSrcs.length === 2);
+      // opening the preview again is identical (deterministic)
+      const box2 = document.createElement("div"); box2.id = "exp-hero"; document.body.appendChild(box2);
+      await App._loadFemaleHero("bench_press", "Chest");
+      const again = [...box2.querySelectorAll("img")].map((i) => i.getAttribute("src"));
+      document.body.removeChild(box2);
+      ok("female preview is stable across opens", JSON.stringify(again) === JSON.stringify(heroSrcs));
       window.fetch = _f; window.PEXELS_KEY = _k; Store.state.profile.gender = _g;
     }
 
