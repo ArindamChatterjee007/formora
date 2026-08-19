@@ -477,26 +477,32 @@ const App = {
     const pass = document.getElementById("a-pass").value;
     try {
       if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
-        try {
-          await SupaAuth.login(email, pass);
-        } catch (loginErr) {
-          // Pre-Supabase local account: verify its password locally, then transparently
-          // migrate it into Supabase Auth (same email → same uid → posts & data preserved).
+        let signedIn = false;
+        try { await SupaAuth.login(email, pass); signedIn = true; } catch (_) {}
+        if (!signedIn) {
+          // No Supabase account yet (a new device, or a pre-Supabase account). If THIS device
+          // has a local account, verify its password first (keeps the same id so local data is
+          // preserved), then create/adopt the Supabase account with the same email so the user's
+          // cloud data (posts/profile) reconnects by identity.
           const local = Auth.findByEmail(email);
-          let localOk = false;
           if (local && local.provider !== "supabase" && local.hash) {
-            try { await Auth.login({ email, password: pass }); localOk = true; } catch (_) {}
+            let ok = false; try { await Auth.login({ email, password: pass }); ok = true; } catch (_) {}
+            if (!ok) return this.authErr("Incorrect password.");
           }
-          if (!localOk) throw loginErr;
-          const s = await SupaAuth.signup(email, pass, { name: local.name });
-          if (s && s.needsConfirm) { this.authErr("Confirm your email, then log in again to finish the secure upgrade."); return this.showAuth("login"); }
+          try {
+            const s = await SupaAuth.signup(email, pass, { name: local ? local.name : "" });
+            if (s && s.needsConfirm) return this.authErr("Check your email to confirm your account, then log in.");
+          } catch (_) {
+            // Supabase rejects an already-registered email → the login password was simply wrong
+            return this.authErr("Incorrect email or password.");
+          }
         }
         Auth.supabaseSignIn({ email });
         return this.enterApp();
       }
       await Auth.login({ email, password: pass }); this.enterApp();
     }
-    catch (e) { this.authErr(e.message); }
+    catch (e) { this.authErr(e.message || "Couldn't sign in."); }
   },
 
   doSendOtp() {

@@ -60,7 +60,7 @@ const SupaAuth = {
     try {
       const r = await fetch(this._base() + "/token?grant_type=refresh_token", { method: "POST", headers: this._hdr(), body: JSON.stringify({ refresh_token: this.session.refresh_token }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { this.clear(); return null; }
+      if (!r.ok) { if (r.status === 400 || r.status === 401) this.clear(); return null; } // keep the session on transient (5xx/network) errors
       return this._store(j);
     } catch (_) { return null; }
   },
