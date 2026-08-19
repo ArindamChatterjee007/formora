@@ -66,10 +66,15 @@ const FoodEstimator = {
     let best = null, bestLen = 0;
     for (const food of FOOD_DB) {
       for (const key of food.keys) {
-        if (seg.includes(key) && key.length > bestLen) { best = food; bestLen = key.length; }
+        if (key.length > bestLen && this._hasWord(seg, key)) { best = food; bestLen = key.length; }
       }
     }
     return best;
+  },
+  // whole-word match (allows a trailing plural) so "protine" can't match "roti", "price" can't match "rice", etc.
+  _hasWord(seg, key) {
+    const esc = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("\\b" + esc + "(?:s|es)?\\b").test(seg);
   },
 
   // nominal serving sizes so real-world amounts (ml / grams) map to sensible portions
@@ -94,7 +99,9 @@ const FoodEstimator = {
     return value; // plain count, or a serving word like "2 glasses"
   },
 
-  pretty(s) { return s.charAt(0).toUpperCase() + s.slice(1); },
+  pretty(s) {
+    return (s || "").split(" ").map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ");
+  },
 };
 
 /* ============================================================

@@ -1808,8 +1808,11 @@ const App = {
   },
 
   estimatePreview(est) {
-    const tags = est.items.map((i) =>
-      `<span class="food-tag">${i.qty > 1 ? i.qty + "× " : ""}${esc(i.name)} · ${i.kcal}kcal · ${i.protein}g</span>`).join("");
+    const tags = est.items.map((i) => {
+      const q = Math.round(i.qty * 10) / 10;
+      const ql = Math.abs(q - 1) <= 0.1 ? "" : `${q}× `;
+      return `<span class="food-tag">${ql}${esc(i.name)} · ${i.kcal}kcal · ${i.protein}g</span>`;
+    }).join("");
     const unk = est.unknown.length
       ? `<div class="est-unknown">⚠️ Couldn't identify: ${esc(est.unknown.join(", "))}. Adjust totals below if needed.</div>` : "";
     return `<div class="estimate">
