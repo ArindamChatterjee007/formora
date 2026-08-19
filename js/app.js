@@ -1336,14 +1336,23 @@ const App = {
   _femaleExUrl(ex, key) {
     const p = Store.state.profile;
     if (!p || p.gender !== "female") return "";
+    const k = key || (ex && ex.id) || "";
+    const exact = (window.FEMALE_EX_BY_ID || {})[k];
+    if (exact && exact.length) return exact[0]; // verified per-exercise movement match
     const group = this._exGroupOf(ex);
     const urls = (window.FEMALE_EX_PHOTOS || {})[group] || [];
     if (!urls.length) return "";
-    const k = key || (ex && ex.id) || "";
     // spread same-group built-in exercises across the photos by their stable list position; else hash
     const pos = this._femaleGroupIds(group).indexOf(k);
     const idx = pos >= 0 ? pos % urls.length : this._hash(k) % urls.length;
     return urls[idx];
+  },
+  // the female photo(s) for the preview: both per-exercise matches if available, else the single thumbnail photo
+  _femaleExList(ex, key) {
+    const one = this._femaleExUrl(ex, key);
+    if (!one) return [];
+    const exact = (window.FEMALE_EX_BY_ID || {})[key || (ex && ex.id) || ""];
+    return exact && exact.length ? exact.slice(0, 2) : [one];
   },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
@@ -1461,10 +1470,10 @@ const App = {
     let frames = [];
     if (it.ex && it.ex.images && it.ex.images.length) frames = it.ex.images.map((im) => Exercises.CDN + "/exercises/" + im);
     else if (base) { frames = [base]; const alt = base.replace(/\/0\.jpg$/, "/1.jpg"); if (alt !== base) frames.push(alt); }
-    const femUrl = this._femaleExUrl(ex, it.ex ? it.ex.id : it.selected);
+    const femList = this._femaleExList(ex, it.ex ? it.ex.id : it.selected);
     const card = document.getElementById("modal-card"); if (!card) return;
-    const media = femUrl
-      ? `<div class="exp-frames one"><img src="${femUrl}" alt="reference" loading="lazy"${base ? ` onerror="this.onerror=null;this.src='${base}'"` : ""}></div>`
+    const media = femList.length
+      ? `<div class="exp-frames ${femList.length > 1 ? "" : "one"}">${femList.map((u) => `<img src="${u}" alt="reference" loading="lazy"${base ? ` onerror="this.onerror=null;this.src='${base}'"` : ""}>`).join("")}</div>`
       : (frames.length ? `<div class="exp-frames">${frames.map((f) => `<img src="${f}" alt="${esc(ex.name)}" loading="lazy" onerror="this.closest('.exp-frames').classList.add('noimg')">`).join("")}</div>` : `<div class="exp-frames noimg"></div>`);
     card.innerHTML = `<div class="modal-head"><h2>${esc(ex.name)}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div class="ex-preview">

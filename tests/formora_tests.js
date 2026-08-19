@@ -682,7 +682,7 @@ window.runFormoraTests = async function () {
       const _g = Store.state.profile.gender;
       Store.state.profile.gender = "female";
       const chest = App._femaleExUrl({ muscle: "Chest", id: "bench_press" }, "bench_press");
-      ok("female gets a bundled static woman photo", /female-ex\/.*\.jpg/.test(chest || ""));
+      ok("female gets a bundled static woman photo", /female-ex.*\.jpg/.test(chest || ""));
       ok("same exercise → same photo (deterministic, no API call)", App._femaleExUrl({ muscle: "Chest", id: "bench_press" }, "bench_press") === chest);
       ok("different muscle groups map to different photos", App._femaleExUrl({ muscle: "Quads", id: "back_squat" }, "back_squat") !== chest);
       ok("every muscle group has a verified female photo", ["Chest", "Back", "Shoulders", "Arms", "Legs", "Core"].every((gr) => (window.FEMALE_EX_PHOTOS[gr] || []).length > 0));
