@@ -477,7 +477,20 @@ const App = {
     const pass = document.getElementById("a-pass").value;
     try {
       if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
-        await SupaAuth.login(email, pass);
+        try {
+          await SupaAuth.login(email, pass);
+        } catch (loginErr) {
+          // Pre-Supabase local account: verify its password locally, then transparently
+          // migrate it into Supabase Auth (same email → same uid → posts & data preserved).
+          const local = Auth.findByEmail(email);
+          let localOk = false;
+          if (local && local.provider !== "supabase" && local.hash) {
+            try { await Auth.login({ email, password: pass }); localOk = true; } catch (_) {}
+          }
+          if (!localOk) throw loginErr;
+          const s = await SupaAuth.signup(email, pass, { name: local.name });
+          if (s && s.needsConfirm) { this.authErr("Confirm your email, then log in again to finish the secure upgrade."); return this.showAuth("login"); }
+        }
         Auth.supabaseSignIn({ email });
         return this.enterApp();
       }
