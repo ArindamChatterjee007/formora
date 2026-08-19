@@ -98,7 +98,6 @@ window.FEMALE_EX_BY_ID = {
   db_row: ["assets/female-ex-byid/db_row-1.jpg", "assets/female-ex-byid/db_row-2.jpg"],
   db_shoulder_press: ["assets/female-ex-byid/db_shoulder_press-1.jpg", "assets/female-ex-byid/db_shoulder_press-2.jpg"],
   deadlift: ["assets/female-ex-byid/deadlift-1.jpg", "assets/female-ex-byid/deadlift-2.jpg"],
-  face_pull: ["assets/female-ex-byid/face_pull-1.jpg", "assets/female-ex-byid/face_pull-2.jpg"],
   front_squat: ["assets/female-ex-byid/front_squat-1.jpg", "assets/female-ex-byid/front_squat-2.jpg"],
   glute_bridge: ["assets/female-ex-byid/glute_bridge-1.jpg"],
   good_morning: ["assets/female-ex-byid/good_morning-1.jpg"],

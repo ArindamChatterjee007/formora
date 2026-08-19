@@ -1347,23 +1347,22 @@ const App = {
     const idx = pos >= 0 ? pos % urls.length : this._hash(k) % urls.length;
     return urls[idx];
   },
-  // the female photo(s) for the preview: always up to two — verified per-exercise matches,
-  // padded with a same-muscle woman photo so the preview is never a lonely single image
+  // verified per-exercise match ONLY (no muscle-group fallback) — used by the 800+ library grid
+  // so uncurated exercises show their exact movement demo, not a generic same-muscle woman
+  _femaleExactUrl(key) {
+    const p = Store.state.profile;
+    if (!p || p.gender !== "female") return "";
+    const exact = (window.FEMALE_EX_BY_ID || {})[key || ""];
+    return exact && exact.length ? exact[0] : "";
+  },
+  // the female photo(s) for the preview: verified per-exercise matches only (up to two).
+  // if none exist the preview falls back to the exercise's own accurate demo frames — never a
+  // generic same-muscle woman (that mismatch is what kept getting reported)
   _femaleExList(ex, key) {
     const p = Store.state.profile;
     if (!p || p.gender !== "female") return [];
-    const k = key || (ex && ex.id) || "";
-    const exact = (window.FEMALE_EX_BY_ID || {})[k];
-    const gurls = (window.FEMALE_EX_PHOTOS || {})[this._exGroupOf(ex)] || [];
-    if (exact && exact.length >= 2) return exact.slice(0, 2);
-    if (exact && exact.length === 1) {
-      const g = gurls.find((u) => u !== exact[0]) || gurls[0];
-      return g ? [exact[0], g] : [exact[0]];
-    }
-    if (!gurls.length) return [];
-    const pos = this._femaleGroupIds(this._exGroupOf(ex)).indexOf(k);
-    const i0 = pos >= 0 ? pos % gurls.length : this._hash(k) % gurls.length;
-    return gurls.length > 1 ? [gurls[i0], gurls[(i0 + 1) % gurls.length]] : [gurls[i0]];
+    const exact = (window.FEMALE_EX_BY_ID || {})[key || (ex && ex.id) || ""];
+    return exact && exact.length ? exact.slice(0, 2) : [];
   },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
@@ -1383,7 +1382,7 @@ const App = {
     const done = it.sets.some((s) => s.reps !== "");
     const priority = ex.muscle && Engine.isEmphasized(ex.muscle);
     const demo = this._exImg(it);
-    const femUrl = this._femaleExUrl(ex, it.ex ? it.ex.id : it.selected);
+    const femUrl = this._femaleExactUrl(it.ex ? it.ex.id : it.selected);
     const img = femUrl || demo;
     const thumbErr = (femUrl && demo) ? `this.onerror=null;this.src='${demo}'` : "this.style.display='none';this.parentElement.classList.add('noimg')";
     const canCycle = it.options && it.options.length > 1;

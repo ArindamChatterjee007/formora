@@ -35,7 +35,7 @@ const FoodEstimator = {
         continue;
       }
 
-      let qty = this.matchQty(seg);
+      let qty = this.matchQty(seg, food);
       let mult = 1;
       if (/\b(large|big|extra|double|heaped|full)\b/.test(seg)) mult *= 1.4;
       if (/\b(small|little|light|mini|half)\b/.test(seg)) mult *= 0.65;
@@ -72,13 +72,26 @@ const FoodEstimator = {
     return best;
   },
 
-  matchQty(seg) {
-    const digit = seg.match(/(\d+(\.\d+)?)/);
-    if (digit) return parseFloat(digit[1]);
-    for (const [w, v] of Object.entries(NUM_WORDS)) {
-      if (new RegExp(`\\b${w}\\b`).test(seg)) return v;
+  // nominal serving sizes so real-world amounts (ml / grams) map to sensible portions
+  _liquidMl: { glass: 250, cup: 200, bowl: 250, katori: 150, can: 355 },
+  _solidG: { "100g": 100, bowl: 180, plate: 250, piece: 60, slice: 30, serving: 150, scoop: 30, tbsp: 15, tsp: 5, handful: 20, bar: 45, pack: 70, can: 150 },
+
+  matchQty(seg, food) {
+    const m = seg.match(/(\d+(?:\.\d+)?)\s*([a-z]+)?/);
+    let value = null, unit = "";
+    if (m) { value = parseFloat(m[1]); unit = (m[2] || "").toLowerCase(); }
+    if (value == null || isNaN(value)) {
+      for (const [w, v] of Object.entries(NUM_WORDS)) {
+        if (new RegExp(`\\b${w}\\b`).test(seg)) return v;
+      }
+      return 1; // default one serving
     }
-    return 1; // default one serving
+    // volume (ml/l) and weight (g/kg) → convert to portions of this food's serving
+    const VOL = { ml: 1, milliliter: 1, milliliters: 1, cc: 1, l: 1000, lt: 1000, litre: 1000, litres: 1000, liter: 1000, liters: 1000 };
+    const WT = { g: 1, gm: 1, gms: 1, gram: 1, grams: 1, kg: 1000, kgs: 1000, kilo: 1000, kilos: 1000, kilogram: 1000, kilograms: 1000 };
+    if (unit && VOL[unit] != null) return (value * VOL[unit]) / ((food && this._liquidMl[food.unit]) || 250);
+    if (unit && WT[unit] != null) return (value * WT[unit]) / ((food && this._solidG[food.unit]) || 150);
+    return value; // plain count, or a serving word like "2 glasses"
   },
 
   pretty(s) { return s.charAt(0).toUpperCase() + s.slice(1); },

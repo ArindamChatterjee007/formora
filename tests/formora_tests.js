@@ -138,6 +138,14 @@ window.runFormoraTests = async function () {
     ok("matchQty default 1", FoodEstimator.matchQty("egg") === 1);
     ok("pretty capitalizes", FoodEstimator.pretty("dal") === "Dal");
     ok("parse tracks unknown", FoodEstimator.parse("xyzzy blorp").unknown.length >= 1);
+    // lassi + common foods are recognised (was reported "Couldn't identify: 200 ml lassi")
+    const lassi = FoodEstimator.parse("dosa, roti, 200 ml lassi");
+    ok("recognises lassi", lassi.items.some((i) => /lassi/i.test(i.name)) && lassi.unknown.length === 0);
+    // volume units map to a portion, not N servings (200 ml milk must not be 30000 kcal)
+    const ml = FoodEstimator.parse("200 ml milk");
+    ok("ml is a portion not a count", ml.kcal > 80 && ml.kcal < 200);
+    ok("grams map to a portion", Math.abs(FoodEstimator.matchQty("100g paneer", { unit: "100g" }) - 1) < 0.01);
+    ok("litre scales up", FoodEstimator.matchQty("1 litre milk", { unit: "glass" }) === 4);
     for (const diet of ["veg", "vegan", "nonveg", "egg"]) {
       const mp = MealPlanner.generate("high protein muscle", diet, { calTarget: 2400, proteinG: 150 }, 1);
       ok("mealplan " + diet + " plan+targets", mp.plan.length > 0 && mp.totalK > 1500 && mp.totalP > 50);

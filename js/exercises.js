@@ -118,7 +118,7 @@ const Exercises = {
     const shown = res.slice(0, 60);
     el.innerHTML = shown.map((e) => {
       const demo = this.imgFor(e);
-      const fem = (typeof App !== "undefined" && App._femaleExUrl) ? App._femaleExUrl(e, e.id) : "";
+      const fem = (typeof App !== "undefined" && App._femaleExactUrl) ? App._femaleExactUrl(e.id) : "";
       const src = fem || demo;
       const onerr = (fem && demo) ? `this.onerror=null;this.src='${demo}'` : "this.style.display='none';this.parentElement.classList.add('noimg')";
       return `
