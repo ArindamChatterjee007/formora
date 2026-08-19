@@ -102,6 +102,17 @@ const FoodEstimator = {
   pretty(s) {
     return (s || "").split(" ").map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ");
   },
+
+  // clean "A + B + C" meal title from the detected items (+ any unrecognised bits), used as the log name
+  summary(est) {
+    if (!est) return "";
+    const parts = (est.items || []).map((i) => {
+      const q = Math.round((+i.qty || 1) * 10) / 10;
+      return (Math.abs(q - 1) <= 0.1 ? "" : `${q}× `) + i.name;
+    });
+    for (const u of (est.unknown || [])) if (u) parts.push(u.charAt(0).toUpperCase() + u.slice(1));
+    return parts.join(" + ");
+  },
 };
 
 /* ============================================================

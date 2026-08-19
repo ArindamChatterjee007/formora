@@ -1820,6 +1820,7 @@ const App = {
         <div class="est-tile"><div class="est-v">~${est.kcal}</div><div class="est-l">calories</div></div>
         <div class="est-tile"><div class="est-v">${est.protein}g</div><div class="est-l">protein</div></div>
       </div>
+      ${est.text ? `<div class="est-meal">🍽️ ${esc(est.text)}</div>` : ""}
       <div class="est-note">Our estimate from your description. Detected:</div>
       <div class="est-tags">${tags || '<span class="food-tag">No known foods detected — enter totals below</span>'}</div>
       ${unk}
@@ -1994,8 +1995,9 @@ const App = {
   estimateFood() {
     const text = document.getElementById("f-text").value.trim();
     if (!text && !this.pendingPhoto) { alert("Describe what you ate (or add a photo + note)."); return; }
-    this.foodEstimate = FoodEstimator.parse(text);
-    this.foodEstimate.text = text || "Photo meal";
+    const est = FoodEstimator.parse(text);
+    est.text = FoodEstimator.summary(est) || text || "Photo meal";
+    this.foodEstimate = est;
     this.renderNutrition();
   },
 

@@ -146,6 +146,7 @@ window.runFormoraTests = async function () {
     ok("ml is a portion not a count", ml.kcal > 80 && ml.kcal < 200);
     ok("grams map to a portion", Math.abs(FoodEstimator.matchQty("100g paneer", { unit: "100g" }) - 1) < 0.01);
     ok("litre scales up", FoodEstimator.matchQty("1 litre milk", { unit: "glass" }) === 4);
+    ok("summary arranges detected items", FoodEstimator.summary(FoodEstimator.parse("whey shake + banana")) === "Protein Shake + Banana");
     for (const diet of ["veg", "vegan", "nonveg", "egg"]) {
       const mp = MealPlanner.generate("high protein muscle", diet, { calTarget: 2400, proteinG: 150 }, 1);
       ok("mealplan " + diet + " plan+targets", mp.plan.length > 0 && mp.totalK > 1500 && mp.totalP > 50);
