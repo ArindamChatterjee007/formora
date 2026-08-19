@@ -69,12 +69,12 @@ window.PHOTO_QUERIES = {
   slim_slender: "indian woman running fitness athlete",
 };
 
-// verified female exercise photos per muscle group (static Pexels CDN URLs — no runtime API, so they always load or fall back to the form demo)
+// verified female exercise photos per muscle group — bundled locally (same-origin) so they always load fast, never hang on an external CDN
 window.FEMALE_EX_PHOTOS = {
-  Chest:     ["https://images.pexels.com/photos/14541141/pexels-photo-14541141.jpeg?auto=compress&cs=tinysrgb&h=450"],
-  Back:      ["https://images.pexels.com/photos/13965347/pexels-photo-13965347.jpeg?auto=compress&cs=tinysrgb&h=450"],
-  Shoulders: ["https://images.pexels.com/photos/6285184/pexels-photo-6285184.jpeg?auto=compress&cs=tinysrgb&h=450"],
-  Arms:      ["https://images.pexels.com/photos/5132092/pexels-photo-5132092.jpeg?auto=compress&cs=tinysrgb&h=450"],
-  Legs:      ["https://images.pexels.com/photos/29259727/pexels-photo-29259727.jpeg?auto=compress&cs=tinysrgb&h=450"],
-  Core:      ["https://images.pexels.com/photos/8018972/pexels-photo-8018972.jpeg?auto=compress&cs=tinysrgb&h=450"],
+  Chest:     ["assets/female-ex/chest.jpg"],
+  Back:      ["assets/female-ex/back.jpg"],
+  Shoulders: ["assets/female-ex/shoulders.jpg"],
+  Arms:      ["assets/female-ex/arms.jpg"],
+  Legs:      ["assets/female-ex/legs.jpg"],
+  Core:      ["assets/female-ex/core.jpg"],
 };
