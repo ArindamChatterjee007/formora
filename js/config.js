@@ -71,10 +71,10 @@ window.PHOTO_QUERIES = {
 
 // verified female exercise photos per muscle group — bundled locally (same-origin) so they always load fast, never hang on an external CDN
 window.FEMALE_EX_PHOTOS = {
-  Chest:     ["assets/female-ex/chest.jpg"],
-  Back:      ["assets/female-ex/back.jpg"],
-  Shoulders: ["assets/female-ex/shoulders.jpg"],
-  Arms:      ["assets/female-ex/arms.jpg"],
-  Legs:      ["assets/female-ex/legs.jpg"],
-  Core:      ["assets/female-ex/core.jpg"],
+  Chest:     ["assets/female-ex/chest-1.jpg", "assets/female-ex/chest-2.jpg", "assets/female-ex/chest-3.jpg", "assets/female-ex/chest-4.jpg"],
+  Back:      ["assets/female-ex/back-1.jpg", "assets/female-ex/back-2.jpg", "assets/female-ex/back-3.jpg", "assets/female-ex/back-4.jpg"],
+  Shoulders: ["assets/female-ex/shoulders-1.jpg", "assets/female-ex/shoulders-2.jpg", "assets/female-ex/shoulders-3.jpg", "assets/female-ex/shoulders-4.jpg"],
+  Arms:      ["assets/female-ex/arms-1.jpg", "assets/female-ex/arms-2.jpg", "assets/female-ex/arms-3.jpg", "assets/female-ex/arms-4.jpg"],
+  Legs:      ["assets/female-ex/legs-1.jpg", "assets/female-ex/legs-2.jpg", "assets/female-ex/legs-3.jpg", "assets/female-ex/legs-4.jpg"],
+  Core:      ["assets/female-ex/core-1.jpg", "assets/female-ex/core-2.jpg", "assets/female-ex/core-3.jpg", "assets/female-ex/core-4.jpg"],
 };

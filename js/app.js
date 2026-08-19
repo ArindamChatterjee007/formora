@@ -1328,12 +1328,22 @@ const App = {
     return Exercises.imgForCurated(it && it.selected) || "";
   },
   // verified static female photo for the exercise's muscle group (female profiles only; deterministic, no API)
+  _femaleGroupIds(group) {
+    if (!this._femGroups) this._femGroups = {};
+    if (!this._femGroups[group]) this._femGroups[group] = Object.keys(EXERCISES).filter((id) => this._exGroupOf(EXERCISES[id]) === group);
+    return this._femGroups[group];
+  },
   _femaleExUrl(ex, key) {
     const p = Store.state.profile;
     if (!p || p.gender !== "female") return "";
-    const urls = (window.FEMALE_EX_PHOTOS || {})[this._exGroupOf(ex)] || [];
+    const group = this._exGroupOf(ex);
+    const urls = (window.FEMALE_EX_PHOTOS || {})[group] || [];
     if (!urls.length) return "";
-    return urls[this._hash(key || (ex && ex.id) || "") % urls.length];
+    const k = key || (ex && ex.id) || "";
+    // spread same-group built-in exercises across the photos by their stable list position; else hash
+    const pos = this._femaleGroupIds(group).indexOf(k);
+    const idx = pos >= 0 ? pos % urls.length : this._hash(k) % urls.length;
+    return urls[idx];
   },
   // weight unit: stored canonically in kg, shown/entered in the user's chosen unit
   _unit() { return (Store.state.profile && Store.state.profile.unit) || "kg"; },
