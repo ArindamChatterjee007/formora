@@ -43,7 +43,11 @@ const App = {
     document.addEventListener("visibilitychange", () => this.onVisibility());
     this.guardImages();
     this.bindSwipe();
-    if (Auth.isLoggedIn()) this.enterApp();
+    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+      const s = SupaAuth.load();
+      if (s && s.email) { SupaAuth.token(); Auth.supabaseSignIn({ email: s.email, name: (Auth.findByEmail(s.email) || {}).name }); this.enterApp(); }
+      else this.showAuth("login");
+    } else if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
   },
   // ---- image protection: block right-click / drag / copy-paste on photos, blur when window loses focus (screenshot deterrent) ----
@@ -184,6 +188,7 @@ const App = {
   },
 
   logout() {
+    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) { try { SupaAuth.logout(); } catch (_) {} }
     Auth.logout();
     this.session = null;
     document.getElementById("app-shell").classList.add("hidden");
@@ -453,6 +458,12 @@ const App = {
     this.onboardProfile = { patch, weightKg: patch.startWeightKg };
     const d = this.signupDraft || {};
     try {
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+        const s = await SupaAuth.signup(d.email, d.pass, { name: d.name });
+        if (s && s.needsConfirm) { this.authErr("Almost there — check your email to confirm your account, then log in."); return this.showAuth("login"); }
+        Auth.supabaseSignIn({ name: d.name, email: d.email });
+        return this.enterApp();
+      }
       const r = await Auth.signup({ name: d.name, email: d.email, phone: d.phone, password: d.pass });
       if (r && r.direct) return this.enterApp();     // cloud backend: signed in
       const del = await Auth.deliverCode();          // email a 6-digit code to verify the address
@@ -464,7 +475,14 @@ const App = {
   async doLogin() {
     const email = document.getElementById("a-email").value.trim();
     const pass = document.getElementById("a-pass").value;
-    try { await Auth.login({ email, password: pass }); this.enterApp(); }
+    try {
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+        await SupaAuth.login(email, pass);
+        Auth.supabaseSignIn({ email });
+        return this.enterApp();
+      }
+      await Auth.login({ email, password: pass }); this.enterApp();
+    }
     catch (e) { this.authErr(e.message); }
   },
 

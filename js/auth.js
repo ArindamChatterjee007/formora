@@ -28,6 +28,22 @@ const Auth = {
   findByEmail(email) {
     return this.data.accounts.find((a) => a.email.toLowerCase() === (email || "").toLowerCase());
   },
+  // find-or-create the on-device account record for a Supabase-authenticated user (stable id per email)
+  supabaseSignIn({ name, email }) {
+    const key = (email || "").toLowerCase();
+    let acc = this.data.accounts.find((a) => a.email && a.email.toLowerCase() === key);
+    if (!acc) {
+      const slug = (typeof Cloud !== "undefined" && Cloud.uidFor) ? Cloud.uidFor(email) : key.replace(/[^a-z0-9]/g, "_").slice(0, 60);
+      acc = { id: "u_" + slug, name: name || "", email, phone: "", salt: "", hash: "", emailVerified: true, phoneVerified: true, provider: "supabase", remote: true };
+      this.data.accounts.push(acc);
+    } else {
+      if (name && !acc.name) acc.name = name;
+      acc.provider = "supabase"; acc.emailVerified = true;
+    }
+    this.setCurrent(acc.id);
+    this.save();
+    return acc;
+  },
 
   // ---- crypto helpers ----
   async hash(pw, salt) {

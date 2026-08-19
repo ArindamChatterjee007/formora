@@ -19,7 +19,8 @@ const Cloud = {
   uidFor(email) { return (email || "guest").toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 60); },
 
   _headers(extra) {
-    return Object.assign({ apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": "application/json" }, extra || {});
+    const jwt = (typeof SupaAuth !== "undefined" && SupaAuth.bearer) ? SupaAuth.bearer() : null;
+    return Object.assign({ apikey: this.key, Authorization: "Bearer " + (jwt || this.key), "Content-Type": "application/json" }, extra || {});
   },
 
   _ensureIdentity(email) {
@@ -31,6 +32,7 @@ const Cloud = {
   },
   init(account, profile) {
     if (!this._ensureIdentity(account && account.email)) return false;
+    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) { SupaAuth.token(); } // ensure a fresh JWT for RLS
     this.registerMe(profile);
     return true;
   },
@@ -59,7 +61,7 @@ const Cloud = {
       const root = window.SUPABASE_URL.replace(/\/$/, "");
       const r = await fetch(root + "/storage/v1/object/media/" + sub, {
         method: "POST",
-        headers: { apikey: this.key, Authorization: "Bearer " + this.key, "Content-Type": mime, "x-upsert": "true" },
+        headers: { apikey: this.key, Authorization: "Bearer " + (((typeof SupaAuth !== "undefined" && SupaAuth.bearer) ? SupaAuth.bearer() : null) || this.key), "Content-Type": mime, "x-upsert": "true" },
         body: file,
       });
       if (!r.ok) return null;
