@@ -94,7 +94,6 @@ window.FEMALE_EX_BY_ID = {
   cable_lateral: ["assets/female-ex-byid/cable_lateral-1.jpg", "assets/female-ex-byid/cable_lateral-2.jpg"],
   cable_row: ["assets/female-ex-byid/cable_row-1.jpg", "assets/female-ex-byid/cable_row-2.jpg"],
   chest_dip: ["assets/female-ex-byid/chest_dip-1.jpg", "assets/female-ex-byid/chest_dip-2.jpg"],
-  close_grip_bench: ["assets/female-ex-byid/close_grip_bench-1.jpg", "assets/female-ex-byid/close_grip_bench-2.jpg"],
   db_curl: ["assets/female-ex-byid/db_curl-1.jpg", "assets/female-ex-byid/db_curl-2.jpg"],
   db_row: ["assets/female-ex-byid/db_row-1.jpg", "assets/female-ex-byid/db_row-2.jpg"],
   db_shoulder_press: ["assets/female-ex-byid/db_shoulder_press-1.jpg", "assets/female-ex-byid/db_shoulder_press-2.jpg"],
