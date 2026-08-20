@@ -172,9 +172,15 @@ body.shot-guard .post-media img, body.shot-guard .cslide img,
 body.shot-guard .vp-clip img, body.shot-guard .ref-photo img,
 body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px); transition: filter .12s; }
 
-.wrap { max-width: 900px; margin: 0 auto; padding: 8px 16px 40px; }
-.view { display: none; animation: fadeUp .4s ease; }
-.view.active { display: block; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 8px 16px 40px; overflow-x: hidden; }
+.view { display: none; }
+.view.active { display: block; animation: viewIn .32s cubic-bezier(.22,.61,.36,1); will-change: transform, opacity; }
+/* direction-aware horizontal slide between tabs (Instagram-style) */
+.wrap.nav-r .view.active { animation: viewInR .34s cubic-bezier(.22,.61,.36,1); }
+.wrap.nav-l .view.active { animation: viewInL .34s cubic-bezier(.22,.61,.36,1); }
+@keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes viewInR { from { opacity: 0; transform: translateX(38px); } to { opacity: 1; transform: none; } }
+@keyframes viewInL { from { opacity: 0; transform: translateX(-38px); } to { opacity: 1; transform: none; } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } }
 
 /* cards */
@@ -751,7 +757,7 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .btn:active { transform: translateY(0) scale(.98); }
 
 @media (prefers-reduced-motion: reduce) {
-  .view.active > *, .home-hero, .home-hero::after, .bar-f::after, .hc-badge { animation: none !important; }
+  .view.active, .wrap.nav-r .view.active, .wrap.nav-l .view.active, .view.active > *, .home-hero, .home-hero::after, .bar-f::after, .hc-badge { animation: none !important; }
   .card:hover, .hh-stats .stat:hover { transform: none; }
 }
 

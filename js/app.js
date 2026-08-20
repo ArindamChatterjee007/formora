@@ -523,11 +523,22 @@ const App = {
   selectTab(tab) {
     if (!this._tabView[tab]) tab = "home";
     const viewId = "view-" + this._tabView[tab];
+    // direction-aware slide: compare the new tab's position to the current one
+    const wrap = document.getElementById("wrap");
+    const prevIdx = this._tabOrder.indexOf(this.curTab), nextIdx = this._tabOrder.indexOf(tab);
+    if (wrap) {
+      wrap.classList.remove("nav-l", "nav-r");
+      if (this.curTab && prevIdx !== -1 && nextIdx !== -1 && nextIdx !== prevIdx)
+        wrap.classList.add(nextIdx > prevIdx ? "nav-r" : "nav-l");
+    }
     document.querySelectorAll("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
     document.querySelectorAll("#wrap > .view").forEach((v) => v.classList.toggle("active", v.id === viewId));
     this.curTab = tab;
     document.querySelector(".wrap").scrollTo ? window.scrollTo({ top: 0, behavior: "instant" }) : window.scrollTo(0, 0);
     this.renderTab(tab);
+    // replay the slide animation even when the target section element is unchanged (e.g. home↔search share view-feed)
+    const av = document.getElementById(viewId);
+    if (av) { av.style.animation = "none"; void av.offsetWidth; av.style.animation = ""; }
   },
 
   renderTab(tab) {

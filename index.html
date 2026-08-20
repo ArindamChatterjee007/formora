@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 84;
+      var V = 85;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=84" />
+  <link rel="stylesheet" href="css/styles.css?v=85" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -187,18 +187,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=84"></script>
-  <script src="js/data.js?v=84"></script>
-  <script src="js/exercises.js?v=84"></script>
-  <script src="js/storage.js?v=84"></script>
-  <script src="js/engine.js?v=84"></script>
-  <script src="js/charts.js?v=84"></script>
-  <script src="js/nutrition.js?v=84"></script>
-  <script src="js/auth.js?v=84"></script>
-  <script src="js/social.js?v=84"></script>
-  <script src="js/cloud.js?v=84"></script>
-  <script src="js/camera.js?v=84"></script>
-  <script src="js/mailer.js?v=84"></script>
-  <script src="js/app.js?v=84"></script>
+  <script src="js/config.js?v=85"></script>
+  <script src="js/data.js?v=85"></script>
+  <script src="js/exercises.js?v=85"></script>
+  <script src="js/storage.js?v=85"></script>
+  <script src="js/engine.js?v=85"></script>
+  <script src="js/charts.js?v=85"></script>
+  <script src="js/nutrition.js?v=85"></script>
+  <script src="js/auth.js?v=85"></script>
+  <script src="js/social.js?v=85"></script>
+  <script src="js/cloud.js?v=85"></script>
+  <script src="js/camera.js?v=85"></script>
+  <script src="js/mailer.js?v=85"></script>
+  <script src="js/app.js?v=85"></script>
 </body>
 </html>
