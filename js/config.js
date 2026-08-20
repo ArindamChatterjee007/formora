@@ -25,6 +25,8 @@ window.SHEETS_API = "";
      https://arindamchatterjee007.github.io
    Paste the Client ID below. Empty = simulated Google login (default).   */
 window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
+// User-facing app version (semantic). The ?v= number in index.html is a separate cache-bust build id, not the app version.
+window.APP_VERSION = "1.0.0";
 
 /* ---- Shared social backend (Supabase: free Postgres + REST) — real members,
    connect requests and shared feed sync across devices. Empty = local-only. ---- */

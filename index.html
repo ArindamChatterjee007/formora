@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 82;
+      var V = 83;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=82" />
+  <link rel="stylesheet" href="css/styles.css?v=83" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -39,9 +39,58 @@
     .dl-banner .dl-btn:active { transform: scale(.95); }
     .dl-banner .dl-x { background: transparent; border: 0; color: #fff; font-size: 17px; line-height: 1; cursor: pointer; padding: 4px 6px; opacity: .85; }
     @media (min-width: 700px) { .dl-banner { justify-content: center; } .dl-banner .dl-txt { flex: none; } }
+
+    /* ===== branded launch animation ===== */
+    #launch { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center;
+      background: radial-gradient(130% 120% at 50% 18%, #2a1016 0%, #14090d 42%, #0e0f13 100%);
+      transition: opacity .55s ease, visibility .55s; }
+    #launch.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+    #launch .la-inner { text-align: center; animation: laUp .8s cubic-bezier(.2,.8,.2,1) both; }
+    #launch .la-mark { width: 92px; height: 92px; filter: drop-shadow(0 10px 34px rgba(255,90,80,.55));
+      animation: laPop 1s cubic-bezier(.2,.9,.25,1.25) both; }
+    #launch .la-name { font-family: Outfit, system-ui, sans-serif; font-weight: 800; font-size: 34px;
+      letter-spacing: 4px; color: #fff; margin-top: 16px; }
+    #launch .la-name span { background: linear-gradient(135deg,#ff9d4d,#ff3d7f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    #launch .la-tag { font-family: Outfit, sans-serif; color: #ff9d7a; font-size: 12px; letter-spacing: 3px;
+      text-transform: uppercase; margin-top: 8px; opacity: 0; animation: laFade .7s ease .45s forwards; }
+    #launch .la-bar { width: 118px; height: 3px; border-radius: 999px; margin: 20px auto 0;
+      background: rgba(255,255,255,.14); overflow: hidden; }
+    #launch .la-bar i { display: block; height: 100%; width: 40%; border-radius: 999px;
+      background: linear-gradient(90deg,#ff9d4d,#ff3d7f); animation: laLoad 1.4s ease-in-out infinite; }
+    @keyframes laPop { 0%{transform:scale(.4) rotate(-14deg);opacity:0} 55%{opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+    @keyframes laUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+    @keyframes laFade { to{opacity:.9} }
+    @keyframes laLoad { 0%{transform:translateX(-120%)} 100%{transform:translateX(320%)} }
+    @media (prefers-reduced-motion: reduce){ #launch .la-inner,#launch .la-mark,#launch .la-tag{animation-duration:.01ms} #launch .la-bar i{animation:none;width:100%} }
+
+    /* About card in Profile */
+    .about-card { text-align: center; }
+    .about-card .about-brand { display: inline-flex; align-items: center; gap: 8px; font-family: Outfit, sans-serif; font-weight: 800; font-size: 20px; letter-spacing: .5px; }
+    .about-card .about-ver { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 13px; color: #9aa0aa; }
+    .about-card .about-sub { margin-top: 8px; font-size: 13px; opacity: .75; }
   </style>
 </head>
 <body>
+  <!-- branded launch animation: plays on open, then reveals the app -->
+  <div id="launch">
+    <div class="la-inner">
+      <svg class="la-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lalg" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lalg)"/><rect x="3" y="3" width="38" height="38" rx="12" stroke="#fff" stroke-opacity=".18" stroke-width="1.5"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg>
+      <div class="la-name">FORM<span>ORA</span></div>
+      <div class="la-tag">Aesthetic physique coach</div>
+      <div class="la-bar"><i></i></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var l = document.getElementById("launch"); if (!l) return;
+      var done = false;
+      function hide() { if (done) return; done = true; l.classList.add("gone"); setTimeout(function () { if (l && l.parentNode) l.parentNode.removeChild(l); }, 600); }
+      l.addEventListener("click", hide);                 // tap to skip
+      window.addEventListener("load", function () { setTimeout(hide, 1300); });
+      setTimeout(hide, 2600);                             // safety cap so it never blocks the app
+    })();
+  </script>
+
   <!-- Smart app-download banner: detects the visitor's OS (web only; hidden inside the native app) -->
   <div id="dl-banner" class="dl-banner" hidden>
     <span class="dl-ic">📱</span>
@@ -134,18 +183,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=82"></script>
-  <script src="js/data.js?v=82"></script>
-  <script src="js/exercises.js?v=82"></script>
-  <script src="js/storage.js?v=82"></script>
-  <script src="js/engine.js?v=82"></script>
-  <script src="js/charts.js?v=82"></script>
-  <script src="js/nutrition.js?v=82"></script>
-  <script src="js/auth.js?v=82"></script>
-  <script src="js/social.js?v=82"></script>
-  <script src="js/cloud.js?v=82"></script>
-  <script src="js/camera.js?v=82"></script>
-  <script src="js/mailer.js?v=82"></script>
-  <script src="js/app.js?v=82"></script>
+  <script src="js/config.js?v=83"></script>
+  <script src="js/data.js?v=83"></script>
+  <script src="js/exercises.js?v=83"></script>
+  <script src="js/storage.js?v=83"></script>
+  <script src="js/engine.js?v=83"></script>
+  <script src="js/charts.js?v=83"></script>
+  <script src="js/nutrition.js?v=83"></script>
+  <script src="js/auth.js?v=83"></script>
+  <script src="js/social.js?v=83"></script>
+  <script src="js/cloud.js?v=83"></script>
+  <script src="js/camera.js?v=83"></script>
+  <script src="js/mailer.js?v=83"></script>
+  <script src="js/app.js?v=83"></script>
 </body>
 </html>

@@ -250,7 +250,8 @@ const App = {
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
-    const gbtn = window.GOOGLE_CLIENT_ID
+    // Google's web sign-in widget doesn't render inside the native app WebView — use the tappable button there
+    const gbtn = (window.GOOGLE_CLIENT_ID && !window.Capacitor)
       ? `<div id="gsi-btn" class="gsi-wrap"></div>`
       : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`;
     const err = `<div class="auth-err" id="auth-err"></div>`;
@@ -2154,6 +2155,11 @@ const App = {
         <h2 class="danger">Reset</h2>
         <div class="sub">Erase all logs and start fresh. This cannot be undone.</div>
         <button class="btn ghost wide" onclick="App.resetAll()">Reset all data</button>
+      </div>
+      <div class="card about-card">
+        <div class="about-brand"><svg viewBox="0 0 44 44" width="26" height="26" fill="none" aria-hidden="true"><defs><linearGradient id="alg" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#alg)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg><span>Formora</span></div>
+        <div class="about-ver">Version ${window.APP_VERSION || "1.0.0"}</div>
+        <div class="about-sub">Your aesthetic physique coach — train · track · connect.</div>
       </div>`;
   },
 
