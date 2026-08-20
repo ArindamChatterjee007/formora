@@ -745,23 +745,55 @@ const App = {
     this.updateNotifBadge(0);
   },
 
-  // swipe left/right between tabs (Instagram-style)
+  // swipe left/right between tabs — the page follows your finger, then slides to the next tab (native pager feel)
   bindSwipe() {
     const wrap = document.getElementById("wrap");
     if (!wrap) return;
-    let x0 = null, y0 = null, t0 = 0;
-    wrap.addEventListener("touchstart", (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); }, { passive: true });
-    wrap.addEventListener("touchend", (e) => {
-      if (x0 === null) return;
-      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
-      x0 = null;
-      if (dt > 600 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
-      if (e.target.closest && e.target.closest(".carousel, .chat-thread, .composer-photos, input, textarea, select, .social-subnav, .coach-subnav, .vp-tabs")) return;
-      const i = this._tabOrder.indexOf(this.curTab || "home");
-      if (i < 0) return;
-      const next = dx < 0 ? i + 1 : i - 1;
-      if (next >= 0 && next < this._tabOrder.length) this.selectTab(this._tabOrder[next]);
+    let x0 = null, y0 = null, t0 = 0, dir = 0, view = null, w = 0;
+    const blocked = (el) => el && el.closest && el.closest(".carousel, .chat-thread, .composer-photos, input, textarea, select, .social-subnav, .coach-subnav, .vp-tabs");
+    const clear = (v) => { if (v) { v.style.transition = ""; v.style.transform = ""; v.style.opacity = ""; } };
+    wrap.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1 || blocked(e.target)) { x0 = null; return; }
+      const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+      dir = 0; view = document.querySelector("#wrap > .view.active"); w = wrap.clientWidth || window.innerWidth;
     }, { passive: true });
+    wrap.addEventListener("touchmove", (e) => {
+      if (x0 === null || !view) return;
+      const t = e.touches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (dir === 0) {                                   // lock the gesture axis on first real movement
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        dir = Math.abs(dx) > Math.abs(dy) ? 1 : -1;      // 1 = horizontal (pager), -1 = vertical (let it scroll)
+        if (dir === 1) view.style.transition = "none";
+      }
+      if (dir !== 1) return;
+      e.preventDefault();                                // take over the horizontal drag
+      const i = this._tabOrder.indexOf(this.curTab || "home");
+      const atEdge = (dx < 0 && i >= this._tabOrder.length - 1) || (dx > 0 && i <= 0);
+      const d = atEdge ? dx * 0.28 : dx;                 // rubber-band at the first/last tab
+      view.style.transform = `translateX(${d}px)`;
+      view.style.opacity = String(Math.max(0.5, 1 - Math.abs(d) / (w * 1.5)));
+    }, { passive: false });
+    const end = (e) => {
+      if (x0 === null) return;
+      const c = e.changedTouches && e.changedTouches[0], dx = c ? c.clientX - x0 : 0, dt = Date.now() - t0;
+      x0 = null;
+      const v = view; view = null;
+      if (dir !== 1 || !v) { clear(v); return; }
+      const i = this._tabOrder.indexOf(this.curTab || "home");
+      const next = dx < 0 ? i + 1 : i - 1;
+      const commit = (Math.abs(dx) > w * 0.3 || (Math.abs(dx) > 55 && dt < 300)) && next >= 0 && next < this._tabOrder.length;
+      if (commit) {                                      // fling the page out, then the next tab slides in
+        v.style.transition = "transform .16s ease-out, opacity .16s ease-out";
+        v.style.transform = `translateX(${dx < 0 ? -w : w}px)`; v.style.opacity = "0";
+        setTimeout(() => { clear(v); this.selectTab(this._tabOrder[next]); }, 150);
+      } else {                                           // snap back to place
+        v.style.transition = "transform .22s cubic-bezier(.22,.61,.36,1), opacity .22s ease";
+        v.style.transform = "translateX(0)"; v.style.opacity = "1";
+        setTimeout(() => clear(v), 230);
+      }
+    };
+    wrap.addEventListener("touchend", end, { passive: true });
+    wrap.addEventListener("touchcancel", end, { passive: true });
   },
 
   renderAll() {
