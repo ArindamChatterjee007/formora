@@ -25,8 +25,8 @@ window.SHEETS_API = "";
      https://arindamchatterjee007.github.io
    Paste the Client ID below. Empty = simulated Google login (default).   */
 window.GOOGLE_CLIENT_ID = "451449440769-sg1vov2ido298dods2ltr32bchevffle.apps.googleusercontent.com";
-// iOS OAuth client id (from Google Cloud) for native Google sign-in on iOS. Filled once the iOS client exists.
-window.GOOGLE_IOS_CLIENT_ID = "";
+// iOS OAuth client id (from Google Cloud) for native Google sign-in on iOS.
+window.GOOGLE_IOS_CLIENT_ID = "451449440769-na4iu4tvjitfan1jqicegn8knd77qgem.apps.googleusercontent.com";
 // User-facing app version (semantic). The ?v= number in index.html is a separate cache-bust build id, not the app version.
 window.APP_VERSION = "1.0.0";
 
