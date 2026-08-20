@@ -7,7 +7,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 76;
+      var V = 82;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -24,9 +24,54 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=76" />
+  <link rel="stylesheet" href="css/styles.css?v=82" />
+  <style>
+    .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
+      font-family: Outfit, system-ui, -apple-system, sans-serif; font-weight: 600; font-size: 14px;
+      box-shadow: 0 2px 14px rgba(0,0,0,.28); }
+    .dl-banner[hidden] { display: none; }
+    .dl-banner .dl-ic { font-size: 18px; }
+    .dl-banner .dl-txt { flex: 1; min-width: 0; }
+    .dl-banner .dl-btn { background: rgba(255,255,255,.96); color: #d6336c; text-decoration: none;
+      padding: 7px 13px; border-radius: 999px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+    .dl-banner .dl-btn[hidden] { display: none; }
+    .dl-banner .dl-btn:active { transform: scale(.95); }
+    .dl-banner .dl-x { background: transparent; border: 0; color: #fff; font-size: 17px; line-height: 1; cursor: pointer; padding: 4px 6px; opacity: .85; }
+    @media (min-width: 700px) { .dl-banner { justify-content: center; } .dl-banner .dl-txt { flex: none; } }
+  </style>
 </head>
 <body>
+  <!-- Smart app-download banner: detects the visitor's OS (web only; hidden inside the native app) -->
+  <div id="dl-banner" class="dl-banner" hidden>
+    <span class="dl-ic">📱</span>
+    <span class="dl-txt">Get the Formora app</span>
+    <a id="dl-android" class="dl-btn" href="download/Formora.apk" download hidden>⬇ Android</a>
+    <a id="dl-ios" class="dl-btn" href="#" hidden>🍎 iOS</a>
+    <button id="dl-x" class="dl-x" aria-label="Dismiss">✕</button>
+  </div>
+  <script>
+    (function () {
+      var IOS_APPSTORE_URL = ""; // set once the iOS app is on the App Store/TestFlight; empty => "coming soon"
+      if (window.Capacitor) return;                       // already inside the native app
+      try { if (localStorage.getItem("fm_dl_x") === "1") return; } catch (e) {}
+      var ua = navigator.userAgent || "";
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      var banner = document.getElementById("dl-banner"), aA = document.getElementById("dl-android"), aI = document.getElementById("dl-ios");
+      function showIOS() {
+        aI.hidden = false;
+        if (IOS_APPSTORE_URL) { aI.href = IOS_APPSTORE_URL; aI.textContent = "🍎 App Store"; }
+        else { aI.textContent = "🍎 iOS soon"; aI.href = "javascript:void 0"; aI.onclick = function () { alert("The iOS app is coming to the App Store soon. Android is available to install now."); return false; }; }
+      }
+      if (isAndroid) { aA.hidden = false; }
+      else if (isIOS) { showIOS(); }
+      else { aA.hidden = false; showIOS(); }              // desktop: offer both
+      banner.hidden = false;
+      document.getElementById("dl-x").onclick = function () { banner.hidden = true; try { localStorage.setItem("fm_dl_x", "1"); } catch (e) {} };
+    })();
+  </script>
+
   <!-- animated background -->
   <div class="bg-sky"></div>
   <div class="bg-aurora"></div>
@@ -89,18 +134,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=76"></script>
-  <script src="js/data.js?v=76"></script>
-  <script src="js/exercises.js?v=76"></script>
-  <script src="js/storage.js?v=76"></script>
-  <script src="js/engine.js?v=76"></script>
-  <script src="js/charts.js?v=76"></script>
-  <script src="js/nutrition.js?v=76"></script>
-  <script src="js/auth.js?v=76"></script>
-  <script src="js/social.js?v=76"></script>
-  <script src="js/cloud.js?v=76"></script>
-  <script src="js/camera.js?v=76"></script>
-  <script src="js/mailer.js?v=76"></script>
-  <script src="js/app.js?v=76"></script>
+  <script src="js/config.js?v=82"></script>
+  <script src="js/data.js?v=82"></script>
+  <script src="js/exercises.js?v=82"></script>
+  <script src="js/storage.js?v=82"></script>
+  <script src="js/engine.js?v=82"></script>
+  <script src="js/charts.js?v=82"></script>
+  <script src="js/nutrition.js?v=82"></script>
+  <script src="js/auth.js?v=82"></script>
+  <script src="js/social.js?v=82"></script>
+  <script src="js/cloud.js?v=82"></script>
+  <script src="js/camera.js?v=82"></script>
+  <script src="js/mailer.js?v=82"></script>
+  <script src="js/app.js?v=82"></script>
 </body>
 </html>
