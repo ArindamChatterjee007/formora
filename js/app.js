@@ -250,11 +250,12 @@ const App = {
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
-    // Real Google Sign-In (GSI) renders on the web. It can't run inside the native WebView, and real native
-    // Google needs a Google Cloud Android client — so in the app we hide it and use email login (no fake demo).
-    const gbtn = window.Capacitor ? "" : (window.GOOGLE_CLIENT_ID
-      ? `<div id="gsi-btn" class="gsi-wrap"></div>`
-      : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
+    // Web uses Google Identity Services (GSI). Native uses the SocialLogin plugin (real Google account picker).
+    const gbtn = window.Capacitor
+      ? `<button class="gbtn" onclick="App.goGoogleNative()">${this.googleIcon()} Continue with Google</button>`
+      : (window.GOOGLE_CLIENT_ID
+        ? `<div id="gsi-btn" class="gsi-wrap"></div>`
+        : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
 
@@ -384,6 +385,32 @@ const App = {
   },
 
   goGoogle() { Auth.pending = null; this.showAuth("google"); },
+  // native Google via the SocialLogin plugin (real Google account picker on Android + iOS)
+  async _initSocialLogin() {
+    if (this._slInit) return true;
+    const SL = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.SocialLogin;
+    if (!SL) return false;
+    try {
+      await SL.initialize({ google: { webClientId: window.GOOGLE_CLIENT_ID, iOSClientId: window.GOOGLE_IOS_CLIENT_ID || undefined, mode: "online" } });
+      this._slInit = true; return true;
+    } catch (e) { return false; }
+  },
+  async goGoogleNative() {
+    const SL = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.SocialLogin;
+    if (!SL) return this.authErr("Google sign-in isn't available here — use email.");
+    if (!(await this._initSocialLogin())) return this.authErr("Google sign-in couldn't start — use email.");
+    try {
+      const res = await SL.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+      const r = (res && res.result) || {};
+      let email = r.profile && r.profile.email, name = r.profile && r.profile.name;
+      if (!email && r.idToken) { try { const p = JSON.parse(atob(r.idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); email = email || p.email; name = name || p.name; } catch (e) {} }
+      if (!email) return this.authErr("Google didn't return an email. Try again or use email login.");
+      Auth.loginWithGoogle({ name: name || email.split("@")[0], email });
+      this.enterApp();
+    } catch (e) {
+      this.authErr("Google sign-in was cancelled.");
+    }
+  },
   doGoogleContinue() {
     const name = document.getElementById("g-name").value.trim();
     const email = document.getElementById("g-email").value.trim();
