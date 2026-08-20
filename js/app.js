@@ -408,7 +408,9 @@ const App = {
       Auth.loginWithGoogle({ name: name || email.split("@")[0], email });
       this.enterApp();
     } catch (e) {
-      this.authErr("Google sign-in was cancelled.");
+      const s = String((e && (e.message || e.errorMessage || e.code || e.error)) || e || "");
+      if (/cancel/i.test(s)) return this.authErr("Google sign-in was cancelled — tap Continue with Google to retry.");
+      this.authErr("Google: " + (s || "sign-in failed") + ". If you just enabled it, wait a few minutes then retry — or use email.");
     }
   },
   doGoogleContinue() {
