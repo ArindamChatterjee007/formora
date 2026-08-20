@@ -250,16 +250,17 @@ const App = {
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
-    // Google's web sign-in widget doesn't render inside the native app WebView — use the tappable button there
-    const gbtn = (window.GOOGLE_CLIENT_ID && !window.Capacitor)
+    // Real Google Sign-In (GSI) renders on the web. It can't run inside the native WebView, and real native
+    // Google needs a Google Cloud Android client — so in the app we hide it and use email login (no fake demo).
+    const gbtn = window.Capacitor ? "" : (window.GOOGLE_CLIENT_ID
       ? `<div id="gsi-btn" class="gsi-wrap"></div>`
-      : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`;
+      : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
 
     if (this.authView === "login") {
       body = `${gbtn}
-        <div class="auth-or"><span>or</span></div>
+        ${gbtn ? `<div class="auth-or"><span>or</span></div>` : ""}
         <div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@email.com"></div>
         <div class="field"><label>Password</label><input id="a-pass" type="password" placeholder="••••••••"></div>
         ${err}
@@ -268,7 +269,7 @@ const App = {
         <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>`;
     } else if (this.authView === "signup") {
       body = `${gbtn}
-        <div class="auth-or"><span>or sign up with details</span></div>
+        ${gbtn ? `<div class="auth-or"><span>or sign up with details</span></div>` : ""}
         <div class="field"><label>Full name</label><input id="s-name" placeholder="Arindam"></div>
         <div class="field"><label>Email</label><input id="s-email" type="email" placeholder="you@email.com"></div>
         <div class="field"><label>Phone number</label><input id="s-phone" type="tel" placeholder="+91 98765 43210"></div>
@@ -348,7 +349,7 @@ const App = {
 
     card.innerHTML = `${brand}${body}
       <div class="auth-note">${window.SHEETS_API ? "☁️ Secure cloud login — sign in from any device." : "🔒 Private login — your data is saved on this device."}</div>`;
-    if (window.GOOGLE_CLIENT_ID && isLanding) this.renderGoogleButton();
+    if (window.GOOGLE_CLIENT_ID && isLanding && !window.Capacitor) this.renderGoogleButton();
   },
 
   // real Google Sign-In (loads Google Identity Services on demand)
