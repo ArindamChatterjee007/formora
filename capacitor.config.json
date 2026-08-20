@@ -1,0 +1,20 @@
+{
+  "appId": "com.formora.app",
+  "appName": "Formora",
+  "webDir": "www",
+  "backgroundColor": "#0e0f13",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0e0f13"
+  },
+  "android": {
+    "backgroundColor": "#0e0f13"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0e0f13",
+      "showSpinner": false
+    }
+  }
+}

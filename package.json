@@ -1,0 +1,34 @@
+{
+  "name": "formora",
+  "version": "1.0.0",
+  "description": "Formora — Aesthetic Physique Coach (iOS + Android via Capacitor)",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "www": "bash tools/sync-www.sh",
+    "sync": "npm run www && npx cap sync",
+    "ios": "npm run sync && npx cap open ios",
+    "android": "npm run sync && npx cap open android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArindamChatterjee007/formora.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ArindamChatterjee007/formora/issues"
+  },
+  "homepage": "https://github.com/ArindamChatterjee007/formora#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0"
+  }
+}

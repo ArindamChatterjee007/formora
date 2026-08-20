@@ -4,3 +4,15 @@ assets/physiques/_sources.json
 assets/physiques/_preview.jpg
 .DS_Store
 *.log
+node_modules/
+www/
+ios/App/Pods/
+ios/App/App/public/
+ios/DerivedData/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/src/main/assets/public/
+ios/App/App/capacitor.config.json
+android/app/src/main/assets/capacitor.config.json
