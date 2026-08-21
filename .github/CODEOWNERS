@@ -1,0 +1,10 @@
+# Code owners for the Formora pipeline.
+# Currently a single maintainer. When teammates join, add their GitHub
+# handles here and raise `required_approving_review_count` on the protected
+# branches (see scripts/setup-pipeline.sh) to turn these into required gates.
+
+*                 @ArindamChatterjee007
+
+# Example team gates to enable later:
+# js/social.js     @ArindamChatterjee007 @some-frontend-dev
+# .github/         @ArindamChatterjee007

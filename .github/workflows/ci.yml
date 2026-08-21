@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, release, beta, main]
+  pull_request:
+    branches: [dev, release, beta, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: JavaScript syntax check
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r -d '' f; do
+            node --check "$f"
+            count=$((count + 1))
+          done < <(find js -name '*.js' -print0)
+          echo "OK - $count JS files parsed with no syntax errors"
+
+      - name: Version consistency (index.html vs version.txt)
+        run: |
+          set -euo pipefail
+          V="$(tr -d '[:space:]' < version.txt)"
+          echo "version.txt = $V"
+          if ! grep -q "var V = $V" index.html; then
+            echo "::error file=index.html::'var V = $V' not found - bump it to match version.txt"
+            exit 1
+          fi
+          bad="$(grep -oE 'v=[0-9]+' index.html | sort -u | grep -v "^v=$V$" || true)"
+          if [ -n "$bad" ]; then
+            echo "::error file=index.html::cache-bust ?v= refs disagree with version.txt ($V): $bad"
+            exit 1
+          fi
+          echo "OK - all ?v= refs and 'var V' match version.txt ($V)"
+
+      - name: Security guard - no unescaped URL sinks in the social feed
+        run: |
+          set -euo pipefail
+          if grep -nP 'src="\$\{(?!esc\()' js/social.js; then
+            echo "::error file=js/social.js::Unescaped src=\"\${...}\" found - wrap user-controlled URLs in esc() to prevent stored XSS"
+            exit 1
+          fi
+          if grep -rnP 'href="\$\{(?!esc\()' js; then
+            echo "::error::Unescaped href=\"\${...}\" found - wrap in esc()"
+            exit 1
+          fi
+          echo "OK - no unescaped src/href interpolations"
+
+      - name: No leftover merge conflict markers
+        run: |
+          set -euo pipefail
+          if grep -RnE '^(<<<<<<< |=======$|>>>>>>> )' --include='*.js' --include='*.css' --include='*.html' .; then
+            echo "::error::merge conflict markers present"
+            exit 1
+          fi
+          echo "OK - no conflict markers"

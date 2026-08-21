@@ -1,0 +1,57 @@
+name: Promote
+
+# When CI passes on a stage branch, open (or refresh) a pull request that
+# promotes the code to the next stage. A human merges it after that stage's
+# testing is signed off, which cascades the process forward:
+#   dev -> release -> beta -> main
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-next-stage-pr:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      contains(fromJSON('["dev","release","beta"]'), github.event.workflow_run.head_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next stage
+        id: n
+        run: |
+          case "${{ github.event.workflow_run.head_branch }}" in
+            dev)     echo "next=release" >> "$GITHUB_OUTPUT" ;;
+            release) echo "next=beta"    >> "$GITHUB_OUTPUT" ;;
+            beta)    echo "next=main"    >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Open or update promotion PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SRC: ${{ github.event.workflow_run.head_branch }}
+          DST: ${{ steps.n.outputs.next }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$SRC" "$DST"
+          if git diff --quiet "origin/$DST" "origin/$SRC"; then
+            echo "Nothing to promote: $SRC and $DST are identical."
+            exit 0
+          fi
+          existing="$(gh pr list --base "$DST" --head "$SRC" --state open --json number --jq '.[0].number' || true)"
+          if [ -n "${existing:-}" ]; then
+            echo "Promotion PR #$existing already open ($SRC -> $DST); it already tracks the latest $SRC."
+            exit 0
+          fi
+          gh pr create --base "$DST" --head "$SRC" \
+            --title "Promote: $SRC -> $DST" \
+            --body "Automated promotion PR. CI passed on \`$SRC\`. Merge to advance the code to **$DST** once this stage's testing is signed off. File any defects as issues using the Bug report template." \
+            --label promotion

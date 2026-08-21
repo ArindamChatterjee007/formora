@@ -1,0 +1,58 @@
+name: Bug report
+description: File a defect found while testing a stage
+title: "[BUG] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for testing Formora. Please fill this in so the dev team can reproduce quickly.
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage where the bug was found
+      options:
+        - dev
+        - release (QA)
+        - beta (staging)
+        - production (main)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version (from version.txt)
+      placeholder: "94"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Tap ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual result
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical - blocks the release
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Device / browser (optional)
+      placeholder: iPhone 14, Safari 18 / Pixel 7, Chrome 128 / Desktop Chrome
