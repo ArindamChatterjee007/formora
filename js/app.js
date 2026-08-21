@@ -400,7 +400,8 @@ const App = {
     if (!SL) return this.authErr("Google sign-in isn't available here — use email.");
     if (!(await this._initSocialLogin())) return this.authErr("Google sign-in couldn't start — use email.");
     try {
-      const res = await SL.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+      // No custom scopes: the plugin adds email/profile/openid by default (custom scopes would require a native MainActivity change).
+      const res = await SL.login({ provider: "google", options: {} });
       const r = (res && res.result) || {};
       let email = r.profile && r.profile.email, name = r.profile && r.profile.name;
       if (!email && r.idToken) { try { const p = JSON.parse(atob(r.idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); email = email || p.email; name = name || p.name; } catch (e) {} }
