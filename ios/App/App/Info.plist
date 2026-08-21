@@ -33,6 +33,12 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Formora uses the camera so you can take photos and record clips to share.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Formora uses the microphone to record sound with your video clips.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Formora saves the photos and clips you capture to your photo library.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

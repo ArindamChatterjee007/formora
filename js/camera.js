@@ -130,6 +130,16 @@ const Camera = {
 
   supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
   cssFilter() { return (this.FILTERS[this.filterIdx] || {}).css || "none"; },
+  // clean line-icons (no emoji) for a professional camera UI
+  ic(n) {
+    const p = {
+      close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      flip: '<path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
+      paint: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+      undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v3"/>',
+    }[n] || "";
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  },
 
   async open(target) {
     if (!this.supported()) { alert("Your browser doesn't support the in-app camera — use the gallery option instead."); return false; }
@@ -182,11 +192,13 @@ const Camera = {
       <div class="cam-stage">
         <video id="cam-video" playsinline autoplay muted></video>
         <canvas id="cam-canvas" class="cam-canvas"></canvas>
+        <div class="cam-scrim cam-scrim-top"></div>
+        <div class="cam-scrim cam-scrim-bottom"></div>
         <div class="cam-filter-name" id="cam-filter-name"></div>
         <div class="cam-top">
-          <button class="cam-ic" onclick="Camera.close()">✕</button>
+          <button class="cam-ic" aria-label="Close" onclick="Camera.close()">${this.ic("close")}</button>
           <div class="cam-rec-time" id="cam-rec-time"></div>
-          <button class="cam-ic" onclick="Camera.flip()">🔄</button>
+          <button class="cam-ic" aria-label="Flip camera" onclick="Camera.flip()">${this.ic("flip")}</button>
         </div>
         <div class="cam-filters" id="cam-filters">
           ${this.FILTERS.map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
@@ -315,12 +327,14 @@ const Camera = {
       : `<img id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" alt="capture" draggable="false"><canvas id="paint-canvas" class="paint-canvas"></canvas>`;
     ov.innerHTML = `<div class="cam-stage">
       ${media}
+      <div class="cam-scrim cam-scrim-top"></div>
+      <div class="cam-scrim cam-scrim-bottom"></div>
       <div class="cam-top">
-        <button class="cam-ic" onclick="Camera.retake()">↩︎</button>
-        ${isVid ? "" : `<button class="cam-ic" id="paint-toggle" onclick="Camera.togglePaint()">🎨</button>`}
-        <button class="cam-ic" onclick="Camera.close()">✕</button>
+        <button class="cam-ic" aria-label="Retake" onclick="Camera.retake()">${this.ic("undo")}</button>
+        ${isVid ? "" : `<button class="cam-ic" id="paint-toggle" aria-label="Draw" onclick="Camera.togglePaint()">${this.ic("paint")}</button>`}
+        <button class="cam-ic" aria-label="Close" onclick="Camera.close()">${this.ic("close")}</button>
       </div>
-      ${isVid ? "" : `<div class="paint-colors hidden" id="paint-colors">${this.PAINT_COLORS.map((c) => `<button class="paint-color" style="background:${c}" onclick="Camera.setPaint('${c}')"></button>`).join("")}<button class="paint-undo" onclick="Camera.undoPaint()">⟲</button></div>`}
+      ${isVid ? "" : `<div class="paint-colors hidden" id="paint-colors">${this.PAINT_COLORS.map((c) => `<button class="paint-color" style="background:${c}" onclick="Camera.setPaint('${c}')"></button>`).join("")}<button class="paint-undo" aria-label="Undo" onclick="Camera.undoPaint()">${this.ic("undo")}</button></div>`}
       <div class="cam-bottom">
         <button class="btn cam-share" onclick="Camera.finish()">${shareLabel}</button>
       </div>
