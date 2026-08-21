@@ -10,8 +10,13 @@
 
    Leave it empty to keep the illustrated figures instead.
    Photos are athletic/fitness references, filtered SFW.
+
+   SECURITY: never hardcode a key here — it is served publicly and can be
+   scraped/abused. Set it at runtime in your own browser instead:
+     localStorage.setItem("fm_pexels_key", "<your-key>")
+   or proxy Pexels through a serverless function.
    ============================================================ */
-window.PEXELS_KEY = "6preuKXIWe9vWGjazUSBcOOODs2cOTOpciCipifUZhcktiKjUu7LWz6K";
+window.PEXELS_KEY = (typeof localStorage !== "undefined" && localStorage.getItem("fm_pexels_key")) || "";
 
 /* ---- Google Sheets login backend (optional; for cross-device accounts) ----
    Deploy backend/Code.gs as a Web App, then paste its /exec URL here.

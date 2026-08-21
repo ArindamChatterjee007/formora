@@ -69,3 +69,23 @@ jobs:
             exit 1
           fi
           echo "OK - no conflict markers"
+
+      - name: Performance budget (payload size)
+        run: |
+          set -euo pipefail
+          JS_BUDGET=$((430 * 1024)); CSS_BUDGET=$((100 * 1024))
+          js=$(cat js/*.js | wc -c | tr -d ' '); css=$(cat css/*.css | wc -c | tr -d ' ')
+          echo "JS = $js bytes (budget $JS_BUDGET) | CSS = $css bytes (budget $CSS_BUDGET)"
+          if [ "$js" -gt "$JS_BUDGET" ]; then echo "::error::JS payload $js exceeds budget $JS_BUDGET - see docs/PERFORMANCE_REQUIREMENTS.md"; exit 1; fi
+          if [ "$css" -gt "$CSS_BUDGET" ]; then echo "::error::CSS payload $css exceeds budget $CSS_BUDGET - see docs/PERFORMANCE_REQUIREMENTS.md"; exit 1; fi
+          echo "OK - within performance budget"
+
+      - name: Secret scan (no hardcoded third-party secrets)
+        run: |
+          set -euo pipefail
+          fail=0
+          if grep -rnE 'AIza[0-9A-Za-z_-]{35}' --include='*.js' --include='*.html' .; then echo "::error::Google API key committed"; fail=1; fi
+          if grep -rnE '\bservice_role\b' --include='*.js' .; then echo "::error::service_role reference in client code"; fail=1; fi
+          if grep -nE 'PEXELS_KEY[[:space:]]*=[[:space:]]*"[A-Za-z0-9]{20,}"' js/config.js; then echo "::error::hardcoded PEXELS_KEY in config.js"; fail=1; fi
+          if grep -rnE '(sk_live_|sk_test_|xox[baprs]-)' --include='*.js' .; then echo "::error::secret token committed"; fail=1; fi
+          if [ "$fail" -eq 0 ]; then echo "OK - no hardcoded secrets (Supabase anon key is public-by-design)"; else exit 1; fi
