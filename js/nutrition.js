@@ -36,6 +36,8 @@ const FoodEstimator = {
       }
 
       let qty = this.matchQty(seg, food);
+      if (!isFinite(qty) || qty <= 0) qty = 1;
+      qty = Math.min(qty, 50); // sanity cap: no single item is 50+ servings
       let mult = 1;
       if (/\b(large|big|extra|double|heaped|full)\b/.test(seg)) mult *= 1.4;
       if (/\b(small|little|light|mini|half)\b/.test(seg)) mult *= 0.65;

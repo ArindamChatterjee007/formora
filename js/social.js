@@ -268,13 +268,16 @@ const Social = {
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
-    if (e.avatar) return `<img class="av" style="width:${size}px;height:${size}px" src="${e.avatar}" alt="${esc(e.name)}">`;
+    if (e.avatar) return `<img class="av" style="width:${size}px;height:${size}px" src="${esc(e.avatar)}" alt="${esc(e.name)}">`;
     const ini = (e.name || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
     const [c1, c2] = e.colors || ["#ff6b3d", "#ff3d7f"];
     return `<div class="av" style="width:${size}px;height:${size}px;background:linear-gradient(135deg,${c1},${c2});font-size:${Math.round(size * 0.4)}px">${esc(ini)}</div>`;
   },
   timeAgo(ts) {
-    const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    const t = typeof ts === "number" ? ts : Date.parse(ts);
+    if (!isFinite(t)) return "now";
+    const s = Math.floor((Date.now() - t) / 1000);
+    if (s < 1) return "now";
     if (s < 60) return s + "s"; const m = Math.floor(s / 60);
     if (m < 60) return m + "m"; const h = Math.floor(m / 60);
     if (h < 24) return h + "h"; return Math.floor(h / 24) + "d";
@@ -295,8 +298,8 @@ const Social = {
         <div class="composer-top">${this.avatar(meU, 42)}
           <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…"></textarea>
         </div>
-        ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${src}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
-        ${this.pendingVideo ? `<div class="composer-video"><video src="${this.pendingVideo}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
+        ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${esc(src)}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
+        ${this.pendingVideo ? `<div class="composer-video"><video src="${esc(this.pendingVideo)}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
         <div class="composer-actions">
           <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
           <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
@@ -359,12 +362,12 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video" data-fv="${p.id}"><video src="${p.video}" playsinline preload="metadata" loop muted onclick="Social.tapFeedVideo(this)"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
+      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" playsinline preload="metadata" loop muted onclick="Social.tapFeedVideo(this)"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
       : pics.length
       ? (pics.length > 1
-        ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${src}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
-        : `<div class="post-media"><img src="${pics[0]}" alt="post" draggable="false"></div>`)
-      : `<div class="post-media grad" style="background:linear-gradient(135deg,${(p.gradient || ["#ff6b3d", "#ff3d7f"]).join(",")})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
+        ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
+        : `<div class="post-media"><img src="${esc(pics[0])}" alt="post" draggable="false"></div>`)
+      : `<div class="post-media grad" style="background:linear-gradient(135deg,${esc((p.gradient || ["#ff6b3d", "#ff3d7f"]).join(","))})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
     const comments = (p.comments || []).map((c) => `<div class="cmt"><b>${esc(this.persona(c.by).name)}</b> ${esc(c.text)}</div>`).join("");
     const reshared = p.resharedFrom ? `<div class="reshare-note">🔁 reshared from ${esc(this.persona(p.resharedFrom).name)}</div>` : "";
     return `
@@ -498,7 +501,7 @@ const Social = {
     let ov = document.getElementById("story-preview");
     if (!ov) { ov = document.createElement("div"); ov.id = "story-preview"; document.body.appendChild(ov); }
     ov.className = "story-viewer preview";
-    const media = d.isVid ? `<video src="${d.url}" class="sv-media" autoplay loop muted playsinline></video>` : `<img src="${d.url}" class="sv-media" alt="preview" draggable="false">`;
+    const media = d.isVid ? `<video src="${esc(d.url)}" class="sv-media" autoplay loop muted playsinline></video>` : `<img src="${esc(d.url)}" class="sv-media" alt="preview" draggable="false">`;
     ov.innerHTML = `<div class="sv-card">
       <div class="sv-head"><button class="sv-x" onclick="Social.cancelStory()">✕</button><div class="sv-name" style="margin-left:4px">New story</div><button class="sp-redo" onclick="Social.cancelStory();Social.addStoryPick()">↻ Retake</button></div>
       ${media}
@@ -554,8 +557,8 @@ const Social = {
     const dur = item.kind === "video" ? 15 : 5;
     const bars = g.items.map((it, i) => `<span class="sv-bar"><b class="${i < this._storyIi ? "done" : i === this._storyIi ? "run" : ""}"></b></span>`).join("");
     const media = item.kind === "video"
-      ? `<video src="${item.photo}" class="sv-media" playsinline autoplay onended="Social.storyNext()"></video>`
-      : `<img src="${item.photo}" class="sv-media" alt="story" draggable="false">`;
+      ? `<video src="${esc(item.photo)}" class="sv-media" playsinline autoplay onended="Social.storyNext()"></video>`
+      : `<img src="${esc(item.photo)}" class="sv-media" alt="story" draggable="false">`;
     const mineDel = (g.author === meId) ? `<button class="sv-del" onclick="Social.deleteStory('${item.id}')" title="Delete">🗑️</button>` : "";
     let ov = document.getElementById("story-viewer");
     if (!ov) { ov = document.createElement("div"); ov.id = "story-viewer"; document.body.appendChild(ov); }
@@ -824,7 +827,7 @@ const Social = {
     const locked = !isMe && u.privacy === "friends" && !isFriend;
     let tabHtml;
     if (locked) tabHtml = `<div class="vp-locked"><div class="vp-lock-ic">🔒</div><div><b>Friends only</b><br>Connect with ${esc(u.name)} to see their posts &amp; clips.</div></div>`;
-    else if (tab === "clips") tabHtml = clips.length ? `<div class="vp-clips">${clips.map((p) => `<div class="vp-clip"><img src="${p.photo}" alt="clip"></div>`).join("")}</div>` : `<div class="sub" style="text-align:center;padding:16px 0">No clips yet — posts with a photo show here 🎬</div>`;
+    else if (tab === "clips") tabHtml = clips.length ? `<div class="vp-clips">${clips.map((p) => `<div class="vp-clip"><img src="${esc(p.photo)}" alt="clip"></div>`).join("")}</div>` : `<div class="sub" style="text-align:center;padding:16px 0">No clips yet — posts with a photo show here 🎬</div>`;
     else if (tab === "stats") {
       const bmi = u.bmi || 0;
       const bmiCls = bmi ? (bmi < 18.5 ? "Underweight" : bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese") : "—";
