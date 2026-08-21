@@ -1,9 +1,10 @@
 /* ============================================================
    AUTH: local-first login / signup + phone OTP verification
    NOTE: This is on-device auth for a personal app. Passwords are
-   salted + SHA-256 hashed in the browser. Google sign-in and SMS
-   delivery are SIMULATED (no backend). For real Google OAuth and
-   real SMS OTP, wire this to Firebase Auth (see notes in chat).
+   salted + PBKDF2-SHA256 (150k iterations) hashed in the browser;
+   legacy SHA-256 accounts are auto-upgraded on next login. Google
+   sign-in and SMS delivery are SIMULATED (no backend). For real
+   Google OAuth and real SMS OTP, wire this to Firebase Auth.
    ============================================================ */
 
 const AUTH_KEY = "gymcoach_auth";
@@ -35,6 +36,18 @@ const Auth = {
     const buf = await crypto.subtle.digest("SHA-256", bytes);
     return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
   },
+  // PBKDF2-SHA256 key-stretching (150k iterations) for all new/updated passwords
+  async hashPbkdf2(pw, salt, iterations = 150000) {
+    const enc = new TextEncoder();
+    const keyMat = await crypto.subtle.importKey("raw", enc.encode(pw), { name: "PBKDF2" }, false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: enc.encode(salt), iterations, hash: "SHA-256" }, keyMat, 256);
+    return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  },
+  // verify against the PBKDF2 hash, or a legacy SHA-256 hash for older accounts
+  async verifyPassword(acc, pw) {
+    if (acc && acc.algo === "pbkdf2") return (await this.hashPbkdf2(pw, acc.salt, acc.iter || 150000)) === acc.hash;
+    return (await this.hash(pw, acc.salt)) === acc.hash;
+  },
   randHex(n) {
     return [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, "0")).join("");
   },
@@ -61,10 +74,11 @@ const Auth = {
     }
     if (this.findByEmail(email)) throw new Error("An account with this email already exists. Try logging in.");
     const salt = this.randHex(16);
-    const hash = await this.hash(password, salt);
+    const iter = 150000;
+    const hash = await this.hashPbkdf2(password, salt, iter);
     const account = {
       id: "u" + Date.now(),
-      name, email, phone, salt, hash,
+      name, email, phone, salt, hash, algo: "pbkdf2", iter,
       phoneVerified: false, emailVerified: false, provider: "email",
     };
     // hold the account aside until the email verification code is confirmed
@@ -104,8 +118,15 @@ const Auth = {
     }
     const acc = this.findByEmail(email);
     if (!acc || acc.provider !== "email") throw new Error("No email account found. Please sign up first.");
-    const hash = await this.hash(password, acc.salt);
-    if (hash !== acc.hash) throw new Error("Incorrect password.");
+    const ok = await this.verifyPassword(acc, password);
+    if (!ok) throw new Error("Incorrect password.");
+    // transparently re-hash legacy SHA-256 accounts to PBKDF2 on successful login
+    if (acc.algo !== "pbkdf2") {
+      acc.salt = this.randHex(16);
+      acc.iter = 150000;
+      acc.hash = await this.hashPbkdf2(password, acc.salt, acc.iter);
+      acc.algo = "pbkdf2";
+    }
     this.setCurrent(acc.id);
     return acc;
   },
