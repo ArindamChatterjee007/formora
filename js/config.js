@@ -39,6 +39,10 @@ window.APP_VERSION = "1.0.0";
    connect requests and shared feed sync across devices. Empty = local-only. ---- */
 window.SUPABASE_URL = "https://ptukgtxpigdkdzsewuvz.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0dWtndHhwaWdka2R6c2V3dXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MTUwNDEsImV4cCI6MjEwMjI5MTA0MX0.nlm6efF_qABMFaB3BgLk0RMCPbbmiiWd00BdSSJPYfA";
+// Real Supabase Auth (Phase 1) — OFF by default so the app is unchanged. Flip to
+// true ONLY after enabling the Email provider + applying supabase/security.sql.
+// See docs/AUTH_MIGRATION.md.
+window.USE_SUPABASE_AUTH = false;
 window.SOCIAL_API = "";
 
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
