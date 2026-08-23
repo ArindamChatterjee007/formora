@@ -638,6 +638,7 @@ const App = {
         <button class="reel-act like ${p.likedByMe ? "on" : ""}" onclick="App.reelLike('${p.id}',this)">${this.ic("heart", { size: 29, solid: p.likedByMe })}<span>${p.likes}</span></button>
         <button class="reel-act" onclick="App.openReelComments('${p.id}')">${this.ic("comment", { size: 29 })}<span id="rcnt-${p.id}">${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
         <button class="reel-act reshare ${p.resharedByMe ? "on" : ""}" onclick="App.reelReshare('${p.id}',this)">${this.ic("reshare", { size: 28 })}<span>${p.reshares || 0}</span></button>
+        <button class="reel-act" onclick="App.reelShare('${p.id}')">${this.ic("share", { size: 28 })}<span>Share</span></button>
       </div>
       <div class="reel-info" onclick="Social.viewProfile('${p.author}')">
         ${Social.avatar(a, 40)}
@@ -706,12 +707,14 @@ const App = {
     btn.classList.toggle("on", p.resharedByMe);
     btn.innerHTML = this.ic("reshare", { size: 28 }) + `<span>${p.reshares || 0}</span>`;
   },
+  reelShare(id) { Social.sharePost(id); },
 
   // ---- premium inline icon set (24-grid, stroke-based, inherits currentColor) ----
   _ICONS: {
     heart: '<path d="M19.5 4.9a5 5 0 0 0-7.1 0l-.4.4-.4-.4a5 5 0 1 0-7.1 7.1l.4.4L12 20l7.1-7.2.4-.4a5 5 0 0 0 0-7.1Z"/>',
     comment: '<path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/>',
     reshare: '<path d="m17 2 4 4-4 4"/><path d="M3 12v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 12v1a4 4 0 0 1-4 4H3"/>',
+    share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v14"/>',
     send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/>',
     volume: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/>',
     mute: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/>',
@@ -2376,6 +2379,7 @@ const App = {
         <div class="ph-actions">
           <button class="btn" onclick="App.saveSocialProfile()">Save profile</button>
           <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
+          <button class="btn ghost" onclick="Social.shareApp()">Share Formora 🔗</button>
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
       </div>
