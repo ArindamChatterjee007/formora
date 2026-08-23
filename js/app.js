@@ -1333,27 +1333,32 @@ const App = {
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
        <div class="pricing"><div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
        <div class="ptiers">${tiers}</div>
-       <div class="pt-foot">Secure checkout · 5-day free trial on paid plans</div></div>`;
+       <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div></div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
   async choosePlan(tier) {
-    // Try real Lemon Squeezy checkout (create-checkout edge function). Until it's
-    // deployed + configured this fails cleanly and we just capture interest.
-    try {
-      const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
+    // Live Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
+    // checkout with the member's email + uid prefilled; the billing-webhook then
+    // grants the entitlement server-side. No API key needed on the client.
+    const ls = window.LEMONSQUEEZY || {};
+    const link = (ls.buy || {})[tier];
+    if (link) {
       const me = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
-      if (base && me) {
-        const r = await fetch(base + "/functions/v1/create-checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "" },
-          body: JSON.stringify({ uid: me, tier, email: ((typeof Auth !== "undefined" && Auth.currentUser()) || {}).email || "", return_url: location.href }),
-        });
-        if (r.ok) { const j = await r.json(); if (j && j.url) { location.href = j.url; return; } }
-      }
-    } catch (_) {}
-    try { const w = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); w[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(w)); } catch (_) {}
+      const email = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
+      const q = [];
+      if (email) q.push("checkout[email]=" + encodeURIComponent(email));
+      if (me) q.push("checkout[custom][uid]=" + encodeURIComponent(me));
+      q.push("checkout[custom][tier]=" + encodeURIComponent(tier));
+      const url = link + (link.indexOf("?") > -1 ? "&" : "?") + q.join("&");
+      this.closeModal();
+      const w = window.open(url, "_blank", "noopener");
+      if (!w) location.href = url;
+      return;
+    }
+    // Fallback (no link configured for this tier): capture interest locally.
+    try { const d = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); d[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(d)); } catch (_) {}
     this.closeModal();
-    this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " when it launches ✨");
+    this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " ✨");
   },
 
   // open a licensed (SFW) photo search for an outfit — no scraping/embedding
