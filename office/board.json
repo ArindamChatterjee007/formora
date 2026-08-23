@@ -62,7 +62,7 @@
     { "id": "T-08", "title": "Enable Supabase Email provider", "role": "devops", "sprint": 1, "status": "done", "priority": "P0" },
     { "id": "T-09", "title": "Flag-on staging QA: signup/login/session/cross-device", "role": "qa", "sprint": 1, "status": "done", "priority": "P0" },
     { "id": "T-10", "title": "Fix v78 session/uid-continuity failure modes", "role": "eng", "sprint": 1, "status": "done", "priority": "P0" },
-    { "id": "T-11", "title": "Apply security.sql RLS on a staging project", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
+    { "id": "T-11", "title": "Apply security.sql RLS on a staging project", "role": "eng", "sprint": 2, "status": "in_progress", "priority": "P0" },
     { "id": "T-12", "title": "Data-migrate members (email\u2192auth.users)", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
     { "id": "T-13", "title": "Prod cutover + RLS + rollback \u2014 close access-control vuln", "role": "devops", "sprint": 2, "status": "backlog", "priority": "P0" },
     { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
@@ -80,6 +80,7 @@
   "activity": [
     { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
     { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." },
-    { "ts": "2026-08-23", "role": "qa", "text": "T-09 PASSED — flag-on staging test: signup + login + session-persist + JWT all work against real Supabase. Sprint 1 done → Sprint 2 (RLS) active." }
+    { "ts": "2026-08-23", "role": "qa", "text": "T-09 PASSED — flag-on staging test: signup + login + session-persist + JWT all work against real Supabase. Sprint 1 done → Sprint 2 (RLS) active." },
+    { "ts": "2026-08-23", "role": "eng", "text": "Sprint 2 started: hardened security.sql to add RLS for messages (DMs) + notifications — the exact tables that were leaking. SQL now complete; ready to apply on a staging Supabase." }
   ]
 }
