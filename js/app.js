@@ -1875,6 +1875,27 @@ const App = {
     const gp = Engine.goalProgress();
     const sp = Engine.strengthProfile();
     const recs = Engine.weaknessRecs();
+    const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
+    const vt = isPro ? Engine.volumeTrend(8) : [];
+    const lifts = isPro ? Engine.liftProgress(5) : [];
+    const advanced = isPro
+      ? `<div class="card">
+          <h2>Training volume <span class="pro-tag">PRO</span></h2>
+          <div class="sub">Weekly tonnage (reps × weight) · last 8 weeks — trending up means progressive overload</div>
+          <div id="vol-chart"></div>
+        </div>
+        <div class="card">
+          <h2>Strength progression <span class="pro-tag">PRO</span></h2>
+          <div class="sub">Estimated 1-rep max per lift (Epley) · change since you started logging it</div>
+          ${lifts.length ? `<div class="lift-tbl">${lifts.map((l) => `<div class="lift-row"><span class="lift-n">${esc(l.name)}</span><span class="lift-1rm">${this._fromKg(l.e1rm)} ${this._unit()}</span><span class="lift-d ${l.delta >= 0 ? "up" : "down"}">${l.delta >= 0 ? "▲" : "▼"} ${this._fromKg(Math.abs(l.delta))}</span></div>`).join("")}</div>` : `<div class="chart-empty">Log the same lift on 2+ days to see progression.</div>`}
+        </div>`
+      : `<div class="card upgrade-card" onclick="App.openPricing()">
+          <div class="uc-glow"></div>
+          <div class="uc-badge">✨ Formora Pro</div>
+          <div class="uc-title">Unlock advanced analytics</div>
+          <div class="uc-price">Volume trends · estimated 1-rep-max progression · deeper insights</div>
+          <button class="btn wide uc-btn" onclick="event.stopPropagation();App.openPricing()">See plans →</button>
+        </div>`;
     el.innerHTML = `
       <div class="card goal-card">
         <h2>Progress to your goal</h2>
@@ -1924,12 +1945,14 @@ const App = {
         <div class="sub">Sets per split · last 4 weeks</div>
         <div id="balance"></div>
       </div>
+      ${advanced}
       <div class="card"><h2>Coach's read</h2>
         <ul class="guide">${Engine.guidance().map((m) => `<li>${m}</li>`).join("")}</ul>
       </div>`;
     Charts.ring(document.getElementById("goal-ring"), gp.overall, "to goal");
     Charts.weightLine(document.getElementById("weight-chart"), Store.state.weightLog, Store.state.profile.targetWeightKg);
     Charts.bars(document.getElementById("balance"), Engine.muscleBalance());
+    if (isPro) Charts.columns(document.getElementById("vol-chart"), vt);
   },
 
   saveWeight() {
