@@ -631,7 +631,7 @@ const App = {
   reelSlide(p) {
     const a = Social.persona(p.author);
     return `<div class="reel" data-id="${p.id}">
-      <video class="reel-vid" src="${p.video}" data-msrc="${p.music ? esc(p.music.src) : ""}" playsinline loop ${Social._feedSound ? "" : "muted"} preload="metadata" onclick="App.reelTap('${p.id}',event)"></video>
+      <video class="reel-vid" src="${p.video}" data-msrc="${esc(p.music ? p.music.src : "")}" playsinline loop ${Social._feedSound ? "" : "muted"} preload="metadata" onclick="App.reelTap('${p.id}',event)"></video>
       <div class="reel-grad"></div>
       <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">${this.ic(Social._feedSound ? "volume" : "mute", { size: 20 })}</button>
       <div class="reel-actions">
