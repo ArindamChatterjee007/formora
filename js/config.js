@@ -79,7 +79,7 @@ window.LEMONSQUEEZY = {
    Filled in after the Razorpay account + KYC + Payment Pages exist. enabled:false →
    the paywall shows only the global (Lemon Squeezy) card/PayPal option. ---- */
 window.RAZORPAY = {
-  enabled: false, // flip on once RAZORPAY_KEY_ID/SECRET + the webhook secret are set in Supabase
+  enabled: true, // UPI live (India). Test keys until KYC approves → swap to live keys, no code change.
   inr: { pro: 699, elite: 1699 }, // ₹ shown on the India rail (the edge function is authoritative)
 };
 
