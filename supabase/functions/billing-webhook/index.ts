@@ -8,14 +8,19 @@
 //            SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
 // Point the Lemon Squeezy webhook at this function's URL.
 // ============================================================
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createHmac } from "node:crypto";
+// HMAC-SHA256 hex via Web Crypto — no node:/deno.land imports, boots clean on Edge Runtime.
+async function hmacHex(secret: string, msg: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const buf = await crypto.subtle.sign("HMAC", key, enc.encode(msg));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const raw = await req.text();
   const sig = req.headers.get("x-signature") || "";
   const secret = Deno.env.get("LS_WEBHOOK_SECRET") || "";
-  const digest = createHmac("sha256", secret).update(raw).digest("hex");
+  const digest = secret ? await hmacHex(secret, raw) : "";
   if (!secret || digest !== sig) return new Response("bad signature", { status: 401 });
 
   const evt = JSON.parse(raw);

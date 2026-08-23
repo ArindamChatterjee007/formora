@@ -1324,8 +1324,8 @@ const App = {
       <div class="ptier ${t.id === "pro" ? "featured" : ""}">
         ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
         <div class="pt-name">${esc(t.name)}</div>
-        <div class="pt-price">${t.price === "0" ? "Free" : "$" + esc(t.price)}<small>${esc(t.period || "")}</small></div>
-        ${t.yearly ? `<div class="pt-year">or ${esc(t.yearly)}</div>` : ""}
+        <div class="pt-price">${t.price === "0" ? "Free" : (typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))}<small>${esc(t.period || "")}</small></div>
+        ${t.yearly ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
         ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`}
       </div>`).join("");
@@ -1333,8 +1333,9 @@ const App = {
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
        <div class="pricing"><div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
        <div class="ptiers">${tiers}</div>
-       <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div></div>`;
+       <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div>${typeof Currency !== "undefined" && Currency.isLocal() ? `<div class="pt-foot" style="opacity:.65;margin-top:6px">Prices shown in your local currency (${esc(Currency.cur)}). International cards are billed in USD.</div>` : ""}</div>`;
     document.getElementById("modal").classList.remove("hidden");
+    if (typeof Currency !== "undefined" && !Currency.ready) { Currency.init().then(() => { if (!document.getElementById("modal").classList.contains("hidden")) this.openPricing(); }); }
   },
   async choosePlan(tier) {
     // Live Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
