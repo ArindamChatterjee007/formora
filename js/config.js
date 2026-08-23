@@ -75,6 +75,15 @@ window.LEMONSQUEEZY = {
   variant: { pro: 2049632, elite: 2049732 },
 };
 
+/* ---- Razorpay (India rail) — UPI + cards + netbanking + wallets, charged in ₹.
+   Filled in after the Razorpay account + KYC + Payment Pages exist. enabled:false →
+   the paywall shows only the global (Lemon Squeezy) card/PayPal option. ---- */
+window.RAZORPAY = {
+  enabled: false,
+  keyId: "",
+  buy: { pro: "", elite: "" },
+};
+
 /* ---- Auto local-currency display — every visitor sees prices in THEIR currency.
    country→currency via ipapi.co + USD→local rate via open.er-api.com (both free, no key),
    cached 24h. Display-only estimate ("≈"); the actual charge is USD (Lemon Squeezy, the

@@ -1327,7 +1327,7 @@ const App = {
         <div class="pt-price">${t.price === "0" ? "Free" : (typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))}<small>${esc(t.period || "")}</small></div>
         ${t.yearly ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
-        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`}
+        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI 🇮🇳</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal 🌍</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
       </div>`).join("");
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
@@ -1337,8 +1337,23 @@ const App = {
     document.getElementById("modal").classList.remove("hidden");
     if (typeof Currency !== "undefined" && !Currency.ready) { Currency.init().then(() => { if (!document.getElementById("modal").classList.contains("hidden")) this.openPricing(); }); }
   },
-  async choosePlan(tier) {
-    // Live Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
+  async choosePlan(tier, rail) {
+    // India UPI rail (Razorpay) when chosen + configured — charged in ₹, uid+tier in notes.
+    if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled && (RAZORPAY.buy || {})[tier]) {
+      const meR = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
+      const emailR = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
+      const qp = [];
+      if (emailR) qp.push("prefill[email]=" + encodeURIComponent(emailR));
+      if (meR) qp.push("notes[uid]=" + encodeURIComponent(meR));
+      qp.push("notes[tier]=" + encodeURIComponent(tier));
+      let rurl = RAZORPAY.buy[tier];
+      rurl += (rurl.indexOf("?") > -1 ? "&" : "?") + qp.join("&");
+      this.closeModal();
+      const rw = window.open(rurl, "_blank", "noopener");
+      if (!rw) location.href = rurl;
+      return;
+    }
+    // Global rail — Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
     // checkout with the member's email + uid prefilled; the billing-webhook then
     // grants the entitlement server-side. No API key needed on the client.
     const ls = window.LEMONSQUEEZY || {};
