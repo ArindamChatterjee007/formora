@@ -39,10 +39,12 @@ window.APP_VERSION = "1.0.0";
    connect requests and shared feed sync across devices. Empty = local-only. ---- */
 window.SUPABASE_URL = "https://ptukgtxpigdkdzsewuvz.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0dWtndHhwaWdka2R6c2V3dXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MTUwNDEsImV4cCI6MjEwMjI5MTA0MX0.nlm6efF_qABMFaB3BgLk0RMCPbbmiiWd00BdSSJPYfA";
-// Real Supabase Auth (Phase 2 cutover) — ON. Identity is the server-issued
-// auth.uid() UUID (see cloud.js _ensureIdentity), which RLS owner checks require.
-// Rollback: set false + redeploy, then disable RLS per supabase/security.sql.
-window.USE_SUPABASE_AUTH = true;
+// Real Supabase Auth — OFF (rolled back v99). The v98 flag-on cutover broke
+// existing users' sessions on refresh (their Supabase user was wiped mid-session),
+// so we reverted to the stable anon-key app: local login persists, the feed loads
+// without a login wall, and posts stay owned by uidFor(email). RLS is disabled in
+// the DB to match. Re-enable later WITH backups + a real existing-user migration.
+window.USE_SUPABASE_AUTH = false;
 window.SOCIAL_API = "";
 
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").

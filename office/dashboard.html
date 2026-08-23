@@ -56,7 +56,56 @@
   .feed .row:last-child{ border-bottom:none } .feed .ts{ font-family:'JetBrains Mono',monospace; color:var(--sub); font-size:12px; white-space:nowrap }
   .foot{ margin-top:30px; color:var(--sub); font-size:12.5px; text-align:center; line-height:1.6 }
   #loading{ text-align:center; padding:80px 0; color:var(--sub); font-size:16px }
-  @media(max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} .kpis{grid-template-columns:repeat(2,1fr)} .grid2{grid-template-columns:1fr} .roles{grid-template-columns:repeat(2,1fr)} }
+  .ph{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--sub); font-weight:800; margin-bottom:10px }
+  /* distance to goal */
+  .youhere{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 2px 14px; font-size:13.5px; color:var(--sub) }
+  .youhere b{ color:var(--ink) }
+  .youhere .pill{ font-family:'JetBrains Mono',monospace; font-weight:700; color:#fff; background:linear-gradient(140deg,var(--g1),var(--g3)); padding:4px 10px; border-radius:8px; font-size:12px }
+  .goals{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px }
+  .goalc{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 15px }
+  .goalc.next{ border-color:rgba(255,90,77,.5); box-shadow:0 8px 26px rgba(255,90,77,.14) }
+  .goalc .gid{ font-family:'JetBrains Mono',monospace; font-weight:800; font-size:13px }
+  .goalc .gnm{ font-weight:800; font-size:15px; margin-top:3px }
+  .goalc .gtar{ color:var(--sub); font-size:11.5px; margin-top:6px; line-height:1.35; min-height:46px }
+  .goalc .gbar{ height:8px; border-radius:999px; background:rgba(255,255,255,.08); margin-top:6px; overflow:hidden }
+  .goalc .gbar i{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--g1),var(--g3)) }
+  .goalc .gpct{ display:flex; justify-content:space-between; margin-top:7px; font-size:11.5px; color:var(--sub) }
+  .goalc .gtag{ position:absolute; top:12px; right:12px; font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:3px 7px; border-radius:6px }
+  .gtag.next{ background:linear-gradient(140deg,var(--g1),var(--g3)); color:#fff } .gtag.locked{ background:rgba(255,255,255,.06); color:var(--sub) } .gtag.done{ background:rgba(67,217,163,.16); color:var(--ok) }
+  /* finance cockpit */
+  .fintiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px }
+  .fintile{ background:linear-gradient(140deg, rgba(255,90,77,.10), rgba(255,61,127,.06)); border:1px solid var(--line); border-radius:14px; padding:15px 16px }
+  .fintile .l{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--sub); font-weight:700 }
+  .fintile .v{ font-size:26px; font-weight:900; margin-top:5px } .fintile .s{ font-size:11.5px; color:var(--sub); margin-top:3px }
+  .fin{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start }
+  .fincol{ display:flex; flex-direction:column; gap:16px }
+  .stream{ display:flex; align-items:center; gap:9px; padding:9px 0; border-bottom:1px solid var(--line) } .stream:last-child{ border-bottom:none }
+  .stream .snm{ font-weight:600; font-size:13.5px } .stream .snote{ color:var(--sub); font-size:11.5px; margin-top:2px }
+  .st{ font-size:10px; font-weight:800; padding:2px 7px; border-radius:6px; text-transform:uppercase; letter-spacing:.04em; margin-left:auto; white-space:nowrap }
+  .st.building{ background:rgba(255,206,84,.16); color:#ffd98a } .st.planned{ background:rgba(80,160,255,.16); color:#9ec3ff } .st.idea{ background:rgba(255,255,255,.07); color:var(--sub) } .st.live{ background:rgba(67,217,163,.16); color:var(--ok) }
+  .ty{ font-size:10px; color:var(--sub); border:1px solid var(--line); padding:1px 6px; border-radius:5px }
+  .fun{ display:flex; flex-direction:column; gap:9px }
+  .fun .fh{ display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px }
+  .fun .ftrack{ height:22px; border-radius:7px; background:rgba(255,255,255,.05); overflow:hidden }
+  .fun .ffill{ height:100%; border-radius:7px; background:linear-gradient(90deg, rgba(255,157,77,.55), rgba(255,61,127,.55)); display:flex; align-items:center; padding-left:8px; font-size:11px; font-weight:700; min-width:6px }
+  table.ue{ width:100%; border-collapse:collapse; font-size:13px } table.ue td{ padding:7px 4px; border-bottom:1px solid var(--line) } table.ue tr:last-child td{ border-bottom:none }
+  table.ue td:first-child{ color:var(--sub) } table.ue td:nth-child(2){ text-align:right; font-weight:700 } table.ue td:nth-child(3){ text-align:right; color:var(--sub); font-size:11.5px }
+  .tiers{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px }
+  .tier{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:12px; padding:12px } .tier.pro{ border-color:rgba(255,90,77,.4) }
+  .tier .tn{ font-weight:800; font-size:14px } .tier .tp{ font-size:18px; font-weight:900; margin-top:4px } .tier .tp small{ font-size:12px; color:var(--sub); font-weight:600 } .tier .tnote{ color:var(--sub); font-size:11px; margin-top:6px; line-height:1.35 }
+  table.proj{ width:100%; border-collapse:collapse; font-size:13px } table.proj th,table.proj td{ padding:7px 6px; border-bottom:1px solid var(--line); text-align:right } table.proj tr:last-child td{ border-bottom:none }
+  table.proj th:first-child,table.proj td:first-child{ text-align:left; color:var(--sub) } table.proj th{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); font-weight:700 } table.proj .base{ color:var(--ink); font-weight:800 }
+  /* org chart */
+  .csuite{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:14px }
+  .exec{ background:linear-gradient(140deg, rgba(255,90,77,.12), rgba(255,61,127,.08)); border:1px solid rgba(255,90,77,.3); border-radius:13px; padding:12px 14px; text-align:center }
+  .exec .e{ font-size:22px } .exec .rt{ font-weight:800; font-size:14px; margin-top:5px } .exec .rd{ color:var(--sub); font-size:11px; margin-top:4px; line-height:1.3 }
+  .depts{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px }
+  .deptc{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px }
+  .deptc h4{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--sub); font-weight:800; margin-bottom:8px; display:flex; align-items:center; gap:7px }
+  .deptc h4 .cnt{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; background:rgba(255,255,255,.06); padding:1px 7px; border-radius:999px }
+  .person{ display:flex; gap:9px; padding:8px 0; border-bottom:1px solid var(--line) } .person:last-child{ border-bottom:none }
+  .person .pe{ font-size:17px; width:22px; text-align:center; flex:none } .person .pn{ font-weight:700; font-size:13px } .person .pn .lead{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(140deg,var(--g1),var(--g3)); padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:middle } .person .pd{ color:var(--sub); font-size:11px; margin-top:2px; line-height:1.3 }
+  @media(max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} .kpis{grid-template-columns:repeat(2,1fr)} .grid2{grid-template-columns:1fr} .goals{grid-template-columns:repeat(2,1fr)} .fin{grid-template-columns:1fr} .fintiles{grid-template-columns:1fr} .depts{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -69,16 +118,25 @@
     </header>
     <div class="kpis" id="kpis"></div>
     <div class="sprintbar" id="sprintbar"></div>
+
+    <div class="section-h">🎯 Distance to goal — the road to $10k MRR</div>
+    <div id="goals"></div>
+
+    <div class="section-h">💰 Financial cockpit</div>
+    <div id="finance"></div>
+
     <div class="section-h">Sprint board</div>
     <div class="board" id="board"></div>
+
+    <div class="section-h">🏢 The company — every seat is a Copilot agent</div>
+    <div id="org"></div>
+
     <div class="grid2">
-      <div>
-        <div class="section-h">The AI team (all powered by Copilot)</div>
-        <div class="panel"><div class="roles" id="roles"></div></div>
-      </div>
       <div>
         <div class="section-h">Revenue milestones</div>
         <div class="panel" id="milestones"></div>
+      </div>
+      <div>
         <div class="section-h">Activity</div>
         <div class="panel feed" id="feed"></div>
       </div>
@@ -94,6 +152,41 @@
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   async function load(){ for(const u of SOURCES){ try{ const r=await fetch(u,{cache:'no-store'}); if(r.ok) return await r.json(); }catch(e){} } throw new Error('board unreachable'); }
   function roleOf(b,k){ return (b.roles.find(r=>r.key===k))||{emoji:'•',title:k}; }
+  const pct=(c,t)=>!t?0:Math.max(0,Math.min(100,(c/t)*100));
+  const money=n=>'$'+Number(n||0).toLocaleString();
+  function renderGoals(b){
+    const el=document.getElementById('goals'); if(!el) return; const B=b.business; if(!B||!B.goals){ el.style.display='none'; return; }
+    const G=B.goals; let ni=G.findIndex(g=>g.current<g.target); if(ni<0) ni=G.length-1;
+    const head=`<div class="youhere"><span class="pill">YOU ARE HERE</span> MRR <b>${money(B.mrr.current)}</b> · <b>${B.payingUsers}</b> paying · North Star <b>${B.northStar.current}/${B.northStar.target}</b> — next stop <b>${esc(G[ni].id+' · '+G[ni].name)}</b></div>`;
+    const cards=G.map((g,i)=>{ const p=pct(g.current,g.target), done=g.current>=g.target;
+      const tag=done?'<span class="gtag done">Done</span>':(i===ni?'<span class="gtag next">Next</span>':'<span class="gtag locked">Locked</span>');
+      const o=roleOf(b,g.owner); const val=g.unit==='$'?money(g.current)+' / '+money(g.target):g.current+' / '+g.target;
+      return `<div class="goalc ${i===ni?'next':''}">${tag}<div class="gid grad">${esc(g.id)}</div><div class="gnm">${esc(g.name)}</div><div class="gtar">${esc(g.metric)}</div><div class="gbar"><i style="width:${p.toFixed(1)}%"></i></div><div class="gpct"><span>${esc(val)}</span><span>${o.emoji} · S${esc(g.sprint)}</span></div></div>`;
+    }).join('');
+    el.innerHTML=head+`<div class="goals">${cards}</div>`;
+  }
+  function renderFinance(b){
+    const el=document.getElementById('finance'); const B=b.business; if(!el) return; if(!B){ el.style.display='none'; return; }
+    const tiles=`<div class="fintiles"><div class="fintile"><div class="l">MRR now</div><div class="v grad">${money(B.mrr.current)}</div><div class="s">goal ${money(B.mrr.goal)} · ${esc(B.mrr.goalLabel)}</div></div><div class="fintile"><div class="l">Paying customers</div><div class="v">${B.payingUsers}</div><div class="s">${B.registeredUsers} registered</div></div><div class="fintile"><div class="l">Monthly burn</div><div class="v">${esc(B.monthlyCost)}</div><div class="s">${esc(B.runway)}</div></div></div>`;
+    const streams=`<div class="panel"><div class="ph">Revenue streams · ${B.streams.length}</div>`+B.streams.map(s=>`<div class="stream"><div><div class="snm">${esc(s.name)} <span class="ty">${esc(s.type)}</span></div><div class="snote">${esc(s.note)}</div></div><span class="st ${esc(s.status)}">${esc(s.status)}</span></div>`).join('')+`</div>`;
+    const tiers=`<div class="panel"><div class="ph">Pricing</div><div class="tiers">`+B.pricing.map(t=>`<div class="tier ${t.tier==='Pro'?'pro':''}"><div class="tn">${esc(t.tier)}</div><div class="tp">${esc(t.mo)}<small>/mo</small></div><div class="tnote">${t.yr?esc(t.yr)+'/yr':'free'}${t.inr?' · '+esc(t.inr):''}<br>${esc(t.note)}</div></div>`).join('')+`</div></div>`;
+    const mx=Math.max.apply(null,B.funnel.map(f=>f.target))||1;
+    const funnel=`<div class="panel"><div class="ph">Target funnel (monthly)</div><div class="fun">`+B.funnel.map(f=>{ const w=Math.max(6,(f.target/mx)*100); return `<div class="frow"><div class="fh"><span>${esc(f.stage)}${f.note?' · <span style="color:var(--sub)">'+esc(f.note)+'</span>':''}</span><span>${f.current} / ${f.target}</span></div><div class="ftrack"><div class="ffill" style="width:${w}%">${f.target}</div></div></div>`; }).join('')+`</div></div>`;
+    const ue=`<div class="panel"><div class="ph">Unit economics · target vs benchmark</div><table class="ue"><tbody>`+B.unitEconomics.map(u=>`<tr><td>${esc(u.metric)}</td><td>${esc(u.target)}</td><td>${esc(u.benchmark)}</td></tr>`).join('')+`</tbody></table></div>`;
+    const proj=`<div class="panel"><div class="ph">Revenue projection · illustrative</div><table class="proj"><thead><tr><th>Period</th><th>Cons.</th><th>Base</th><th>Optim.</th></tr></thead><tbody>`+B.projection.map(p=>`<tr><td>${esc(p.period)}</td><td>${esc(p.conservative)}</td><td class="base">${esc(p.base)}</td><td>${esc(p.optimistic)}</td></tr>`).join('')+`</tbody></table></div>`;
+    el.innerHTML=tiles+`<div class="fin"><div class="fincol">${streams}${tiers}</div><div class="fincol">${funnel}${ue}</div><div class="fincol">${proj}</div></div>`;
+  }
+  function renderOrg(b){
+    const el=document.getElementById('org'); if(!el) return;
+    if(!b.roles.some(r=>r.team)){ el.innerHTML='<div class="panel"><div class="depts">'+b.roles.map(r=>`<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)}</div><div class="pd">${esc(r.does)}</div></div></div>`).join('')+'</div></div>'; return; }
+    const execs=b.roles.filter(r=>r.level==='exec');
+    const csuite='<div class="csuite">'+execs.map(r=>`<div class="exec"><div class="e">${r.emoji}</div><div class="rt">${esc(r.title)}</div><div class="rd">${esc(r.does)}</div></div>`).join('')+'</div>';
+    const order=['Finance','Business Intelligence','Sales & Partnerships','Marketing & Growth','Product','Engineering'];
+    const teams=Array.from(new Set(b.roles.map(r=>r.team))).filter(t=>t&&t!=='Executive').sort((a,c)=>(order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(c)<0?99:order.indexOf(c)));
+    const depts='<div class="depts">'+teams.map(tm=>{ const m=b.roles.filter(r=>r.team===tm&&r.level!=='exec').sort((a,c)=>(a.level==='lead'?0:1)-(c.level==='lead'?0:1));
+      return `<div class="deptc"><h4>${esc(tm)}<span class="cnt">${m.length}</span></h4>`+m.map(r=>`<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)}${r.level==='lead'?'<span class="lead">LEAD</span>':''}</div><div class="pd">${esc(r.does)}</div></div></div>`).join('')+`</div>`; }).join('')+'</div>';
+    el.innerHTML=csuite+depts;
+  }
   function render(b){
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
@@ -118,8 +211,8 @@
       }).join('') || `<div style="color:var(--sub);font-size:12px;padding:6px 2px">—</div>`;
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
-    // roles
-    document.getElementById('roles').innerHTML = b.roles.map(r=>`<div class="rc"><div class="e">${r.emoji}</div><div class="rt">${esc(r.title)}</div><div class="rd">${esc(r.does)}</div></div>`).join('');
+    // goals + finance + org
+    renderGoals(b); renderFinance(b); renderOrg(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed
