@@ -361,15 +361,16 @@ const Social = {
   shareApp() { this._share("I'm getting fit with Formora \u2014 an AI coach + fitness social app"); },
   // ---- save / bookmark (local, personal) ----
   isSaved(id) { try { return JSON.parse(localStorage.getItem("fm_saved") || "[]").includes(id); } catch (e) { return false; } },
-  toggleSave(id) {
+  _setSaved(id) {
     let arr = []; try { arr = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { arr = []; }
-    const i = arr.indexOf(id);
+    const i = arr.indexOf(id); const saved = i < 0;
     if (i >= 0) arr.splice(i, 1); else arr.unshift(id);
     localStorage.setItem("fm_saved", JSON.stringify(arr));
     this.haptic(12);
-    if (typeof App !== "undefined" && App.toast) App.toast(i >= 0 ? "Removed from saved" : "Saved \ud83d\udd16");
-    this.render();
+    if (typeof App !== "undefined" && App.toast) App.toast(saved ? "Saved \ud83d\udd16" : "Removed from saved");
+    return saved;
   },
+  toggleSave(id) { this._setSaved(id); this.render(); },
   openSaved() {
     let ids = []; try { ids = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { ids = []; }
     const list = this.cloudActive() ? (this.cloud.feed || []) : (this.feed() || []);
