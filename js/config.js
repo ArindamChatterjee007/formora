@@ -58,6 +58,23 @@ window.PRICING = {
   ],
 };
 
+/* ---- Lemon Squeezy (Merchant of Record) — LIVE hosted checkout. Store "Formora"
+   (#458401), USD. Clicking Upgrade opens the tier's hosted checkout with the
+   member's email + uid prefilled — no API key needed on the client. The
+   billing-webhook edge function grants the entitlement on payment (Lemon Squeezy
+   echoes back checkout[custom][uid]). Currently in TEST mode until the store is
+   activated for live payouts; flip testMode:false after activation. ---- */
+window.LEMONSQUEEZY = {
+  store: "formora",
+  storeId: 458401,
+  testMode: true,
+  buy: {
+    pro: "https://formora.lemonsqueezy.com/checkout/buy/ef961463-efc0-48fe-b96d-87421e91cc71",
+    elite: "https://formora.lemonsqueezy.com/checkout/buy/e700787c-a588-4935-b381-e60552e6e732",
+  },
+  variant: { pro: 2049632, elite: 2049732 },
+};
+
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
    A banned user is blocked at login with a suspension notice, and their posts /
    stories / profile are hidden across the app. Remove a uid here to lift a ban. ---- */
