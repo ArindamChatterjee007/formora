@@ -242,9 +242,10 @@ const Social = {
   // Instagram-style feed video: muted autoplay in view; TAP the video turns sound on; speaker toggles it (persists across videos)
   _feedSound: false,
   _applyFeedSound(cur) {
-    document.querySelectorAll("#view-feed .post-media.video video").forEach((v) => { v.muted = !this._feedSound; });
+    document.querySelectorAll("#view-feed .post-media.video video").forEach((v) => { v.muted = v.getAttribute("data-msrc") ? true : !this._feedSound; });
     document.querySelectorAll("#view-feed .fv-mute").forEach((b) => { b.innerHTML = App.ic(this._feedSound ? "volume" : "mute", { size: 18 }); });
-    if (cur) { cur.muted = !this._feedSound; cur.play().catch(() => {}); }
+    if (this._musicAudio) this._musicAudio.muted = !this._feedSound;
+    if (cur) { cur.muted = cur.getAttribute("data-msrc") ? true : !this._feedSound; cur.play().catch(() => {}); }
   },
   tapFeedVideo(v) {
     if (v.muted) { this._feedSound = true; this._applyFeedSound(v); return; } // first tap = sound on
@@ -258,10 +259,17 @@ const Social = {
   },
   _bindFeedVideos() {
     const vids = document.querySelectorAll("#view-feed .post-media.video video");
-    if (!vids.length) { if (this._feedVidObs) { this._feedVidObs.disconnect(); this._feedVidObs = null; } return; }
+    if (!vids.length) { if (this._feedVidObs) { this._feedVidObs.disconnect(); this._feedVidObs = null; } this.stopMusic(); return; }
     if (this._feedVidObs) this._feedVidObs.disconnect();
     this._feedVidObs = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { const v = e.target; if (e.isIntersecting && e.intersectionRatio > 0.6) { v.muted = !Social._feedSound; v.play().catch(() => {}); } else v.pause(); });
+      entries.forEach((e) => {
+        const v = e.target;
+        const msrc = v.getAttribute("data-msrc") || "";
+        if (e.isIntersecting && e.intersectionRatio > 0.6) {
+          if (msrc) { v.muted = true; Social.playMusic(msrc); } else { v.muted = !Social._feedSound; if (Social._musicSrc) Social.stopMusic(); }
+          v.play().catch(() => {});
+        } else { v.pause(); if (msrc && Social._musicSrc === msrc) Social.stopMusic(); }
+      });
     }, { threshold: [0, 0.6, 1] });
     vids.forEach((v) => this._feedVidObs.observe(v));
   },
@@ -297,6 +305,43 @@ const Social = {
     document.body.appendChild(h);
     setTimeout(() => h.remove(), 800);
   },
+  // ---- music (royalty-free): attach a track in the composer; plays in feed + reels ----
+  pendingMusic: null,
+  _musicSrc: null,
+  pickMusic() {
+    const M = (window.MUSIC && window.MUSIC.tracks) || [];
+    const card = document.getElementById("modal-card"); if (!card) return;
+    const pm = this.pendingMusic;
+    const rows = M.map((t) => `<div class="music-row ${pm && pm.id === t.id ? "sel" : ""}" onclick="Social.selectMusic('${t.id}')">
+      <button class="music-play" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${this._preview && this._preview.id === t.id ? "⏸" : "▶"}</button>
+      <div class="music-meta"><div class="music-t">${esc(t.title)}</div><div class="music-a">${esc(t.genre)} · ${esc(t.artist)}</div></div>
+      ${pm && pm.id === t.id ? `<span class="music-check">✓</span>` : ""}
+    </div>`).join("");
+    card.innerHTML = `<div class="modal-head"><h2>Add music 🎵</h2><button class="icon-btn" onclick="Social._stopPreview();App.closeModal()">✕</button></div>
+      <div class="music-list">${rows || `<div class="sub">No tracks available.</div>`}</div>
+      <div class="music-credit">${esc((window.MUSIC && window.MUSIC.credit) || "")}</div>
+      <div class="music-actions">${pm ? `<button class="btn ghost wide" onclick="Social.removeMusic()">Remove</button>` : ""}<button class="btn wide" onclick="Social.musicDone()">Done</button></div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  selectMusic(id) {
+    const t = ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id); if (!t) return;
+    this.pendingMusic = { id: t.id, title: t.title, artist: t.artist, src: t.src };
+    this.previewMusic(id, true);
+  },
+  previewMusic(id, force) {
+    const t = ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id); if (!t) return;
+    if (this._preview && this._preview.id === id && !force) { this._stopPreview(); this.pickMusic(); return; }
+    this._stopPreview();
+    const a = new Audio(t.src); this._preview = { id, a };
+    a.play().catch(() => {});
+    this.pickMusic();
+  },
+  _stopPreview() { if (this._preview) { try { this._preview.a.pause(); } catch (e) {} this._preview = null; } },
+  musicDone() { this._stopPreview(); if (typeof App !== "undefined" && App.closeModal) App.closeModal(); this.render(); },
+  removeMusic() { this.pendingMusic = null; this._stopPreview(); if (typeof App !== "undefined" && App.closeModal) App.closeModal(); this.render(); },
+  _ensureMusic() { if (!this._musicAudio) { const a = document.createElement("audio"); a.loop = true; a.preload = "none"; this._musicAudio = a; } return this._musicAudio; },
+  playMusic(src) { if (!src) return this.stopMusic(); const a = this._ensureMusic(); if (this._musicSrc !== src) { a.src = src; this._musicSrc = src; } a.muted = !this._feedSound; a.play().catch(() => {}); },
+  stopMusic() { if (this._musicAudio) { try { this._musicAudio.pause(); } catch (e) {} } this._musicSrc = null; },
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
@@ -332,9 +377,11 @@ const Social = {
         </div>
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${esc(src)}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         ${this.pendingVideo ? `<div class="composer-video"><video src="${esc(this.pendingVideo)}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
+        ${this.pendingMusic ? `<div class="composer-music">🎵 <b>${esc(this.pendingMusic.title)}</b> · ${esc(this.pendingMusic.artist)}<button class="cp-x" onclick="Social.removeMusic()">✕</button></div>` : ""}
         <div class="composer-actions">
           <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
           <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
+          <button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">🎵 Music</button>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
@@ -351,7 +398,7 @@ const Social = {
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
     const reshares = (this.cloud.feed || []).filter((x) => x && x.reshareOf === p.id).length;
     const resharedByMe = (this.cloud.feed || []).some((x) => x && x.reshareOf === p.id && x.author === meId);
-    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares, resharedByMe, ts: p.ts || Date.now() };
+    return { id: p.id, author: p.author, text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, resharedFrom: p.resharedFrom || null, gradient: p.gradient || ["#ff6b3d", "#ff3d7f"], tag: p.tag || "Flex", likes: Object.keys(likes).length, likedByMe: !!(meId && likes[meId]), likers: Object.keys(likes), comments: p.comments || [], reshares, resharedByMe, music: p.music || null, ts: p.ts || Date.now() };
   },
   _likerName(id) { const u = (typeof Cloud !== "undefined" && id === Cloud.me) ? this.me() : (this.cloudUser(id) || null); return u ? (u.name || ("@" + u.handle)) : ("@" + id); },
   _likerNames(uids) {
@@ -394,7 +441,7 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
+      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" data-msrc="${esc(p.music ? p.music.src : "")}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
       : pics.length
       ? (pics.length > 1
         ? `<div class="post-media carousel" onclick="Social.mediaTap('${p.id}',event,'photo')">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
@@ -415,6 +462,7 @@ const Social = {
         ${reshared}
         ${p.text ? `<div class="post-text">${esc(p.text)}</div>` : ""}
         ${media}
+        ${p.music ? `<div class="music-pill">🎵 <b>${esc(p.music.title)}</b> · ${esc(p.music.artist)}</div>` : ""}
         <div class="post-actions">
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${App.ic("heart", { size: 22, solid: p.likedByMe })} <span>${p.likes}</span></button>
           <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
@@ -639,15 +687,15 @@ const Social = {
     const video = this.pendingVideo || null;
     if (!text && !photos.length && !video) { alert("Write something, add a photo or a Flex to post."); return; }
     if (this.cloudActive()) {
-      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex" });
+      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex", music: this.pendingMusic || null });
       if (np) this.cloud.feed.unshift(np);
-      this.pendingPhotos = []; this.pendingVideo = null;
+      this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null;
       if (typeof App !== "undefined" && App.toast) App.toast(video ? "Flex posted 💪" : "Posted to the feed 🎉");
       const el = document.getElementById("post-text"); if (el) el.value = "";
       this.render();
       return;
     }
-    this.createPost({ text, photo: photos[0] || null }); this.pendingPhotos = []; this.render();
+    this.createPost({ text, photo: photos[0] || null, music: this.pendingMusic || null }); this.pendingPhotos = []; this.pendingMusic = null; this.render();
   },
   removePost(id) {
     if (!confirm("Delete this post? This can't be undone.")) return;

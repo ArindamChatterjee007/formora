@@ -47,6 +47,21 @@ window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 window.USE_SUPABASE_AUTH = false;
 window.SOCIAL_API = "";
 
+/* ---- Music library (royalty-free) — attach a track to a Flex/post and it plays
+   in Reels + on feed videos, synced to the global sound toggle. A licensed
+   trending-song catalog (like Instagram's) needs a label/distributor deal; this
+   is the legal royalty-free MVP. Clips hosted in our own Supabase storage. ---- */
+window.MUSIC = {
+  credit: "Royalty-free music by SoundHelix (T. Sch\u00fcrger)",
+  tracks: [
+    { id: "m1", title: "Adrenaline",  artist: "Formora Sounds", genre: "Workout", src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track1.mp3" },
+    { id: "m2", title: "Momentum",    artist: "Formora Sounds", genre: "Hype",    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track2.mp3" },
+    { id: "m3", title: "Golden Hour", artist: "Formora Sounds", genre: "Chill",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track3.mp3" },
+    { id: "m5", title: "Focus Flow",  artist: "Formora Sounds", genre: "Focus",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track5.mp3" },
+    { id: "m8", title: "Night Drive", artist: "Formora Sounds", genre: "Lo-fi",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track8.mp3" },
+  ],
+};
+
 // Subscription tiers (T-28 pricing page). Real checkout wires in once a
 // Merchant-of-Record is live (office T-25/T-14); until then the CTA captures
 // early-access interest locally.
