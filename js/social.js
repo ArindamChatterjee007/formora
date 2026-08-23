@@ -359,6 +359,28 @@ const Social = {
     this._share(post && post.text ? post.text : "Check out this fitness progress on Formora");
   },
   shareApp() { this._share("I'm getting fit with Formora \u2014 an AI coach + fitness social app"); },
+  // ---- save / bookmark (local, personal) ----
+  isSaved(id) { try { return JSON.parse(localStorage.getItem("fm_saved") || "[]").includes(id); } catch (e) { return false; } },
+  toggleSave(id) {
+    let arr = []; try { arr = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { arr = []; }
+    const i = arr.indexOf(id);
+    if (i >= 0) arr.splice(i, 1); else arr.unshift(id);
+    localStorage.setItem("fm_saved", JSON.stringify(arr));
+    this.haptic(12);
+    if (typeof App !== "undefined" && App.toast) App.toast(i >= 0 ? "Removed from saved" : "Saved \ud83d\udd16");
+    this.render();
+  },
+  openSaved() {
+    let ids = []; try { ids = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { ids = []; }
+    const list = this.cloudActive() ? (this.cloud.feed || []) : (this.feed() || []);
+    const posts = ids.map((id) => list.find((p) => p.id === id)).filter(Boolean);
+    const card = document.getElementById("modal-card"); if (!card) return;
+    const body = posts.length
+      ? posts.map((p) => this.postCard(this.cloudActive() ? this._cloudPost(p) : p)).join("")
+      : `<div class="sub" style="text-align:center;padding:24px 6px">No saved posts yet. Tap the \ud83d\udd16 on any post to save it here.</div>`;
+    card.innerHTML = `<div class="modal-head"><h2>Saved</h2><button class="icon-btn" onclick="App.closeModal()">\u2715</button></div><div class="saved-list">${body}</div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
@@ -485,6 +507,7 @@ const Social = {
           <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
           <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">${App.ic("reshare", { size: 22 })} <span>${p.reshares || 0}</span></button>
           <button class="pa share" title="Share" onclick="Social.sharePost('${p.id}')">${App.ic("share", { size: 21 })}</button>
+          <button class="pa save ${this.isSaved(p.id) ? "on" : ""}" title="Save" onclick="Social.toggleSave('${p.id}')">${App.ic("bookmark", { size: 21, solid: this.isSaved(p.id) })}</button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
@@ -655,7 +678,7 @@ const Social = {
     const dur = item.kind === "video" ? 15 : 5;
     const bars = g.items.map((it, i) => `<span class="sv-bar"><b class="${i < this._storyIi ? "done" : i === this._storyIi ? "run" : ""}"></b></span>`).join("");
     const media = item.kind === "video"
-      ? `<video src="${esc(item.photo)}" class="sv-media" playsinline autoplay onended="Social.storyNext()"></video>`
+      ? `<video src="${esc(item.photo)}" class="sv-media" playsinline autoplay ${this._feedSound ? "" : "muted"} onended="Social.storyNext()"></video>`
       : `<img src="${esc(item.photo)}" class="sv-media" alt="story" draggable="false">`;
     const mineDel = (g.author === meId) ? `<button class="sv-del" onclick="Social.deleteStory('${item.id}')" title="Delete">🗑️</button>` : "";
     let ov = document.getElementById("story-viewer");

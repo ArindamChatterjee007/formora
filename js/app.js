@@ -715,6 +715,7 @@ const App = {
     comment: '<path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/>',
     reshare: '<path d="m17 2 4 4-4 4"/><path d="M3 12v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 12v1a4 4 0 0 1-4 4H3"/>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v14"/>',
+    bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
     send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/>',
     volume: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/>',
     mute: '<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/>',
@@ -2380,6 +2381,7 @@ const App = {
           <button class="btn" onclick="App.saveSocialProfile()">Save profile</button>
           <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
           <button class="btn ghost" onclick="Social.shareApp()">Share Formora 🔗</button>
+          <button class="btn ghost" onclick="Social.openSaved()">🔖 Saved</button>
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
       </div>
