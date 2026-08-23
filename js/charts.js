@@ -76,4 +76,18 @@ const Charts = {
       <text x="65" y="84" class="ring-lbl">${label || ""}</text>
     </svg>`;
   },
+
+  // vertical columns for a weekly trend (e.g. training volume)
+  columns(el, series) {
+    if (!el) return;
+    if (!series || !series.length || !series.some((d) => d.volume > 0)) {
+      el.innerHTML = `<div class="chart-empty">Log a few workouts to see your volume trend.</div>`;
+      return;
+    }
+    const max = Math.max(1, ...series.map((d) => d.volume));
+    el.innerHTML = `<div class="cols">${series.map((d) => {
+      const h = Math.max(3, Math.round((d.volume / max) * 100));
+      return `<div class="col" title="${d.sessions} session${d.sessions === 1 ? "" : "s"}"><div class="col-bar" style="height:${h}%"></div><div class="col-x">${d.label}</div></div>`;
+    }).join("")}</div>`;
+  },
 };
