@@ -17,11 +17,14 @@ alter table if exists public.posts    enable row level security;
 alter table if exists public.requests enable row level security;
 alter table if exists public.comments enable row level security;
 alter table if exists public.stories  enable row level security;
+alter table if exists public.messages      enable row level security;  -- private DMs
+alter table if exists public.notifications enable row level security;  -- private notifications
 
 -- 2. Remove the blanket anon privileges granted during the v76 revert -----
 --    (the anon role should reach data ONLY through the vetted RPCs below).
 revoke all on public.profiles, public.posts, public.requests,
-                public.comments, public.stories from anon;
+                public.comments, public.stories, public.messages,
+                public.notifications from anon;
 
 -- 3. Owner-only write policies (requires Supabase Auth: auth.uid()) --------
 --    Identity must come from a verified session, never a client string.
@@ -47,7 +50,16 @@ begin
   create policy stories_delete_self on public.stories for delete using (auth.uid()::text = author);
   -- requests (connect requests)
   create policy requests_read       on public.requests for select using (true);
-  create policy requests_write_self on public.requests for insert with check (auth.uid()::text = "from");
+  create policy requests_write_self on public.requests for insert with check (auth.uid()::text = from_uid);
+  -- messages (private DMs): ONLY the sender or recipient can read — closes the DM leak (OWASP A01)
+  create policy messages_read on public.messages for select using (auth.uid()::text = from_uid or auth.uid()::text = to_uid);
+  create policy messages_send on public.messages for insert with check (auth.uid()::text = from_uid);
+  create policy messages_edit on public.messages for update using (auth.uid()::text = from_uid);
+  create policy messages_del  on public.messages for delete using (auth.uid()::text = from_uid);
+  -- notifications: only the recipient reads/clears; the actor creates them
+  create policy notifs_read   on public.notifications for select using (auth.uid()::text = uid);
+  create policy notifs_create on public.notifications for insert with check (auth.uid()::text = actor);
+  create policy notifs_mark   on public.notifications for update using (auth.uid()::text = uid);
 exception when duplicate_object then null;  -- idempotent re-runs
 end $$;
 
