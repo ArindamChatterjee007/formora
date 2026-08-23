@@ -1337,20 +1337,42 @@ const App = {
     document.getElementById("modal").classList.remove("hidden");
     if (typeof Currency !== "undefined" && !Currency.ready) { Currency.init().then(() => { if (!document.getElementById("modal").classList.contains("hidden")) this.openPricing(); }); }
   },
+  _loadRzp() {
+    return new Promise(function (resolve, reject) {
+      if (window.Razorpay) return resolve();
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = function () { resolve(); };
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  },
   async choosePlan(tier, rail) {
-    // India UPI rail (Razorpay) when chosen + configured — charged in ₹, uid+tier in notes.
-    if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled && (RAZORPAY.buy || {})[tier]) {
+    // India UPI rail (Razorpay Standard Checkout) — order made server-side, charged in ₹,
+    // uid+tier in notes; the razorpay-webhook grants the entitlement on payment.captured.
+    if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled) {
+      const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
       const meR = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
       const emailR = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
-      const qp = [];
-      if (emailR) qp.push("prefill[email]=" + encodeURIComponent(emailR));
-      if (meR) qp.push("notes[uid]=" + encodeURIComponent(meR));
-      qp.push("notes[tier]=" + encodeURIComponent(tier));
-      let rurl = RAZORPAY.buy[tier];
-      rurl += (rurl.indexOf("?") > -1 ? "&" : "?") + qp.join("&");
-      this.closeModal();
-      const rw = window.open(rurl, "_blank", "noopener");
-      if (!rw) location.href = rurl;
+      if (!base || !meR) { this.toast("Please log in first"); return; }
+      this.toast("Opening UPI checkout…");
+      try {
+        const r = await fetch(base + "/functions/v1/razorpay-create-order", {
+          method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "" },
+          body: JSON.stringify({ tier, uid: meR, email: emailR }),
+        });
+        const o = await r.json();
+        if (!o || !o.order_id) { this.toast("UPI isn't ready yet — use Card / PayPal"); return; }
+        await this._loadRzp();
+        const rzp = new Razorpay({
+          key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency || "INR",
+          name: "Formora", description: (tier === "elite" ? "Elite" : "Pro") + " membership",
+          prefill: { email: emailR }, notes: { uid: meR, tier }, theme: { color: "#ff5a4d" },
+          handler: function () { App.closeModal(); App.toast("Payment received — unlocking your plan ✨"); setTimeout(function () { if (typeof Entitlements !== "undefined") Entitlements.load(); }, 3000); },
+        });
+        this.closeModal();
+        rzp.open();
+      } catch (_) { this.toast("Couldn't open UPI checkout — use Card / PayPal"); }
       return;
     }
     // Global rail — Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
