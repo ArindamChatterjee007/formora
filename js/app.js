@@ -1319,7 +1319,7 @@ const App = {
   // ---- Pricing / upgrade (T-28). Real checkout wires in once a Merchant-of-Record is live (office T-25). ----
   openPricing() {
     const P = (window.PRICING && window.PRICING.tiers) || [];
-    const cur = "free"; // becomes Entitlements.tier() when payments ship
+    const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
     const tiers = P.map((t) => `
       <div class="ptier ${t.id === "pro" ? "featured" : ""}">
         ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
@@ -2327,6 +2327,7 @@ const App = {
   initCloud(u) {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     Cloud.init(u, Store.state.profile);
+    if (typeof Entitlements !== "undefined") Entitlements.load();
     let last = "";
     Cloud.start((s) => {
       Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
