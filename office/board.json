@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v101",
+    "liveVersion": "v102",
     "updated": "2026-08-23",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -122,7 +122,7 @@
     { "id": "T-11", "title": "Apply RLS on all 8 tables (incl. accounts) — verified", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-12", "title": "Member data migration — N/A (pre-launch, 0 real users; test data wiped)", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-13", "title": "Prod cutover v98 (flag-on) + RLS live — access-control vuln CLOSED", "role": "devops", "sprint": 2, "status": "done", "priority": "P0" },
-    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "Edge functions written + entitlements table live; DEPLOY needs the Lemon Squeezy account (T-25) for API keys + variant IDs." },
+    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "CHECKOUT LIVE (v102): Upgrade opens the real Lemon Squeezy hosted checkout (Pro $7.99 / Elite $19.99, test mode). Remaining for auto-unlock: deploy billing-webhook + founder creates the LS webhook (signing secret) + activates the store (KYC) for real payouts." },
     { "id": "T-15", "title": "entitlements.js + paywall.js + gate premium call-sites", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
     { "id": "T-16", "title": "Onboarding quiz → preview plan → trial paywall", "role": "design", "sprint": 3, "status": "backlog", "priority": "P0" },
     { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "backlog", "priority": "P0" },
@@ -133,7 +133,7 @@
     { "id": "T-22", "title": "Rebuild native Android/iOS with v94–v98 fixes", "role": "devops", "sprint": 6, "status": "backlog", "priority": "P2" },
     { "id": "T-23", "title": "Publish Google consent screen (currently Testing)", "role": "devops", "sprint": 1, "status": "todo", "priority": "P2" },
     { "id": "T-24", "title": "Landing hero emoji chips → SVG polish", "role": "design", "sprint": 1, "status": "todo", "priority": "P3" },
-    { "id": "T-25", "title": "Pick Merchant-of-Record (Lemon Squeezy / Paddle) + open account", "role": "cfo", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-25", "title": "Pick Merchant-of-Record (Lemon Squeezy / Paddle) + open account", "role": "cfo", "sprint": 3, "status": "done", "priority": "P0" },
     { "id": "T-26", "title": "Live financial model — MRR/ARR/CAC/LTV tracked on the board", "role": "finance", "sprint": 3, "status": "backlog", "priority": "P1" },
     { "id": "T-27", "title": "Instrument the funnel (PostHog) — BI owns the North Star", "role": "bi", "sprint": 3, "status": "backlog", "priority": "P0" },
     { "id": "T-28", "title": "Pricing page — Free / Pro / Elite tiers live", "role": "design", "sprint": 3, "status": "done", "priority": "P0" },
@@ -158,6 +158,8 @@
     { "ts": "2026-08-23", "role": "cto", "text": "ROLLED BACK the v98 auth cutover → v99 (USE_SUPABASE_AUTH=false, RLS disabled). Reason: flag-on broke EXISTING users' sessions on refresh (their Supabase user was wiped mid-session) → logout loop + empty feed. v99 restores the stable anon-key app: local login persists, feed loads (5 posts), posts owned by uidFor(email) again. Verified live. Security (RLS) to be redone LATER with backups + a real existing-user migration + staging — not another big-bang cutover." },
     { "ts": "2026-08-23", "role": "devops", "text": "T-33 DONE — scripts/backup-db.sh: one command dumps every table to backups/<timestamp>/ (public anon key, no secrets). Ran it: 5 posts + 5 profiles + 1 account saved. This runs before ANY destructive DB op from now on." },
     { "ts": "2026-08-23", "role": "design", "text": "T-28 DONE — shipped v100 Free/Pro/Elite pricing: a 'Formora Pro' card in Profile opens a plans modal (Pro $7.99, Elite $19.99, feature lists, 5-day trial). CTA captures early-access interest until the Merchant-of-Record is wired. Tested locally then deployed. First visible step toward M0." },
-    { "ts": "2026-08-23", "role": "eng", "text": "T-14 groundwork DONE (v101): backed up first, then created the entitlements table (client can READ a tier but a self-grant attempt is 401 — only the payment webhook writes it) + billing_events audit table. Added js/entitlements.js (server-verified tier, drives the pricing modal's 'Current plan') + 3 Lemon Squeezy edge functions (create-checkout / billing-webhook / billing-portal). Everything is plug-and-play — the ONLY missing piece is the founder creating the Lemon Squeezy account (T-25) so we can deploy + add API keys." }
+    { "ts": "2026-08-23", "role": "eng", "text": "T-14 groundwork DONE (v101): backed up first, then created the entitlements table (client can READ a tier but a self-grant attempt is 401 — only the payment webhook writes it) + billing_events audit table. Added js/entitlements.js (server-verified tier, drives the pricing modal's 'Current plan') + 3 Lemon Squeezy edge functions (create-checkout / billing-webhook / billing-portal). Everything is plug-and-play — the ONLY missing piece is the founder creating the Lemon Squeezy account (T-25) so we can deploy + add API keys." },
+    { "ts": "2026-08-23", "role": "cfo", "text": "T-25 DONE — Lemon Squeezy chosen as Merchant of Record (no India company/GST needed; it collects + remits sales tax/VAT in 200+ countries and pays us out). Store 'Formora' opened (USD). Two subscription products PUBLISHED: Formora Pro $7.99/mo + Formora Elite $19.99/mo." },
+    { "ts": "2026-08-23", "role": "eng", "text": "CHECKOUT SHIPPED (v102) — the Upgrade buttons now open the REAL Lemon Squeezy hosted checkout (card + PayPal), email + uid prefilled. Tested end-to-end (LS checkout renders 'Formora Pro $7.99 billed every month'), cascaded dev→main, live on Pages. In TEST mode until the store is activated (KYC/bank) — then it takes real money. Auto-unlock webhook is the last wiring step." }
   ]
 }
