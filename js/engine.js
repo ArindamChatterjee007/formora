@@ -299,6 +299,77 @@ const Engine = {
     return picks.slice(0, 3).map((id) => ({ id, name: EXERCISES[id].name, muscle: EXERCISES[id].muscle }));
   },
 
+  // ---- multi-week training programme generator (Pro, T-38) ----
+  // Free = the adaptive DAILY workout (buildWorkout). Pro unlocks a full periodised
+  // block tuned to the member's experience, target physique and training frequency.
+  _programUnit(unit) {
+    const ep = this.experiencePlan();
+    unit = unit || (Store.state.profile && Store.state.profile.unit) || "kg";
+    return unit === "lbs" ? { unit: "lbs", inc: ep.incLbs } : { unit: "kg", inc: ep.incKg };
+  },
+  _weekPhase(w) {
+    const m = w % 4; // 4-week block: accumulate -> build -> intensify -> deload, then repeat
+    if (m === 0) return { name: "Base",      rpe: 7, setDelta: 0,  note: "Leave ~3 reps in the tank. Own your form and tempo." };
+    if (m === 1) return { name: "Build",     rpe: 8, setDelta: 0,  note: "Add 1\u20132 reps per set versus last week." };
+    if (m === 2) return { name: "Intensify", rpe: 9, setDelta: 1,  note: "Add load; take the top set close to failure." };
+    return              { name: "Deload",    rpe: 6, setDelta: -1, note: "Recovery week \u2014 ~60% loads, leave 4 reps in the tank.", deload: true };
+  },
+  _programDay(split, emph, ph, seed) {
+    emph = emph || [];
+    if (split === "arms") {
+      const wanted = [...new Set([...emph, "Side Delts", "Biceps", "Triceps", "Upper Chest"])];
+      const out = [];
+      wanted.forEach((muscle, i) => {
+        if (out.length >= 6) return;
+        const ids = Object.keys(EXERCISES).filter((id) => EXERCISES[id].muscle === muscle);
+        if (!ids.length) return;
+        const id = ids[(seed + i) % ids.length];
+        const star = emph.includes(muscle);
+        out.push({ id, name: EXERCISES[id].name, muscle, sets: Math.max(2, 3 + (ph.setDelta || 0) + (star ? 1 : 0)), reps: "10\u201315", rpe: ph.rpe, star, tip: EXERCISES[id].tip });
+      });
+      return out;
+    }
+    const slots = (typeof SPLIT_SLOTS !== "undefined" && SPLIT_SLOTS[split]) || [];
+    return slots.map((slot, i) => {
+      const id = slot.options[(seed + i) % slot.options.length] || slot.options[0];
+      const ex = EXERCISES[id] || { name: id, muscle: "", tip: "" };
+      const star = emph.includes(ex.muscle);
+      return { id, name: ex.name, muscle: ex.muscle, sets: Math.max(2, slot.sets + (ph.setDelta || 0) + (star ? 1 : 0)), reps: slot.reps, rpe: ph.rpe, star, tip: ex.tip };
+    });
+  },
+  generateProgram(opts) {
+    opts = opts || {};
+    const weeks = Math.max(3, Math.min(12, opts.weeks || 4));
+    const days = Math.max(3, Math.min(6, opts.days || this.experiencePlan().freq || 4));
+    const emph = opts.emphasis || (this.getPhysique().emphasis || []);
+    const base = opts.shuffle || 0;
+    const u = this._programUnit(opts.unit);
+    const templates = {
+      3: ["push", "pull", "legs"],
+      4: ["push", "pull", "legs", "arms"],
+      5: ["push", "pull", "legs", "push", "pull"],
+      6: ["push", "pull", "legs", "push", "pull", "legs"],
+    };
+    const tmpl = templates[days] || templates[4];
+    const weeksOut = [];
+    for (let w = 0; w < weeks; w++) {
+      const ph = this._weekPhase(w);
+      const dayList = tmpl.map((split, di) => ({
+        day: di + 1,
+        split,
+        title: split === "arms" ? "Arms & Delts" : (SPLITS[split] ? SPLITS[split].label : split),
+        focus: split === "arms" ? "Shoulders \u00b7 Biceps \u00b7 Triceps \u00b7 Upper chest" : (SPLITS[split] ? SPLITS[split].focus : ""),
+        exercises: this._programDay(split, emph, ph, w + di + base),
+      }));
+      weeksOut.push({ week: w + 1, phase: ph.name, deload: !!ph.deload, note: ph.note, rpe: ph.rpe, days: dayList });
+    }
+    return {
+      meta: { weeks, days, emphasis: emph, unit: u.unit, inc: u.inc,
+              experience: this.experienceLevel(), physique: this.getPhysique().name, created: todayISO() },
+      weeks: weeksOut,
+    };
+  },
+
   // ---- progress toward the goal look (0–100) ----
   goalProgress() {
     const comp = this.bodyComp();
