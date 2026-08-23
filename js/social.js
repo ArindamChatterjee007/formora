@@ -265,6 +265,38 @@ const Social = {
     }, { threshold: [0, 0.6, 1] });
     vids.forEach((v) => this._feedVidObs.observe(v));
   },
+  // double-tap media = like (Instagram-style) with a heart burst; single tap keeps its action
+  mediaTap(postId, ev, kind) {
+    const now = Date.now();
+    if (this._tapId === postId && now - (this._tapTime || 0) < 300) {
+      clearTimeout(this._tapTimer); this._tapTime = 0; this._tapId = null;
+      this._heartBurst(ev);
+      this.likeIfNot(postId);
+      return;
+    }
+    this._tapId = postId; this._tapTime = now;
+    const target = ev.currentTarget;
+    clearTimeout(this._tapTimer);
+    this._tapTimer = setTimeout(() => {
+      if (kind === "video") { const v = target.tagName === "VIDEO" ? target : target.querySelector("video"); if (v) this.tapFeedVideo(v); }
+    }, 300);
+  },
+  likeIfNot(id) {
+    const inFeed = this.cloudActive() ? (this.cloud.feed || []).find((p) => p.id === id) : (this.feed() || []).find((p) => p.id === id);
+    if (!inFeed) return;
+    const liked = this.cloudActive() ? !!(inFeed.likes && typeof Cloud !== "undefined" && Cloud.me && inFeed.likes[Cloud.me]) : !!inFeed.likedByMe;
+    if (!liked) this.likePost(id); // double-tap only ever LIKES, never unlikes
+  },
+  _heartBurst(ev) {
+    const x = (ev && (ev.clientX || (ev.touches && ev.touches[0] && ev.touches[0].clientX))) || (window.innerWidth / 2);
+    const y = (ev && (ev.clientY || (ev.touches && ev.touches[0] && ev.touches[0].clientY))) || (window.innerHeight / 2);
+    const h = document.createElement("div");
+    h.className = "heart-burst";
+    h.style.left = x + "px"; h.style.top = y + "px";
+    h.innerHTML = App.ic("heart", { size: 96, solid: true });
+    document.body.appendChild(h);
+    setTimeout(() => h.remove(), 800);
+  },
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
@@ -362,12 +394,12 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" playsinline preload="metadata" loop muted onclick="Social.tapFeedVideo(this)"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
+      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
       : pics.length
       ? (pics.length > 1
-        ? `<div class="post-media carousel">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
-        : `<div class="post-media"><img src="${esc(pics[0])}" alt="post" draggable="false"></div>`)
-      : `<div class="post-media grad" style="background:linear-gradient(135deg,${esc((p.gradient || ["#ff6b3d", "#ff3d7f"]).join(","))})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
+        ? `<div class="post-media carousel" onclick="Social.mediaTap('${p.id}',event,'photo')">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
+        : `<div class="post-media" onclick="Social.mediaTap('${p.id}',event,'photo')"><img src="${esc(pics[0])}" alt="post" draggable="false"></div>`)
+      : `<div class="post-media grad" onclick="Social.mediaTap('${p.id}',event,'photo')" style="background:linear-gradient(135deg,${esc((p.gradient || ["#ff6b3d", "#ff3d7f"]).join(","))})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
     const comments = (p.comments || []).map((c) => `<div class="cmt"><b>${esc(this.persona(c.by).name)}</b> ${esc(c.text)}</div>`).join("");
     const reshared = p.resharedFrom ? `<div class="reshare-note">🔁 reshared from ${esc(this.persona(p.resharedFrom).name)}</div>` : "";
     return `

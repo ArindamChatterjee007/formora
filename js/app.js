@@ -630,9 +630,9 @@ const App = {
   reelSlide(p) {
     const a = Social.persona(p.author);
     return `<div class="reel" data-id="${p.id}">
-      <video class="reel-vid" src="${p.video}" playsinline loop muted preload="metadata" onclick="App.toggleReelPlay(this)"></video>
+      <video class="reel-vid" src="${p.video}" playsinline loop ${Social._feedSound ? "" : "muted"} preload="metadata" onclick="App.reelTap('${p.id}',event)"></video>
       <div class="reel-grad"></div>
-      <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">${this.ic("mute", { size: 20 })}</button>
+      <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">${this.ic(Social._feedSound ? "volume" : "mute", { size: 20 })}</button>
       <div class="reel-actions">
         <button class="reel-act like ${p.likedByMe ? "on" : ""}" onclick="App.reelLike('${p.id}',this)">${this.ic("heart", { size: 29, solid: p.likedByMe })}<span>${p.likes}</span></button>
         <button class="reel-act" onclick="App.openReelComments('${p.id}')">${this.ic("comment", { size: 29 })}<span id="rcnt-${p.id}">${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
@@ -652,15 +652,36 @@ const App = {
     this._reelObs = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
         const v = e.target;
-        if (e.isIntersecting && e.intersectionRatio > 0.6) v.play().catch(() => {});
+        if (e.isIntersecting && e.intersectionRatio > 0.6) { v.muted = !Social._feedSound; v.play().catch(() => {}); }
         else v.pause();
       });
     }, { threshold: [0, 0.6, 1] });
     vids.forEach((v) => this._reelObs.observe(v));
-    if (vids[0]) vids[0].play().catch(() => {});
+    if (vids[0]) { vids[0].muted = !Social._feedSound; vids[0].play().catch(() => {}); }
   },
   toggleReelPlay(v) { if (v.paused) v.play().catch(() => {}); else v.pause(); },
-  toggleReelMute(btn) { const r = btn.closest(".reel"); const v = r && r.querySelector(".reel-vid"); if (!v) return; v.muted = !v.muted; btn.innerHTML = this.ic(v.muted ? "mute" : "volume", { size: 20 }); },
+  // double-tap the reel = like (Instagram-style); single tap toggles play
+  reelTap(id, ev) {
+    const now = Date.now();
+    if (this._rTapId === id && now - (this._rTapT || 0) < 300) {
+      clearTimeout(this._rTapTimer); this._rTapT = 0; this._rTapId = null;
+      Social._heartBurst(ev);
+      const src = Social.cloudActive() && Social.cloud.feed.find((x) => x.id === id);
+      const p = src ? Social._cloudPost(src) : null;
+      if (p && !p.likedByMe) { const btn = document.querySelector(`.reel[data-id="${id}"] .reel-act.like`); this.reelLike(id, btn); }
+      return;
+    }
+    this._rTapId = id; this._rTapT = now;
+    const v = ev.currentTarget;
+    clearTimeout(this._rTapTimer);
+    this._rTapTimer = setTimeout(() => { this.toggleReelPlay(v); }, 300);
+  },
+  toggleReelMute(btn) {
+    Social._feedSound = !Social._feedSound;
+    document.querySelectorAll(".reel-vid").forEach((v) => { v.muted = !Social._feedSound; });
+    document.querySelectorAll(".reel-mute").forEach((b) => { b.innerHTML = this.ic(Social._feedSound ? "volume" : "mute", { size: 20 }); });
+    if (App.toast) App.toast(Social._feedSound ? "🔊 Sound on" : "Muted");
+  },
   reelLike(id, btn) {
     Social.likePost(id);
     const src = Social.cloud.feed.find((x) => x.id === id);
