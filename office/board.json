@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v103",
+    "liveVersion": "v104",
     "updated": "2026-08-23",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -47,14 +47,14 @@
     { "id": 6, "name": "Scale", "goal": "$10k MRR path: native rebuilds, stores, marketplace", "status": "planned" }
   ],
   "milestones": [
-    { "id": "M0", "name": "Chargeable", "sprint": 3, "done": false },
+    { "id": "M0", "name": "Chargeable", "sprint": 3, "done": true },
     { "id": "M1", "name": "First dollar", "sprint": 4, "done": false },
     { "id": "M2", "name": "$100 MRR", "sprint": 4, "done": false },
     { "id": "M3", "name": "$1,000 MRR", "sprint": 5, "done": false },
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v103 · auto local-currency + checkout live" },
+    { "label": "Live version", "value": "v104 · India UPI live + card/PayPal + auto-currency" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M0 · Chargeable" },
@@ -69,7 +69,7 @@
     "monthlyCost": "~$0",
     "runway": "Indefinite — near-zero burn (Pages + Supabase free tier)",
     "goals": [
-      { "id": "M0", "name": "Chargeable", "metric": "First test purchase flips a user to Pro (server-verified)", "current": 0, "target": 1, "unit": "flow", "sprint": 3, "owner": "cfo" },
+      { "id": "M0", "name": "Chargeable", "metric": "First test purchase flips a user to Pro (server-verified)", "current": 1, "target": 1, "unit": "flow", "sprint": 3, "owner": "cfo" },
       { "id": "M1", "name": "First dollar", "metric": "A real stranger pays real money (MRR > $0)", "current": 0, "target": 1, "unit": "$", "sprint": 4, "owner": "vpsales" },
       { "id": "M2", "name": "$100 MRR", "metric": "~13 Pro subs — proves the funnel converts", "current": 0, "target": 100, "unit": "$", "sprint": 4, "owner": "vpsales" },
       { "id": "M3", "name": "$1,000 MRR", "metric": "~125 Pro subs — top-17% of all apps", "current": 0, "target": 1000, "unit": "$", "sprint": 5, "owner": "cmo" },
@@ -142,9 +142,9 @@
     { "id": "T-31", "title": "Coaching marketplace spec (15–20% take)", "role": "vpsales", "sprint": 6, "status": "backlog", "priority": "P2" },
     { "id": "T-32", "title": "Redo security (RLS + auth) the SAFE way — full backup + existing-user migration + staging, NOT a big-bang cutover", "role": "cto", "sprint": 4, "status": "backlog", "priority": "P1" },
     { "id": "T-33", "title": "One-command full DB backup script (run before ANY destructive op)", "role": "devops", "sprint": 3, "status": "done", "priority": "P0" },
-    { "id": "T-34", "title": "India payment rail — Razorpay (UPI + cards + netbanking + wallets)", "role": "cfo", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "Code side DONE: razorpay-webhook deployed + paywall UPI/Card selector built (gated off). Waiting on the founder's Razorpay signup + KYC (PAN + bank) — signup page opened. Then I create the UPI Payment Pages + webhook in the dashboard, wire URLs, flip on, ship." },
+    { "id": "T-34", "title": "India payment rail — Razorpay (UPI + cards + netbanking + wallets)", "role": "cfo", "sprint": 3, "status": "done", "priority": "P0", "blocker": "LIVE (v104, test mode): UPI shipped for India users — create-order + Razorpay Checkout + webhook verified end-to-end with the founder's test keys. Flips to real ₹ by swapping test→live keys once KYC approves." },
     { "id": "T-35", "title": "razorpay-webhook edge function → writes the same entitlements table", "role": "eng", "sprint": 3, "status": "done", "priority": "P0" },
-    { "id": "T-36", "title": "Pricing modal: auto local-currency (all countries) + UPI/Card rail selector", "role": "design", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "DONE (v103): every visitor now sees prices auto-converted to their local currency (geo + live FX, USD fallback). Remaining: the UPI/Card rail selector, which needs the Razorpay account (T-34)." }
+    { "id": "T-36", "title": "Pricing modal: auto local-currency (all countries) + UPI/Card rail selector", "role": "design", "sprint": 3, "status": "done", "priority": "P0" }
   ],
   "activity": [
     { "ts": "2026-08-23", "role": "coo", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
@@ -168,6 +168,7 @@
     { "ts": "2026-08-23", "role": "cfo", "text": "GAP FOUND: the live checkout (Lemon Squeezy) is card + PayPal ONLY — NO UPI. India is our beachhead and UPI is the dominant method, so this blocks Indian buyers. DECISION: dual-rail payments — keep Lemon Squeezy for global (card/PayPal, Merchant-of-Record, tax handled) + add Razorpay for India (UPI, cards, netbanking, wallets). Both webhooks write the same entitlements table. INR pricing: Pro ₹199/mo (₹1,499/yr), Elite ₹799/mo (₹5,999/yr)." },
     { "ts": "2026-08-23", "role": "eng", "text": "India rail sequenced (T-34/35/36): build the razorpay-webhook + pricing-modal UPI/Card selector + INR prices as groundwork; founder opens a Razorpay account (PAN + bank KYC) + creates UPI Payment Pages; then wire the buttons + deploy. LS card/PayPal stays live throughout." },
     { "ts": "2026-08-23", "role": "eng", "text": "SHIPPED v103 — auto local-currency pricing: the paywall detects each visitor's country (ipapi.co) + live USD→local rates (open.er-api.com, cached 24h, USD fallback) and shows prices in THEIR currency automatically — ₹ India, £ UK, € EU, $ US, etc. Tested (EU browser → Pro ≈€7/mo, ≈€43/yr). Note: Lemon Squeezy's checkout still settles in USD (bank converts); India gets a true ₹ charge via UPI once Razorpay lands." },
-    { "ts": "2026-08-23", "role": "eng", "text": "Razorpay India rail GROUNDWORK done + razorpay-webhook DEPLOYED (verify_jwt off, 401 until secret set): verifies X-Razorpay-Signature → writes the same entitlements table (provider:razorpay), uid+tier from payment notes. Paywall now has a UPI/Card selector (built + tested, gated off via RAZORPAY.enabled=false so prod is unchanged). Opened Razorpay signup for the founder — once they're in + KYC'd, I create the UPI Payment Pages + webhook in the dashboard, wire the URLs, flip enabled, ship." }
+    { "ts": "2026-08-23", "role": "eng", "text": "Razorpay India rail GROUNDWORK done + razorpay-webhook DEPLOYED (verify_jwt off, 401 until secret set): verifies X-Razorpay-Signature → writes the same entitlements table (provider:razorpay), uid+tier from payment notes. Paywall now has a UPI/Card selector (built + tested, gated off via RAZORPAY.enabled=false so prod is unchanged). Opened Razorpay signup for the founder — once they're in + KYC'd, I create the UPI Payment Pages + webhook in the dashboard, wire the URLs, flip enabled, ship." },
+    { "ts": "2026-08-24", "role": "eng", "text": "M0 HIT — India UPI is LIVE (v104). Founder's Razorpay KYC (Individual) + test keys done; I stored all 3 secrets in Supabase, created the webhook via Razorpay's API (dashboard was KYC-locked), and verified the FULL flow end-to-end: create-order made a real ₹699 order; a signed payment.captured granted {tier:pro, provider:razorpay}; forgery rejected 401. Paywall shows India users 'Pay with UPI 🇮🇳' + 'Card / PayPal 🌍'. Test mode until KYC approves → swap test→live keys, no code change." }
   ]
 }
