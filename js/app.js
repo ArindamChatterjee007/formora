@@ -1336,7 +1336,21 @@ const App = {
        <div class="pt-foot">Secure checkout · 5-day free trial on paid plans</div></div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
-  choosePlan(tier) {
+  async choosePlan(tier) {
+    // Try real Lemon Squeezy checkout (create-checkout edge function). Until it's
+    // deployed + configured this fails cleanly and we just capture interest.
+    try {
+      const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
+      const me = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
+      if (base && me) {
+        const r = await fetch(base + "/functions/v1/create-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "" },
+          body: JSON.stringify({ uid: me, tier, email: ((typeof Auth !== "undefined" && Auth.currentUser()) || {}).email || "", return_url: location.href }),
+        });
+        if (r.ok) { const j = await r.json(); if (j && j.url) { location.href = j.url; return; } }
+      }
+    } catch (_) {}
     try { const w = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); w[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(w)); } catch (_) {}
     this.closeModal();
     this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " when it launches ✨");
