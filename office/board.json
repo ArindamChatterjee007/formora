@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "product": "Formora",
+    "liveVersion": "v97",
+    "updated": "2026-08-23",
+    "liveUrl": "https://arindamchatterjee007.github.io/formora/",
+    "repo": "ArindamChatterjee007/formora",
+    "northStar": "Weekly active loggers-who-post",
+    "aiBackend": "GitHub Copilot (this chat) — no external AI service",
+    "storage": "GitHub (this file + Issues) — no local DB/server"
+  },
+  "roles": [
+    { "key": "pm",      "title": "Product Manager",       "emoji": "\ud83e\udded", "does": "Plans sprints, prioritizes, runs standup, decides what 'today's work' is" },
+    { "key": "req",     "title": "Requirements Engineer", "emoji": "\ud83d\udccb", "does": "Turns asks into specs + acceptance criteria" },
+    { "key": "eng",     "title": "Engineer",              "emoji": "\ud83d\udcbb", "does": "Implements features through the dev\u2192release\u2192beta\u2192main pipeline" },
+    { "key": "qa",      "title": "QA / Reviewer",         "emoji": "\ud83d\udd0d", "does": "Tests, reviews code + security, blocks regressions" },
+    { "key": "devops",  "title": "DevOps",                "emoji": "\ud83d\ude80", "does": "CI/CD, promotions, deploys, verifies live" },
+    { "key": "design",  "title": "Designer",              "emoji": "\ud83c\udfa8", "does": "UI/UX, brand, visual polish" },
+    { "key": "growth",  "title": "Growth",                "emoji": "\ud83d\udcc8", "does": "GTM, content loop, referrals, monetization funnel" },
+    { "key": "analyst", "title": "Analyst",               "emoji": "\ud83d\udcca", "does": "KPIs, funnels, reports" },
+    { "key": "hr",      "title": "HR / Chief of Staff",   "emoji": "\ud83d\udc65", "does": "Coordinates the AI roles, capacity, keeps the board honest" }
+  ],
+  "columns": [
+    { "key": "backlog",     "title": "Backlog" },
+    { "key": "todo",        "title": "To Do" },
+    { "key": "in_progress", "title": "In Progress" },
+    { "key": "review",      "title": "Review / QA" },
+    { "key": "blocked",     "title": "Blocked" },
+    { "key": "done",        "title": "Done" }
+  ],
+  "sprints": [
+    { "id": 0, "name": "Foundation", "goal": "Secure, shippable product on an automated pipeline + funding-ready plan", "status": "done" },
+    { "id": 1, "name": "Real Auth in Staging", "goal": "A user signs up/logs in with real Supabase Auth in staging; session persists; feed still loads", "status": "done" },
+    { "id": 2, "name": "Lock Down the Database", "goal": "Production on real auth + RLS — close the critical DM/PII access-control vuln", "status": "active" },
+    { "id": 3, "name": "Make It Chargeable (M0)", "goal": "A test purchase flips a user to Pro server-side; features gate correctly", "status": "planned" },
+    { "id": 4, "name": "First Customers", "goal": "Real people pay; the funnel is measured (M1\u2192M2)", "status": "planned" },
+    { "id": 5, "name": "Growth Engine", "goal": "A working near-zero-CAC growth loop toward $1k MRR (M3)", "status": "planned" },
+    { "id": 6, "name": "Scale", "goal": "$10k MRR path: native rebuilds, stores, marketplace", "status": "planned" }
+  ],
+  "milestones": [
+    { "id": "M0", "name": "Chargeable", "sprint": 3, "done": false },
+    { "id": "M1", "name": "First dollar", "sprint": 4, "done": false },
+    { "id": "M2", "name": "$100 MRR", "sprint": 4, "done": false },
+    { "id": "M3", "name": "$1,000 MRR", "sprint": 5, "done": false },
+    { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
+  ],
+  "kpis": [
+    { "label": "Live version", "value": "v97" },
+    { "label": "Security", "value": "XSS fixed \u00b7 CSP \u00b7 PBKDF2" },
+    { "label": "Pipeline", "value": "dev\u2192release\u2192beta\u2192main" },
+    { "label": "Auth migration", "value": "Phase 2 ✓ staging" },
+    { "label": "Revenue", "value": "Pre-revenue \u2192 M0 next" }
+  ],
+  "tasks": [
+    { "id": "T-01", "title": "Stored-XSS fixed across feed (9 sinks) + CI guard", "role": "qa", "sprint": 0, "status": "done", "priority": "P0" },
+    { "id": "T-02", "title": "CSP + PBKDF2 + secret-scan + perf-budget gates", "role": "eng", "sprint": 0, "status": "done", "priority": "P0" },
+    { "id": "T-03", "title": "Data minimization \u2014 biometrics not uploaded", "role": "eng", "sprint": 0, "status": "done", "priority": "P1" },
+    { "id": "T-04", "title": "CI/CD pipeline dev\u2192release\u2192beta\u2192main", "role": "devops", "sprint": 0, "status": "done", "priority": "P0" },
+    { "id": "T-05", "title": "Auth Phase 1 \u2014 supaauth.js behind flag (prod unchanged)", "role": "eng", "sprint": 0, "status": "done", "priority": "P0" },
+    { "id": "T-06", "title": "Business model, monetization spec, execution plan", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
+    { "id": "T-07", "title": "Investor pitch deck (PDF + PPTX)", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
+    { "id": "T-08", "title": "Enable Supabase Email provider", "role": "devops", "sprint": 1, "status": "done", "priority": "P0" },
+    { "id": "T-09", "title": "Flag-on staging QA: signup/login/session/cross-device", "role": "qa", "sprint": 1, "status": "done", "priority": "P0" },
+    { "id": "T-10", "title": "Fix v78 session/uid-continuity failure modes", "role": "eng", "sprint": 1, "status": "done", "priority": "P0" },
+    { "id": "T-11", "title": "Apply security.sql RLS on a staging project", "role": "eng", "sprint": 2, "status": "in_progress", "priority": "P0" },
+    { "id": "T-12", "title": "Data-migrate members (email\u2192auth.users)", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
+    { "id": "T-13", "title": "Prod cutover + RLS + rollback \u2014 close access-control vuln", "role": "devops", "sprint": 2, "status": "backlog", "priority": "P0" },
+    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-15", "title": "entitlements.js + paywall.js + gate premium call-sites", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-16", "title": "Onboarding quiz \u2192 preview plan \u2192 trial paywall", "role": "design", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-18", "title": "Real AI meal plan (Pro hook)", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P1" },
+    { "id": "T-19", "title": "Founder-led onboarding of first 50 users", "role": "growth", "sprint": 4, "status": "backlog", "priority": "P1" },
+    { "id": "T-20", "title": "Referral + push notifications + affiliate v1", "role": "growth", "sprint": 5, "status": "backlog", "priority": "P1" },
+    { "id": "T-21", "title": "Daily watermarked Flex content loop", "role": "growth", "sprint": 5, "status": "backlog", "priority": "P1" },
+    { "id": "T-22", "title": "Rebuild native Android/iOS with v94\u2013v97 fixes", "role": "devops", "sprint": 6, "status": "backlog", "priority": "P2" },
+    { "id": "T-23", "title": "Publish Google consent screen (currently Testing)", "role": "devops", "sprint": 1, "status": "todo", "priority": "P2" },
+    { "id": "T-24", "title": "Landing hero emoji chips \u2192 SVG polish", "role": "design", "sprint": 1, "status": "todo", "priority": "P3" }
+  ],
+  "activity": [
+    { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
+    { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." },
+    { "ts": "2026-08-23", "role": "qa", "text": "T-09 PASSED — flag-on staging test: signup + login + session-persist + JWT all work against real Supabase. Sprint 1 done → Sprint 2 (RLS) active." },
+    { "ts": "2026-08-23", "role": "eng", "text": "Sprint 2 started: hardened security.sql to add RLS for messages (DMs) + notifications — the exact tables that were leaking. SQL now complete; ready to apply on a staging Supabase." },
+    { "ts": "2026-08-23", "role": "qa", "text": "Audit found ZERO real users — all ~10 accounts are QA test users. App is pre-launch, so a clean cutover beats a staging project (no migration risk)." },
+    { "ts": "2026-08-23", "role": "eng", "text": "Found + fixed the v78-class bug: writes used an email-slug id but RLS checks auth.uid() (UUID). Cloud.me now uses the Supabase UUID when flag-on. Flipped USE_SUPABASE_AUTH=true, shipped v98 to dev. Go-live (wipe test data + merge to main + enable RLS) awaits founder GO." }
+  ]
+}
