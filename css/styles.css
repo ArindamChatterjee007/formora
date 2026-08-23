@@ -621,6 +621,10 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .lift-d{ font-size:12px; font-weight:700; white-space:nowrap; min-width:56px; text-align:right; }
 .lift-d.up{ color:#22c55e; }
 .lift-d.down{ color:#ef7d7d; }
+/* Double-tap-to-like heart burst */
+.heart-burst{ position:fixed; transform:translate(-50%,-50%); color:#ff2d55; pointer-events:none; z-index:9999; filter:drop-shadow(0 4px 14px rgba(0,0,0,.4)); animation:heartBurst .8s ease forwards; }
+@keyframes heartBurst{ 0%{opacity:0;transform:translate(-50%,-50%) scale(.3)} 15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)} 30%{transform:translate(-50%,-50%) scale(.92)} 45%{transform:translate(-50%,-50%) scale(1.02)} 78%{opacity:1;transform:translate(-50%,-52%) scale(1)} 100%{opacity:0;transform:translate(-50%,-62%) scale(1)} }
+@media (prefers-reduced-motion: reduce){ .heart-burst{ animation-duration:.4s; } }
 .gender-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
 .gender-toggle button {
   flex: 1; padding: 11px; border: 1px solid var(--line); background: var(--bg2); color: var(--muted);
