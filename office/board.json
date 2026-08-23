@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v100",
+    "liveVersion": "v101",
     "updated": "2026-08-23",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -54,7 +54,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v100 · pricing live" },
+    { "label": "Live version", "value": "v101 · entitlements ready" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M0 · Chargeable" },
@@ -122,7 +122,7 @@
     { "id": "T-11", "title": "Apply RLS on all 8 tables (incl. accounts) — verified", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-12", "title": "Member data migration — N/A (pre-launch, 0 real users; test data wiped)", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-13", "title": "Prod cutover v98 (flag-on) + RLS live — access-control vuln CLOSED", "role": "devops", "sprint": 2, "status": "done", "priority": "P0" },
-    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "Edge functions written + entitlements table live; DEPLOY needs the Lemon Squeezy account (T-25) for API keys + variant IDs." },
     { "id": "T-15", "title": "entitlements.js + paywall.js + gate premium call-sites", "role": "eng", "sprint": 3, "status": "backlog", "priority": "P0" },
     { "id": "T-16", "title": "Onboarding quiz → preview plan → trial paywall", "role": "design", "sprint": 3, "status": "backlog", "priority": "P0" },
     { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "backlog", "priority": "P0" },
@@ -157,6 +157,7 @@
     { "ts": "2026-08-23", "role": "qa", "text": "INCIDENT + RECOVERY: the Sprint-2 cutover 'wipe' deleted 5 REAL posts I wrongly labeled 'test data'. No Supabase backup existed (free tier, PITR off). Recovered ALL 5 posts from a temp audit file + rebuilt the 4 author profiles; feed verified (5 posts, 4 users). NOT recoverable: old DMs/notifications/comments/stories + full profile details. LESSON: always export a full backup BEFORE any destructive op; never call live data 'test data' without inspecting it." },
     { "ts": "2026-08-23", "role": "cto", "text": "ROLLED BACK the v98 auth cutover → v99 (USE_SUPABASE_AUTH=false, RLS disabled). Reason: flag-on broke EXISTING users' sessions on refresh (their Supabase user was wiped mid-session) → logout loop + empty feed. v99 restores the stable anon-key app: local login persists, feed loads (5 posts), posts owned by uidFor(email) again. Verified live. Security (RLS) to be redone LATER with backups + a real existing-user migration + staging — not another big-bang cutover." },
     { "ts": "2026-08-23", "role": "devops", "text": "T-33 DONE — scripts/backup-db.sh: one command dumps every table to backups/<timestamp>/ (public anon key, no secrets). Ran it: 5 posts + 5 profiles + 1 account saved. This runs before ANY destructive DB op from now on." },
-    { "ts": "2026-08-23", "role": "design", "text": "T-28 DONE — shipped v100 Free/Pro/Elite pricing: a 'Formora Pro' card in Profile opens a plans modal (Pro $7.99, Elite $19.99, feature lists, 5-day trial). CTA captures early-access interest until the Merchant-of-Record is wired. Tested locally then deployed. First visible step toward M0." }
+    { "ts": "2026-08-23", "role": "design", "text": "T-28 DONE — shipped v100 Free/Pro/Elite pricing: a 'Formora Pro' card in Profile opens a plans modal (Pro $7.99, Elite $19.99, feature lists, 5-day trial). CTA captures early-access interest until the Merchant-of-Record is wired. Tested locally then deployed. First visible step toward M0." },
+    { "ts": "2026-08-23", "role": "eng", "text": "T-14 groundwork DONE (v101): backed up first, then created the entitlements table (client can READ a tier but a self-grant attempt is 401 — only the payment webhook writes it) + billing_events audit table. Added js/entitlements.js (server-verified tier, drives the pricing modal's 'Current plan') + 3 Lemon Squeezy edge functions (create-checkout / billing-webhook / billing-portal). Everything is plug-and-play — the ONLY missing piece is the founder creating the Lemon Squeezy account (T-25) so we can deploy + add API keys." }
   ]
 }

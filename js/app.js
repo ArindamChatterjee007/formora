@@ -1333,13 +1333,32 @@ const App = {
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
        <div class="pricing"><div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
        <div class="ptiers">${tiers}</div>
-       <div class="pt-foot">Secure checkout · 5-day free trial on paid plans</div></div>`;
+       <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div></div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
-  choosePlan(tier) {
-    try { const w = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); w[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(w)); } catch (_) {}
+  async choosePlan(tier) {
+    // Live Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
+    // checkout with the member's email + uid prefilled; the billing-webhook then
+    // grants the entitlement server-side. No API key needed on the client.
+    const ls = window.LEMONSQUEEZY || {};
+    const link = (ls.buy || {})[tier];
+    if (link) {
+      const me = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
+      const email = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
+      const q = [];
+      if (email) q.push("checkout[email]=" + encodeURIComponent(email));
+      if (me) q.push("checkout[custom][uid]=" + encodeURIComponent(me));
+      q.push("checkout[custom][tier]=" + encodeURIComponent(tier));
+      const url = link + (link.indexOf("?") > -1 ? "&" : "?") + q.join("&");
+      this.closeModal();
+      const w = window.open(url, "_blank", "noopener");
+      if (!w) location.href = url;
+      return;
+    }
+    // Fallback (no link configured for this tier): capture interest locally.
+    try { const d = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); d[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(d)); } catch (_) {}
     this.closeModal();
-    this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " when it launches ✨");
+    this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " ✨");
   },
 
   // open a licensed (SFW) photo search for an outfit — no scraping/embedding
