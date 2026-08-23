@@ -303,6 +303,7 @@ const Social = {
     h.style.left = x + "px"; h.style.top = y + "px";
     h.innerHTML = App.ic("heart", { size: 96, solid: true });
     document.body.appendChild(h);
+    this.haptic(18);
     setTimeout(() => h.remove(), 800);
   },
   // ---- music (royalty-free): attach a track in the composer; plays in feed + reels ----
@@ -342,6 +343,22 @@ const Social = {
   _ensureMusic() { if (!this._musicAudio) { const a = document.createElement("audio"); a.loop = true; a.preload = "none"; this._musicAudio = a; } return this._musicAudio; },
   playMusic(src) { if (!src) return this.stopMusic(); const a = this._ensureMusic(); if (this._musicSrc !== src) { a.src = src; this._musicSrc = src; } a.muted = !this._feedSound; a.play().catch(() => {}); },
   stopMusic() { if (this._musicAudio) { try { this._musicAudio.pause(); } catch (e) {} } this._musicSrc = null; },
+  // ---- haptics + share-to-grow (viral loop) ----
+  haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} },
+  _share(text) {
+    const url = "https://arindamchatterjee007.github.io/formora/";
+    const data = { title: "Formora", text: (text || "Train with me on Formora") + " \ud83d\udcaa", url };
+    if (navigator.share) return navigator.share(data).then(() => this.haptic(12)).catch(() => {});
+    const done = () => { if (typeof App !== "undefined" && App.toast) App.toast("Link copied \u2014 share it anywhere \ud83d\udd17"); };
+    if (navigator.clipboard) return navigator.clipboard.writeText(url).then(done).catch(() => { if (typeof App !== "undefined" && App.toast) App.toast(url); });
+    if (typeof App !== "undefined" && App.toast) App.toast(url);
+  },
+  sharePost(id) {
+    const list = this.cloudActive() ? (this.cloud.feed || []) : (this.feed() || []);
+    const post = list.find((p) => p.id === id);
+    this._share(post && post.text ? post.text : "Check out this fitness progress on Formora");
+  },
+  shareApp() { this._share("I'm getting fit with Formora \u2014 an AI coach + fitness social app"); },
 
   avatar(entity, size = 40) {
     const e = typeof entity === "string" ? this.persona(entity) : entity;
@@ -467,6 +484,7 @@ const Social = {
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${App.ic("heart", { size: 22, solid: p.likedByMe })} <span>${p.likes}</span></button>
           <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
           <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">${App.ic("reshare", { size: 22 })} <span>${p.reshares || 0}</span></button>
+          <button class="pa share" title="Share" onclick="Social.sharePost('${p.id}')">${App.ic("share", { size: 21 })}</button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
@@ -709,6 +727,7 @@ const Social = {
     this.deletePost(id); this.render();
   },
   likePost(id) {
+    this.haptic(12);
     if (this.cloudActive()) {
       const post = this.cloud.feed.find((p) => p.id === id);
       if (post) {
