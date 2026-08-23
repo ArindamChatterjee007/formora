@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v102",
+    "liveVersion": "v103",
     "updated": "2026-08-23",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -54,7 +54,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v102 · checkout live (card+PayPal)" },
+    { "label": "Live version", "value": "v103 · auto local-currency + checkout live" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M0 · Chargeable" },
@@ -142,9 +142,9 @@
     { "id": "T-31", "title": "Coaching marketplace spec (15–20% take)", "role": "vpsales", "sprint": 6, "status": "backlog", "priority": "P2" },
     { "id": "T-32", "title": "Redo security (RLS + auth) the SAFE way — full backup + existing-user migration + staging, NOT a big-bang cutover", "role": "cto", "sprint": 4, "status": "backlog", "priority": "P1" },
     { "id": "T-33", "title": "One-command full DB backup script (run before ANY destructive op)", "role": "devops", "sprint": 3, "status": "done", "priority": "P0" },
-    { "id": "T-34", "title": "India payment rail — Razorpay (UPI + cards + netbanking + wallets)", "role": "cfo", "sprint": 3, "status": "todo", "priority": "P0", "blocker": "Live Lemon Squeezy checkout is card+PayPal ONLY — no UPI. India is the beachhead → UPI is essential. Plan: add Razorpay alongside LS (dual-rail). Needs founder's Razorpay account + KYC (PAN + bank)." },
-    { "id": "T-35", "title": "razorpay-webhook edge function → writes the same entitlements table", "role": "eng", "sprint": 3, "status": "todo", "priority": "P0" },
-    { "id": "T-36", "title": "Pricing modal: INR prices + India detection + UPI/Card rail selector", "role": "design", "sprint": 3, "status": "todo", "priority": "P0" }
+    { "id": "T-34", "title": "India payment rail — Razorpay (UPI + cards + netbanking + wallets)", "role": "cfo", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "Code side DONE: razorpay-webhook deployed + paywall UPI/Card selector built (gated off). Waiting on the founder's Razorpay signup + KYC (PAN + bank) — signup page opened. Then I create the UPI Payment Pages + webhook in the dashboard, wire URLs, flip on, ship." },
+    { "id": "T-35", "title": "razorpay-webhook edge function → writes the same entitlements table", "role": "eng", "sprint": 3, "status": "done", "priority": "P0" },
+    { "id": "T-36", "title": "Pricing modal: auto local-currency (all countries) + UPI/Card rail selector", "role": "design", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "DONE (v103): every visitor now sees prices auto-converted to their local currency (geo + live FX, USD fallback). Remaining: the UPI/Card rail selector, which needs the Razorpay account (T-34)." }
   ],
   "activity": [
     { "ts": "2026-08-23", "role": "coo", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
@@ -166,6 +166,8 @@
     { "ts": "2026-08-23", "role": "eng", "text": "CHECKOUT SHIPPED (v102) — the Upgrade buttons now open the REAL Lemon Squeezy hosted checkout (card + PayPal), email + uid prefilled. Tested end-to-end (LS checkout renders 'Formora Pro $7.99 billed every month'), cascaded dev→main, live on Pages. In TEST mode until the store is activated (KYC/bank) — then it takes real money. Auto-unlock webhook is the last wiring step." },
     { "ts": "2026-08-23", "role": "devops", "text": "billing-webhook DEPLOYED + tested end-to-end — a correctly-signed Lemon Squeezy event writes {tier, status:active} to the entitlements table; a forged one is rejected (401). Live at /functions/v1/billing-webhook. Founder just creates the LS webhook + sets LS_WEBHOOK_SECRET to switch auto-unlock on." },
     { "ts": "2026-08-23", "role": "cfo", "text": "GAP FOUND: the live checkout (Lemon Squeezy) is card + PayPal ONLY — NO UPI. India is our beachhead and UPI is the dominant method, so this blocks Indian buyers. DECISION: dual-rail payments — keep Lemon Squeezy for global (card/PayPal, Merchant-of-Record, tax handled) + add Razorpay for India (UPI, cards, netbanking, wallets). Both webhooks write the same entitlements table. INR pricing: Pro ₹199/mo (₹1,499/yr), Elite ₹799/mo (₹5,999/yr)." },
-    { "ts": "2026-08-23", "role": "eng", "text": "India rail sequenced (T-34/35/36): build the razorpay-webhook + pricing-modal UPI/Card selector + INR prices as groundwork; founder opens a Razorpay account (PAN + bank KYC) + creates UPI Payment Pages; then wire the buttons + deploy. LS card/PayPal stays live throughout." }
+    { "ts": "2026-08-23", "role": "eng", "text": "India rail sequenced (T-34/35/36): build the razorpay-webhook + pricing-modal UPI/Card selector + INR prices as groundwork; founder opens a Razorpay account (PAN + bank KYC) + creates UPI Payment Pages; then wire the buttons + deploy. LS card/PayPal stays live throughout." },
+    { "ts": "2026-08-23", "role": "eng", "text": "SHIPPED v103 — auto local-currency pricing: the paywall detects each visitor's country (ipapi.co) + live USD→local rates (open.er-api.com, cached 24h, USD fallback) and shows prices in THEIR currency automatically — ₹ India, £ UK, € EU, $ US, etc. Tested (EU browser → Pro ≈€7/mo, ≈€43/yr). Note: Lemon Squeezy's checkout still settles in USD (bank converts); India gets a true ₹ charge via UPI once Razorpay lands." },
+    { "ts": "2026-08-23", "role": "eng", "text": "Razorpay India rail GROUNDWORK done + razorpay-webhook DEPLOYED (verify_jwt off, 401 until secret set): verifies X-Razorpay-Signature → writes the same entitlements table (provider:razorpay), uid+tier from payment notes. Paywall now has a UPI/Card selector (built + tested, gated off via RAZORPAY.enabled=false so prod is unchanged). Opened Razorpay signup for the founder — once they're in + KYC'd, I create the UPI Payment Pages + webhook in the dashboard, wire the URLs, flip enabled, ship." }
   ]
 }
