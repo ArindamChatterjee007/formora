@@ -607,6 +607,20 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .pg-ex-n{ font-size:13.5px; font-weight:600; }
 .pg-ex-s{ font-size:12px; color:var(--muted); white-space:nowrap; }
 .pg-actions{ margin-top:4px; }
+/* Advanced analytics (Pro, T-37) */
+.pro-tag{ font-size:10px; font-weight:800; letter-spacing:.04em; color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); padding:2px 7px; border-radius:999px; vertical-align:middle; margin-left:6px; }
+.cols{ display:flex; align-items:flex-end; gap:6px; height:130px; padding-top:8px; }
+.col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px; }
+.col-bar{ width:100%; max-width:26px; background:linear-gradient(180deg,var(--accent),var(--accent2)); border-radius:6px 6px 3px 3px; min-height:3px; transition:height .4s ease; }
+.col-x{ font-size:10px; color:var(--muted); white-space:nowrap; }
+.lift-tbl{ display:flex; flex-direction:column; }
+.lift-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+.lift-row:first-child{ border-top:none; }
+.lift-n{ flex:1; font-size:13.5px; font-weight:600; }
+.lift-1rm{ font-size:13px; font-weight:800; }
+.lift-d{ font-size:12px; font-weight:700; white-space:nowrap; min-width:56px; text-align:right; }
+.lift-d.up{ color:#22c55e; }
+.lift-d.down{ color:#ef7d7d; }
 .gender-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
 .gender-toggle button {
   flex: 1; padding: 11px; border: 1px solid var(--line); background: var(--bg2); color: var(--muted);

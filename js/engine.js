@@ -370,6 +370,46 @@ const Engine = {
     };
   },
 
+  // ---- advanced analytics (Pro, T-37) ----
+  _iso(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; },
+  volumeTrend(weeks) {
+    weeks = weeks || 8;
+    const now = new Date();
+    const out = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      const end = new Date(now); end.setDate(now.getDate() - i * 7);
+      const start = new Date(end); start.setDate(end.getDate() - 6);
+      const sISO = this._iso(start), eISO = this._iso(end);
+      let volume = 0; const days = new Set();
+      for (const w of Store.state.workoutLog) {
+        if (w.date < sISO || w.date > eISO) continue;
+        days.add(w.date);
+        (w.exercises || []).forEach((e) => (e.sets || []).forEach((s) => { volume += (+s.reps || 0) * (+s.weight || 0); }));
+      }
+      out.push({ label: `${start.getDate()}/${start.getMonth() + 1}`, volume: Math.round(volume), sessions: days.size });
+    }
+    return out;
+  },
+  liftProgress(limit) {
+    limit = limit || 5;
+    const byEx = {};
+    for (const w of [...Store.state.workoutLog].sort((a, b) => a.date.localeCompare(b.date))) {
+      for (const e of (w.exercises || [])) {
+        if (!e.sets || !e.sets.length) continue;
+        const best = e.sets.reduce((m, s) => ((+s.weight || 0) > (+m.weight || 0) ? s : m), e.sets[0]);
+        const wt = +best.weight || 0, reps = +best.reps || 0;
+        if (wt <= 0) continue;
+        (byEx[e.id] = byEx[e.id] || []).push({ e1rm: wt * (1 + reps / 30) });
+      }
+    }
+    return Object.keys(byEx).map((id) => {
+      const h = byEx[id];
+      const bestE = Math.max(...h.map((x) => x.e1rm));
+      return { id, name: (EXERCISES[id] && EXERCISES[id].name) || id, n: h.length,
+               e1rm: Math.round(bestE), delta: Math.round((h[h.length - 1].e1rm - h[0].e1rm) * 10) / 10 };
+    }).filter((r) => r.n >= 2).sort((a, b) => b.n - a.n || b.e1rm - a.e1rm).slice(0, limit);
+  },
+
   // ---- progress toward the goal look (0–100) ----
   goalProgress() {
     const comp = this.bodyComp();
