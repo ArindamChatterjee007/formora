@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v105",
+    "liveVersion": "v106",
     "updated": "2026-08-24",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -54,14 +54,14 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v104 · India UPI live + card/PayPal + auto-currency" },
+    { "label": "Live version", "value": "v106 · Pro workout programs + gated premium features" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
-    { "label": "Next milestone", "value": "M0 · Chargeable" },
+    { "label": "Next milestone", "value": "M1 · First paying customer" },
     { "label": "Runway", "value": "∞ · near-zero burn" }
   ],
   "business": {
-    "stage": "Pre-revenue — v98 RLS shipped; payments (M0) is the next build",
+    "stage": "Revenue-ready — live UPI + gated Pro features; hunting the first paying customer (M1)",
     "northStar": { "label": "Weekly active loggers-who-post", "current": 0, "target": 100 },
     "mrr": { "current": 0, "goal": 1000, "goalLabel": "top-17% of all apps" },
     "payingUsers": 0,
@@ -146,7 +146,7 @@
     { "id": "T-35", "title": "razorpay-webhook edge function → writes the same entitlements table", "role": "eng", "sprint": 3, "status": "done", "priority": "P0" },
     { "id": "T-36", "title": "Pricing modal: auto local-currency (all countries) + UPI/Card rail selector", "role": "design", "sprint": 3, "status": "done", "priority": "P0" },
     { "id": "T-37", "title": "Advanced analytics dashboard (Pro) — trends, PRs, volume/cohort charts beyond the free stat-grid", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P1", "note": "Advertised as a Pro feature but not yet built as a separate gateable view. Build it, then gate behind Entitlements.isPro()." },
-    { "id": "T-38", "title": "AI workout-plan generator (Pro) — multi-week programmes distinct from the free adaptive daily workout", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P1", "note": "Free = adaptive daily workout (Engine.buildWorkout). Pro = unlimited generated programmes. Build the generator, then gate." },
+    { "id": "T-38", "title": "AI workout-plan generator (Pro) — multi-week programmes distinct from the free adaptive daily workout", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v106 — Engine.generateProgram() builds a periodised multi-week block (Base→Build→Intensify→Deload) from the member's experience (→ 3–6 days/week), target physique (priority muscles get +1 set, marked ★) and unit. App.openProgram() is Pro-gated (free → paywall); week tabs + Regenerate. Free still gets the adaptive daily workout." },
     { "id": "T-39", "title": "AI progress-photo analysis (Elite) — body-comp read from a photo", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P2", "note": "Advertised Elite feature, not built. Gate behind Entitlements.isElite() once built." }
   ],
   "activity": [
@@ -174,6 +174,7 @@
     { "ts": "2026-08-23", "role": "eng", "text": "Razorpay India rail GROUNDWORK done + razorpay-webhook DEPLOYED (verify_jwt off, 401 until secret set): verifies X-Razorpay-Signature → writes the same entitlements table (provider:razorpay), uid+tier from payment notes. Paywall now has a UPI/Card selector (built + tested, gated off via RAZORPAY.enabled=false so prod is unchanged). Opened Razorpay signup for the founder — once they're in + KYC'd, I create the UPI Payment Pages + webhook in the dashboard, wire the URLs, flip enabled, ship." },
     { "ts": "2026-08-24", "role": "eng", "text": "M0 HIT — India UPI is LIVE (v104). Founder's Razorpay KYC (Individual) + test keys done; I stored all 3 secrets in Supabase, created the webhook via Razorpay's API (dashboard was KYC-locked), and verified the FULL flow end-to-end: create-order made a real ₹699 order; a signed payment.captured granted {tier:pro, provider:razorpay}; forgery rejected 401. Paywall shows India users 'Pay with UPI 🇮🇳' + 'Card / PayPal 🌍'. Test mode until KYC approves → swap test→live keys, no code change." },
     { "ts": "2026-08-24", "role": "eng", "text": "WENT LIVE FOR REAL MONEY + SHIPPED GATING (v105). Razorpay live keys (rzp_live_…) + live webhook are in Supabase's vault — real UPI ₹ now flows and the webhook grants Pro server-side. Then closed T-15: Entitlements.isPro() now GATES the two built premium features — camera filters (10 free / 105 Pro, with a '🔒 105+ with Pro' nudge → paywall) + AI meal plans (3 free tastes, then unlimited for Pro). Verified live: version.txt=105 on Pages. A purchase now unlocks something real → Sprint 3 (M0) goal met on both halves (charge + gate)." },
-    { "ts": "2026-08-24", "role": "pm", "text": "Sprint 3 (Make It Chargeable) DONE — payments live + features gate. Sprint 4 (First Customers / M1) opened. New backlog: T-37 advanced-analytics dashboard (Pro), T-38 AI workout-plan generator (Pro), T-39 progress-photo analysis (Elite) — advertised tiers that still need BUILDING before they can be gated. Founder to run the ₹1 live-payment sanity test + activate Lemon Squeezy (card/PayPal payouts) when ready." }
+    { "ts": "2026-08-24", "role": "pm", "text": "Sprint 3 (Make It Chargeable) DONE — payments live + features gate. Sprint 4 (First Customers / M1) opened. New backlog: T-37 advanced-analytics dashboard (Pro), T-38 AI workout-plan generator (Pro), T-39 progress-photo analysis (Elite) — advertised tiers that still need BUILDING before they can be gated. Founder to run the ₹1 live-payment sanity test + activate Lemon Squeezy (card/PayPal payouts) when ready." },
+    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v106 — T-38 Pro workout-program generator. Engine.generateProgram() produces a periodised multi-week block (4-week Base→Build→Intensify→Deload cycle) composed from the PPL splits + an Arms&Delts day for 4-day weeks; frequency comes from experience (beginner 3 → advanced 5–6), priority muscles from the target physique get an extra set and a ★. Pro-gated via App.openProgram() (free → paywall) with a Home discovery card, week tabs and Regenerate. Logic unit-tested across 3/4/5/6-day frequencies (19–38 exercises/week, deload on week 4, regenerate varies). Next: T-37 advanced analytics." }
   ]
 }
