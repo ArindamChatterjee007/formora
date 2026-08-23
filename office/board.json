@@ -59,7 +59,7 @@
     { "id": "T-05", "title": "Auth Phase 1 \u2014 supaauth.js behind flag (prod unchanged)", "role": "eng", "sprint": 0, "status": "done", "priority": "P0" },
     { "id": "T-06", "title": "Business model, monetization spec, execution plan", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
     { "id": "T-07", "title": "Investor pitch deck (PDF + PPTX)", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
-    { "id": "T-08", "title": "Enable Supabase Email provider", "role": "devops", "sprint": 1, "status": "blocked", "priority": "P0", "blocker": "Needs you to enable it in the Supabase dashboard" },
+    { "id": "T-08", "title": "Enable Supabase Email provider", "role": "devops", "sprint": 1, "status": "done", "priority": "P0" },
     { "id": "T-09", "title": "Flag-on staging QA: signup/login/session/cross-device", "role": "qa", "sprint": 1, "status": "todo", "priority": "P0" },
     { "id": "T-10", "title": "Fix v78 session/uid-continuity failure modes", "role": "eng", "sprint": 1, "status": "todo", "priority": "P0" },
     { "id": "T-11", "title": "Apply security.sql RLS on a staging project", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
@@ -78,6 +78,7 @@
     { "id": "T-24", "title": "Landing hero emoji chips \u2192 SVG polish", "role": "design", "sprint": 1, "status": "todo", "priority": "P3" }
   ],
   "activity": [
-    { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized \u2014 GitHub-backed board, Copilot as the AI backend." }
+    { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
+    { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." }
   ]
 }
