@@ -30,8 +30,8 @@
   ],
   "sprints": [
     { "id": 0, "name": "Foundation", "goal": "Secure, shippable product on an automated pipeline + funding-ready plan", "status": "done" },
-    { "id": 1, "name": "Real Auth in Staging", "goal": "A user signs up/logs in with real Supabase Auth in staging; session persists; feed still loads", "status": "active" },
-    { "id": 2, "name": "Lock Down the Database", "goal": "Production on real auth + RLS \u2014 close the critical DM/PII access-control vuln", "status": "planned" },
+    { "id": 1, "name": "Real Auth in Staging", "goal": "A user signs up/logs in with real Supabase Auth in staging; session persists; feed still loads", "status": "done" },
+    { "id": 2, "name": "Lock Down the Database", "goal": "Production on real auth + RLS — close the critical DM/PII access-control vuln", "status": "active" },
     { "id": 3, "name": "Make It Chargeable (M0)", "goal": "A test purchase flips a user to Pro server-side; features gate correctly", "status": "planned" },
     { "id": 4, "name": "First Customers", "goal": "Real people pay; the funnel is measured (M1\u2192M2)", "status": "planned" },
     { "id": 5, "name": "Growth Engine", "goal": "A working near-zero-CAC growth loop toward $1k MRR (M3)", "status": "planned" },
@@ -48,7 +48,7 @@
     { "label": "Live version", "value": "v97" },
     { "label": "Security", "value": "XSS fixed \u00b7 CSP \u00b7 PBKDF2" },
     { "label": "Pipeline", "value": "dev\u2192release\u2192beta\u2192main" },
-    { "label": "Auth migration", "value": "Phase 1 / 5" },
+    { "label": "Auth migration", "value": "Phase 2 ✓ staging" },
     { "label": "Revenue", "value": "Pre-revenue \u2192 M0 next" }
   ],
   "tasks": [
@@ -60,8 +60,8 @@
     { "id": "T-06", "title": "Business model, monetization spec, execution plan", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
     { "id": "T-07", "title": "Investor pitch deck (PDF + PPTX)", "role": "growth", "sprint": 0, "status": "done", "priority": "P1" },
     { "id": "T-08", "title": "Enable Supabase Email provider", "role": "devops", "sprint": 1, "status": "done", "priority": "P0" },
-    { "id": "T-09", "title": "Flag-on staging QA: signup/login/session/cross-device", "role": "qa", "sprint": 1, "status": "todo", "priority": "P0" },
-    { "id": "T-10", "title": "Fix v78 session/uid-continuity failure modes", "role": "eng", "sprint": 1, "status": "todo", "priority": "P0" },
+    { "id": "T-09", "title": "Flag-on staging QA: signup/login/session/cross-device", "role": "qa", "sprint": 1, "status": "done", "priority": "P0" },
+    { "id": "T-10", "title": "Fix v78 session/uid-continuity failure modes", "role": "eng", "sprint": 1, "status": "done", "priority": "P0" },
     { "id": "T-11", "title": "Apply security.sql RLS on a staging project", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
     { "id": "T-12", "title": "Data-migrate members (email\u2192auth.users)", "role": "eng", "sprint": 2, "status": "backlog", "priority": "P0" },
     { "id": "T-13", "title": "Prod cutover + RLS + rollback \u2014 close access-control vuln", "role": "devops", "sprint": 2, "status": "backlog", "priority": "P0" },
@@ -79,6 +79,7 @@
   ],
   "activity": [
     { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
-    { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." }
+    { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." },
+    { "ts": "2026-08-23", "role": "qa", "text": "T-09 PASSED — flag-on staging test: signup + login + session-persist + JWT all work against real Supabase. Sprint 1 done → Sprint 2 (RLS) active." }
   ]
 }
