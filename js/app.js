@@ -2032,7 +2032,18 @@ const App = {
   },
 
   // ---- full-day meal plan ----
+  // AI meal plans are a Pro feature. Free members get a few tastes, then the
+  // paywall opens — Pro/Elite generate & regenerate without limit.
+  _planGate() {
+    if (typeof Entitlements !== "undefined" && Entitlements.isPro()) return true;
+    const FREE = 3;
+    const used = +(localStorage.getItem("fm_plan_gens") || 0);
+    if (used >= FREE) { this.openPricing(); return false; }
+    localStorage.setItem("fm_plan_gens", String(used + 1));
+    return true;
+  },
   generatePlan() {
+    if (!this._planGate()) return;
     const el = document.getElementById("plan-text");
     if (el) this.planText = el.value;
     this.planSeed = (this.planSeed || 0) + 1;
