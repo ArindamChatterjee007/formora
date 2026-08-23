@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v108",
+    "liveVersion": "v109",
     "updated": "2026-08-24",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -59,7 +59,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v108 · double-tap like + global reel sound + Pro programs/analytics" },
+    { "label": "Live version", "value": "v109 · music on posts/reels + double-tap like + global sound" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -160,7 +160,8 @@
     { "id": "T-44", "title": "Micro-influencer seeding program — ~20 fitness creators, UGC challenge", "role": "influencer", "sprint": 5, "status": "backlog", "priority": "P1" },
     { "id": "T-45", "title": "Lifecycle email/push — onboarding, streak nudges, trial→paid, win-back", "role": "lifecycle", "sprint": 5, "status": "backlog", "priority": "P1" },
     { "id": "T-46", "title": "Paid acquisition pilot — small Meta/TikTok test once M2 is hit, track CAC/ROAS", "role": "paid", "sprint": 6, "status": "backlog", "priority": "P2" },
-    { "id": "T-47", "title": "Founder compensation + earnings model — when MRR supports a salary, how much to pay vs reinvest", "role": "finance", "sprint": 4, "status": "backlog", "priority": "P2", "note": "CFO/analyst model: reinvest 100% until ~$1k MRR, then a modest founder draw; project take-home at $1k/$5k/$10k MRR (costs stay near-zero on Pages+Supabase)." }
+    { "id": "T-47", "title": "Founder compensation + earnings model — when MRR supports a salary, how much to pay vs reinvest", "role": "finance", "sprint": 4, "status": "backlog", "priority": "P2", "note": "CFO/analyst model: reinvest 100% until ~$1k MRR, then a modest founder draw; project take-home at $1k/$5k/$10k MRR (costs stay near-zero on Pages+Supabase)." },
+    { "id": "T-48", "title": "Music on posts/reels — royalty-free library + Instagram-style playback", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v109 — composer '🎵 Music' picker with preview; track stored in posts.data.music (no schema change); plays in Reels + feed videos synced to the global sound toggle (video auto-muted). 5 royalty-free SoundHelix clips (credited) hosted in Supabase storage. Licensed trending-song catalog needs a label deal — this is the legal MVP." }
   ],
   "activity": [
     { "ts": "2026-08-23", "role": "coo", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
@@ -191,6 +192,7 @@
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v106 — T-38 Pro workout-program generator. Engine.generateProgram() produces a periodised multi-week block (4-week Base→Build→Intensify→Deload cycle) composed from the PPL splits + an Arms&Delts day for 4-day weeks; frequency comes from experience (beginner 3 → advanced 5–6), priority muscles from the target physique get an extra set and a ★. Pro-gated via App.openProgram() (free → paywall) with a Home discovery card, week tabs and Regenerate. Logic unit-tested across 3/4/5/6-day frequencies (19–38 exercises/week, deload on week 4, regenerate varies). Next: T-37 advanced analytics." },
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v107 — T-37 advanced analytics (Pro). Progress tab now has a Pro-gated section: an 8-week training-volume column chart (weekly tonnage = reps×weight, so members can SEE if they're progressively overloading) + a per-lift estimated-1RM table (Epley) with the gain since they first logged each lift. Free members get an upgrade teaser instead. New Engine.volumeTrend/liftProgress + Charts.columns, all unit-tested (bench e1RM 85kg, +8.6). Next: T-16 onboarding funnel." },
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v108 — social UX polish the founder asked for. (1) GLOBAL SOUND: the fullscreen reels used to hold mute per-video, so every reel needed re-unmuting on scroll; now reels + feed videos share ONE state (Social._feedSound) applied by both intersection observers — unmute once, stays on everywhere. (2) DOUBLE-TAP TO LIKE on any post or reel (Instagram-style) with a heart-burst animation, like-only (never unlikes). get_errors clean." },
-    { "ts": "2026-08-24", "role": "cmo", "text": "MARKETING TEAM EXPANDED (founder ask). Added 5 roles under the CMO: Social Media Manager (🎥 daily short-form + Flex loop), Content/SEO Writer (✍️ organic + ASO), Performance Marketer (🎯 paid/CAC/ROAS), Influencer & Community Lead (🤳 creator seeding + UGC), Lifecycle/CRM Marketer (📧 email/push retention). Roadmap logged: T-41 organic social engine, T-42 ASO, T-43 SEO hub, T-44 influencer seeding, T-45 lifecycle, T-46 paid pilot. Strategy: stack near-zero-CAC organic loops (Flex short-form + SEO + referrals) first; only turn on paid (T-46) after M2 proves the funnel converts. Also T-47: CFO to model founder take-home at $1k/$5k/$10k MRR." }
+    { "ts": "2026-08-24", "role": "cmo", "text": "MARKETING TEAM EXPANDED (founder ask). Added 5 roles under the CMO: Social Media Manager (🎥 daily short-form + Flex loop), Content/SEO Writer (✍️ organic + ASO), Performance Marketer (🎯 paid/CAC/ROAS), Influencer & Community Lead (🤳 creator seeding + UGC), Lifecycle/CRM Marketer (📧 email/push retention). Roadmap logged: T-41 organic social engine, T-42 ASO, T-43 SEO hub, T-44 influencer seeding, T-45 lifecycle, T-46 paid pilot. Strategy: stack near-zero-CAC organic loops (Flex short-form + SEO + referrals) first; only turn on paid (T-46) after M2 proves the funnel converts. Also T-47: CFO to model founder take-home at $1k/$5k/$10k MRR." },
+    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v109 — MUSIC on posts/reels (founder ask). Composer has a '🎵 Music' picker with in-sheet preview; the chosen track is stored in posts.data.music (jsonb — NO schema change) and plays in Reels + on feed videos, synced to the global sound toggle (the video auto-mutes so only the track is heard, exactly like Instagram). 5 royalty-free clips (SoundHelix, credited) trimmed to 30s and hosted in our own Supabase storage, so CSP is unchanged. HONEST NOTE: a licensed trending-song catalog like Instagram's needs a label/distributor deal; this is the legal royalty-free MVP the mechanism is ready for. All 6 JS files pass node --check." }
   ]
 }
