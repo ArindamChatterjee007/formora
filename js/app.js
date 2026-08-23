@@ -1316,6 +1316,31 @@ const App = {
     this.renderTab(active);
   },
   closeModal() { document.getElementById("modal").classList.add("hidden"); },
+  // ---- Pricing / upgrade (T-28). Real checkout wires in once a Merchant-of-Record is live (office T-25). ----
+  openPricing() {
+    const P = (window.PRICING && window.PRICING.tiers) || [];
+    const cur = "free"; // becomes Entitlements.tier() when payments ship
+    const tiers = P.map((t) => `
+      <div class="ptier ${t.id === "pro" ? "featured" : ""}">
+        ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
+        <div class="pt-name">${esc(t.name)}</div>
+        <div class="pt-price">${t.price === "0" ? "Free" : "$" + esc(t.price)}<small>${esc(t.period || "")}</small></div>
+        ${t.yearly ? `<div class="pt-year">or ${esc(t.yearly)}</div>` : ""}
+        <ul class="pt-feats">${(t.features || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`}
+      </div>`).join("");
+    document.getElementById("modal-card").innerHTML =
+      `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+       <div class="pricing"><div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
+       <div class="ptiers">${tiers}</div>
+       <div class="pt-foot">Secure checkout · 5-day free trial on paid plans</div></div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  choosePlan(tier) {
+    try { const w = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); w[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(w)); } catch (_) {}
+    this.closeModal();
+    this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " when it launches ✨");
+  },
 
   // open a licensed (SFW) photo search for an outfit — no scraping/embedding
   outfitSearch(gender, id, idx) {
@@ -2189,6 +2214,13 @@ const App = {
           <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
+      </div>
+      <div class="card upgrade-card" onclick="App.openPricing()">
+        <div class="uc-glow"></div>
+        <div class="uc-badge">✨ Formora Pro</div>
+        <div class="uc-title">Unlock AI plans, all filters &amp; advanced analytics</div>
+        <div class="uc-price">From <b>$7.99</b>/mo · 5-day free trial</div>
+        <button class="btn wide uc-btn" onclick="event.stopPropagation();App.openPricing()">See plans →</button>
       </div>
       ${myPosts.length ? `<div class="card"><div class="card-head"><h2>Your posts</h2><span class="tag">${myPosts.length}</span></div>${myPosts.map((x) => Social.postCard(cloudOn ? Social._cloudPost(x) : x)).join("")}</div>` : ""}
       <div class="card">

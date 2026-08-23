@@ -47,6 +47,17 @@ window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 window.USE_SUPABASE_AUTH = false;
 window.SOCIAL_API = "";
 
+// Subscription tiers (T-28 pricing page). Real checkout wires in once a
+// Merchant-of-Record is live (office T-25/T-14); until then the CTA captures
+// early-access interest locally.
+window.PRICING = {
+  tiers: [
+    { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "10 camera filters"] },
+    { id: "pro",   name: "Pro",   price: "7.99",  period: "/mo", yearly: "$49.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "All 100 camera filters", "Advanced analytics", "No ads · unlimited Flex"] },
+    { id: "elite", name: "Elite", price: "19.99", period: "/mo", yearly: "$149/yr",   features: ["Everything in Pro", "AI progress-photo analysis", "Monthly human-coach check-in", "Priority support", "Early access to new features"] },
+  ],
+};
+
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
    A banned user is blocked at login with a suspension notice, and their posts /
    stories / profile are hidden across the app. Remove a uid here to lift a ban. ---- */
