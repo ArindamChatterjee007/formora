@@ -81,6 +81,8 @@
     { "ts": "2026-08-23", "role": "hr", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
     { "ts": "2026-08-23", "role": "devops", "text": "T-08 cleared — Supabase Email provider confirmed Enabled + signups allowed. Auth backend ready for Phase 2." },
     { "ts": "2026-08-23", "role": "qa", "text": "T-09 PASSED — flag-on staging test: signup + login + session-persist + JWT all work against real Supabase. Sprint 1 done → Sprint 2 (RLS) active." },
-    { "ts": "2026-08-23", "role": "eng", "text": "Sprint 2 started: hardened security.sql to add RLS for messages (DMs) + notifications — the exact tables that were leaking. SQL now complete; ready to apply on a staging Supabase." }
+    { "ts": "2026-08-23", "role": "eng", "text": "Sprint 2 started: hardened security.sql to add RLS for messages (DMs) + notifications — the exact tables that were leaking. SQL now complete; ready to apply on a staging Supabase." },
+    { "ts": "2026-08-23", "role": "qa", "text": "Audit found ZERO real users — all ~10 accounts are QA test users. App is pre-launch, so a clean cutover beats a staging project (no migration risk)." },
+    { "ts": "2026-08-23", "role": "eng", "text": "Found + fixed the v78-class bug: writes used an email-slug id but RLS checks auth.uid() (UUID). Cloud.me now uses the Supabase UUID when flag-on. Flipped USE_SUPABASE_AUTH=true, shipped v98 to dev. Go-live (wipe test data + merge to main + enable RLS) awaits founder GO." }
   ]
 }

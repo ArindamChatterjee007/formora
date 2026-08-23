@@ -27,7 +27,10 @@ const Cloud = {
     if (!this.active()) return false;
     this.base = window.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
     this.key = window.SUPABASE_ANON_KEY;
-    this.me = this.uidFor(email);
+    // RLS checks auth.uid()::text = author/uid/from_uid, so under Supabase Auth our
+    // identity MUST be the server-issued user UUID, not an email-derived slug.
+    const supaUid = (typeof SupaAuth !== "undefined" && SupaAuth.active && SupaAuth.active() && SupaAuth.uid()) || "";
+    this.me = supaUid || this.uidFor(email);
     return true;
   },
   init(account, profile) {
