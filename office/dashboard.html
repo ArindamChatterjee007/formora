@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formora — AI Agent Office</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0b0c10; --panel:rgba(255,255,255,.04); --line:rgba(255,255,255,.10); --ink:#f4f6fb; --sub:#9aa3b4;
+    --g1:#ff9d4d; --g2:#ff5a4d; --g3:#ff3d7f; --ok:#43d9a3; --warn:#ffce54; --red:#ff6b6b; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{ background:
+      radial-gradient(1000px 600px at 90% -10%, rgba(255,90,77,.14), transparent 60%),
+      radial-gradient(800px 600px at -8% 110%, rgba(255,61,127,.12), transparent 55%),
+      linear-gradient(160deg,#0e0f13,#0b0c10); color:var(--ink);
+    font-family:'Outfit',-apple-system,'Helvetica Neue',Arial,sans-serif; min-height:100vh; padding:26px 30px 60px }
+  .grad{ background:linear-gradient(100deg,var(--g1),var(--g2) 45%,var(--g3)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent }
+  header{ display:flex; align-items:center; gap:16px; margin-bottom:22px; flex-wrap:wrap }
+  .mark{ width:48px;height:48px;border-radius:13px; background:linear-gradient(140deg,var(--g1),var(--g2),var(--g3)); display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:27px; box-shadow:0 8px 24px rgba(255,90,77,.35) }
+  h1{ font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1 }
+  h1 span{ font-weight:600; color:var(--sub); font-size:15px; display:block; margin-top:4px; letter-spacing:.02em }
+  .hlinks{ margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .chip{ font-size:12.5px; font-weight:600; color:var(--sub); border:1px solid var(--line); padding:8px 13px; border-radius:999px; text-decoration:none }
+  .chip b{ color:var(--ink) } a.chip:hover{ border-color:var(--g2); color:var(--ink) }
+  .kpis{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px }
+  .kpi{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px }
+  .kpi .l{ font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--sub); font-weight:700 }
+  .kpi .v{ font-size:17px; font-weight:800; margin-top:6px }
+  .sprintbar{ background:linear-gradient(100deg, rgba(255,90,77,.14), rgba(255,61,127,.10)); border:1px solid var(--line); border-radius:16px; padding:18px 22px; margin-bottom:22px; display:flex; align-items:center; gap:18px; flex-wrap:wrap }
+  .sprintbar .tag{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:#fff; background:linear-gradient(140deg,var(--g1),var(--g3)); padding:6px 12px; border-radius:8px }
+  .sprintbar b{ font-size:19px } .sprintbar .goal{ color:var(--sub); font-size:15.5px }
+  .section-h{ font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--sub); font-weight:800; margin:26px 2px 12px }
+  .board{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; align-items:start }
+  .col{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; min-height:80px }
+  .col h3{ font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:12px; color:var(--sub) }
+  .col h3 .n{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:12px; background:rgba(255,255,255,.06); padding:2px 8px; border-radius:999px }
+  .col.done h3{ color:var(--ok) } .col.blocked h3{ color:var(--red) } .col.in_progress h3{ color:var(--warn) }
+  .card{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:11px; padding:11px 12px; margin-bottom:9px }
+  .card .t{ font-size:13.5px; font-weight:600; line-height:1.3 }
+  .card .m{ display:flex; align-items:center; gap:7px; margin-top:9px; flex-wrap:wrap }
+  .role{ font-size:12px } .badge{ font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; letter-spacing:.03em }
+  .p-P0{ background:rgba(255,107,107,.16); color:#ff9d9d } .p-P1{ background:rgba(255,206,84,.16); color:#ffd98a }
+  .p-P2{ background:rgba(80,160,255,.16); color:#9ec3ff } .p-P3{ background:rgba(255,255,255,.08); color:var(--sub) }
+  .sp{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--sub); border:1px solid var(--line); padding:2px 6px; border-radius:6px }
+  .blk{ margin-top:8px; font-size:12px; color:#ff9d9d; background:rgba(255,107,107,.09); border-radius:7px; padding:6px 8px; line-height:1.3 }
+  .grid2{ display:grid; grid-template-columns:1.3fr 1fr; gap:18px; margin-top:6px }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px 20px }
+  .ms{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line) }
+  .ms:last-child{ border-bottom:none } .ms .dot{ width:12px;height:12px;border-radius:50%; border:2px solid var(--sub) }
+  .ms.done .dot{ background:var(--ok); border-color:var(--ok) }
+  .ms .id{ font-family:'JetBrains Mono',monospace; font-weight:700; width:38px } .ms .nm{ flex:1 } .ms .s{ color:var(--sub); font-size:13px }
+  .roles{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px }
+  .rc{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:12px; padding:12px }
+  .rc .e{ font-size:20px } .rc .rt{ font-weight:700; font-size:14px; margin-top:6px } .rc .rd{ color:var(--sub); font-size:11.5px; margin-top:4px; line-height:1.35 }
+  .feed .row{ display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px }
+  .feed .row:last-child{ border-bottom:none } .feed .ts{ font-family:'JetBrains Mono',monospace; color:var(--sub); font-size:12px; white-space:nowrap }
+  .foot{ margin-top:30px; color:var(--sub); font-size:12.5px; text-align:center; line-height:1.6 }
+  #loading{ text-align:center; padding:80px 0; color:var(--sub); font-size:16px }
+  @media(max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} .kpis{grid-template-columns:repeat(2,1fr)} .grid2{grid-template-columns:1fr} .roles{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+  <div id="loading">Loading the office board from GitHub…</div>
+  <div id="app" style="display:none">
+    <header>
+      <div class="mark">F</div>
+      <h1>Formora <span class="grad" style="font-size:26px;-webkit-text-fill-color:transparent">AI Agent Office</span><span id="sub"></span></h1>
+      <div class="hlinks" id="hlinks"></div>
+    </header>
+    <div class="kpis" id="kpis"></div>
+    <div class="sprintbar" id="sprintbar"></div>
+    <div class="section-h">Sprint board</div>
+    <div class="board" id="board"></div>
+    <div class="grid2">
+      <div>
+        <div class="section-h">The AI team (all powered by Copilot)</div>
+        <div class="panel"><div class="roles" id="roles"></div></div>
+      </div>
+      <div>
+        <div class="section-h">Revenue milestones</div>
+        <div class="panel" id="milestones"></div>
+        <div class="section-h">Activity</div>
+        <div class="panel feed" id="feed"></div>
+      </div>
+    </div>
+    <div class="foot" id="foot"></div>
+  </div>
+<script>
+  const SOURCES = [
+    './board.json',
+    'https://raw.githubusercontent.com/ArindamChatterjee007/formora/main/office/board.json',
+    'https://raw.githubusercontent.com/ArindamChatterjee007/formora/dev/office/board.json'
+  ];
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  async function load(){ for(const u of SOURCES){ try{ const r=await fetch(u,{cache:'no-store'}); if(r.ok) return await r.json(); }catch(e){} } throw new Error('board unreachable'); }
+  function roleOf(b,k){ return (b.roles.find(r=>r.key===k))||{emoji:'•',title:k}; }
+  function render(b){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('app').style.display='block';
+    document.getElementById('sub').textContent = 'GitHub-backed · updated '+b.meta.updated+' · '+b.meta.liveVersion;
+    document.getElementById('hlinks').innerHTML =
+      `<a class="chip" href="${esc(b.meta.liveUrl)}" target="_blank">▶ Live app</a>`+
+      `<a class="chip" href="https://github.com/${esc(b.meta.repo)}/issues" target="_blank">◆ GitHub Issues</a>`+
+      `<span class="chip">★ North star: <b>${esc(b.meta.northStar)}</b></span>`;
+    document.getElementById('kpis').innerHTML = b.kpis.map(k=>`<div class="kpi"><div class="l">${esc(k.label)}</div><div class="v">${esc(k.value)}</div></div>`).join('');
+    const cur = b.sprints.find(s=>s.status==='active')||b.sprints[0];
+    document.getElementById('sprintbar').innerHTML =
+      `<span class="tag">SPRINT ${cur.id}</span><b>${esc(cur.name)}</b><span class="goal">🎯 ${esc(cur.goal)}</span>`;
+    // board
+    document.getElementById('board').innerHTML = b.columns.map(col=>{
+      const items = b.tasks.filter(t=>t.status===col.key);
+      const cards = items.map(t=>{ const r=roleOf(b,t.role);
+        return `<div class="card"><div class="t">${esc(t.title)}</div><div class="m">`+
+          `<span class="role" title="${esc(r.title)}">${r.emoji}</span>`+
+          `<span class="badge p-${esc(t.priority)}">${esc(t.priority)}</span>`+
+          `<span class="sp">S${esc(t.sprint)}</span></div>`+
+          (t.blocker?`<div class="blk">⛔ ${esc(t.blocker)}</div>`:'')+`</div>`;
+      }).join('') || `<div style="color:var(--sub);font-size:12px;padding:6px 2px">—</div>`;
+      return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
+    }).join('');
+    // roles
+    document.getElementById('roles').innerHTML = b.roles.map(r=>`<div class="rc"><div class="e">${r.emoji}</div><div class="rt">${esc(r.title)}</div><div class="rd">${esc(r.does)}</div></div>`).join('');
+    // milestones
+    document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
+    // feed
+    document.getElementById('feed').innerHTML = b.activity.slice().reverse().map(a=>{ const r=roleOf(b,a.role);
+      return `<div class="row"><span class="ts">${esc(a.ts)}</span><span>${r.emoji} ${esc(a.text)}</span></div>`; }).join('');
+    const done=b.tasks.filter(t=>t.status==='done').length, total=b.tasks.length;
+    document.getElementById('foot').innerHTML = `${done}/${total} tracked tasks done · AI backend: ${esc(b.meta.aiBackend)} · storage: ${esc(b.meta.storage)}<br>Say <b>“do today’s work”</b> in Copilot chat and the office executes the top of the current sprint.`;
+  }
+  load().then(render).catch(e=>{ document.getElementById('loading').innerHTML='Could not load board.json from GitHub.<br><small>'+esc(e.message)+'</small>'; });
+</script>
+</body>
+</html>

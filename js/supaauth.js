@@ -25,6 +25,7 @@ const SupaAuth = {
   },
   clear() { this.session = null; try { localStorage.removeItem(this.KEY); } catch (_) {} },
   email() { return (this.session && this.session.email) || ""; },
+  uid() { if (!this.active()) return ""; if (!this.session) this.load(); return (this.session && this.session.uid) || ""; },
   // synchronous current token for request headers (proactively refreshed on a timer)
   bearer() { if (!this.active()) return null; if (!this.session) this.load(); return this.session ? this.session.access_token : null; },
 
