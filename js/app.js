@@ -585,6 +585,7 @@ const App = {
 
   selectTab(tab) {
     if (!this._tabView[tab]) tab = "home";
+    if (typeof Social !== "undefined" && Social.stopMusic) Social.stopMusic();
     const viewId = "view-" + this._tabView[tab];
     // direction-aware slide: compare the new tab's position to the current one
     const wrap = document.getElementById("wrap");
@@ -630,7 +631,7 @@ const App = {
   reelSlide(p) {
     const a = Social.persona(p.author);
     return `<div class="reel" data-id="${p.id}">
-      <video class="reel-vid" src="${p.video}" playsinline loop ${Social._feedSound ? "" : "muted"} preload="metadata" onclick="App.reelTap('${p.id}',event)"></video>
+      <video class="reel-vid" src="${p.video}" data-msrc="${p.music ? esc(p.music.src) : ""}" playsinline loop ${Social._feedSound ? "" : "muted"} preload="metadata" onclick="App.reelTap('${p.id}',event)"></video>
       <div class="reel-grad"></div>
       <button class="reel-mute" onclick="App.toggleReelMute(this)" title="Sound">${this.ic(Social._feedSound ? "volume" : "mute", { size: 20 })}</button>
       <div class="reel-actions">
@@ -640,7 +641,7 @@ const App = {
       </div>
       <div class="reel-info" onclick="Social.viewProfile('${p.author}')">
         ${Social.avatar(a, 40)}
-        <div class="reel-meta"><div class="reel-name">${esc(a.name)} <span>@${esc(a.handle)}</span></div>${p.text ? `<div class="reel-cap">${esc(p.text)}</div>` : ""}</div>
+        <div class="reel-meta"><div class="reel-name">${esc(a.name)} <span>@${esc(a.handle)}</span></div>${p.text ? `<div class="reel-cap">${esc(p.text)}</div>` : ""}${p.music ? `<div class="reel-music">🎵 ${esc(p.music.title)} · ${esc(p.music.artist)}</div>` : ""}</div>
       </div>
     </div>`;
   },
@@ -652,14 +653,21 @@ const App = {
     this._reelObs = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
         const v = e.target;
-        if (e.isIntersecting && e.intersectionRatio > 0.6) { v.muted = !Social._feedSound; v.play().catch(() => {}); }
-        else v.pause();
+        const msrc = v.getAttribute("data-msrc") || "";
+        if (e.isIntersecting && e.intersectionRatio > 0.6) {
+          if (msrc) { v.muted = true; Social.playMusic(msrc); } else { v.muted = !Social._feedSound; if (Social._musicSrc) Social.stopMusic(); }
+          v.play().catch(() => {});
+        } else { v.pause(); if (msrc && Social._musicSrc === msrc) Social.stopMusic(); }
       });
     }, { threshold: [0, 0.6, 1] });
     vids.forEach((v) => this._reelObs.observe(v));
-    if (vids[0]) { vids[0].muted = !Social._feedSound; vids[0].play().catch(() => {}); }
+    if (vids[0]) { const m0 = vids[0].getAttribute("data-msrc") || ""; if (m0) { vids[0].muted = true; Social.playMusic(m0); } else { vids[0].muted = !Social._feedSound; } vids[0].play().catch(() => {}); }
   },
-  toggleReelPlay(v) { if (v.paused) v.play().catch(() => {}); else v.pause(); },
+  toggleReelPlay(v) {
+    const msrc = v.getAttribute && v.getAttribute("data-msrc");
+    if (v.paused) { v.play().catch(() => {}); if (msrc) Social.playMusic(msrc); }
+    else { v.pause(); if (msrc && Social._musicSrc === msrc && Social._musicAudio) Social._musicAudio.pause(); }
+  },
   // double-tap the reel = like (Instagram-style); single tap toggles play
   reelTap(id, ev) {
     const now = Date.now();
@@ -678,8 +686,9 @@ const App = {
   },
   toggleReelMute(btn) {
     Social._feedSound = !Social._feedSound;
-    document.querySelectorAll(".reel-vid").forEach((v) => { v.muted = !Social._feedSound; });
+    document.querySelectorAll(".reel-vid").forEach((v) => { v.muted = v.getAttribute("data-msrc") ? true : !Social._feedSound; });
     document.querySelectorAll(".reel-mute").forEach((b) => { b.innerHTML = this.ic(Social._feedSound ? "volume" : "mute", { size: 20 }); });
+    if (Social._musicAudio) Social._musicAudio.muted = !Social._feedSound;
     if (App.toast) App.toast(Social._feedSound ? "🔊 Sound on" : "Muted");
   },
   reelLike(id, btn) {
