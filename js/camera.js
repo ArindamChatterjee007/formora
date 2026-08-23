@@ -130,6 +130,10 @@ const Camera = {
 
   supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
   cssFilter() { return (this.FILTERS[this.filterIdx] || {}).css || "none"; },
+  // Free tier = first 10 filters; Pro/Elite unlock all of them.
+  _isPro() { return typeof Entitlements !== "undefined" && Entitlements.isPro(); },
+  maxFilters() { return this._isPro() ? this.FILTERS.length : Math.min(10, this.FILTERS.length); },
+  unlockFilters() { this.close(); if (typeof App !== "undefined" && App.openPricing) setTimeout(() => App.openPricing(), 120); },
   // clean line-icons (no emoji) for a professional camera UI
   ic(n) {
     const p = {
@@ -146,6 +150,7 @@ const Camera = {
     this.target = target || "story";
     this.paintOn = false;
     this.mode = "photo";
+    this.filterIdx = 0;
     this.buildUI();
     try {
       await this.start();
@@ -171,7 +176,8 @@ const Camera = {
     try { await this.start(); } catch (e) { this.facing = this.facing === "user" ? "environment" : "user"; }
   },
   setFilter(i) {
-    this.filterIdx = (i + this.FILTERS.length) % this.FILTERS.length;
+    const n = this.maxFilters();
+    this.filterIdx = (i + n) % n;
     const v = document.getElementById("cam-video");
     if (v) v.style.filter = this.cssFilter();
     const btns = document.querySelectorAll(".cam-filter");
@@ -201,7 +207,8 @@ const Camera = {
           <button class="cam-ic" aria-label="Flip camera" onclick="Camera.flip()">${this.ic("flip")}</button>
         </div>
         <div class="cam-filters" id="cam-filters">
-          ${this.FILTERS.map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
+          ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
+          ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" style="background:linear-gradient(90deg,#ff9d4d,#ff3d7f);color:#fff;font-weight:700" onclick="Camera.unlockFilters()">🔒 ${this.FILTERS.length - this.maxFilters()}+ with Pro</button>` : ""}
         </div>
         <div class="cam-bottom">
           <div class="cam-hint" id="cam-hint">Tap to take a photo · swipe for filters</div>
