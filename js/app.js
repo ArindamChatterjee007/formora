@@ -639,6 +639,7 @@ const App = {
         <button class="reel-act" onclick="App.openReelComments('${p.id}')">${this.ic("comment", { size: 29 })}<span id="rcnt-${p.id}">${Social.cloudActive() ? Social.commentCount(p.id) : 0}</span></button>
         <button class="reel-act reshare ${p.resharedByMe ? "on" : ""}" onclick="App.reelReshare('${p.id}',this)">${this.ic("reshare", { size: 28 })}<span>${p.reshares || 0}</span></button>
         <button class="reel-act" onclick="App.reelShare('${p.id}')">${this.ic("share", { size: 28 })}<span>Share</span></button>
+        <button class="reel-act save ${Social.isSaved(p.id) ? "on" : ""}" onclick="App.reelSave('${p.id}',this)">${this.ic("bookmark", { size: 28, solid: Social.isSaved(p.id) })}<span>Save</span></button>
       </div>
       <div class="reel-info" onclick="Social.viewProfile('${p.author}')">
         ${Social.avatar(a, 40)}
@@ -695,7 +696,7 @@ const App = {
   reelLike(id, btn) {
     Social.likePost(id);
     const src = Social.cloud.feed.find((x) => x.id === id);
-    if (!src) return;
+    if (!src || !btn) return;
     const p = Social._cloudPost(src);
     btn.classList.toggle("on", p.likedByMe);
     btn.innerHTML = this.ic("heart", { size: 29, solid: p.likedByMe }) + `<span>${p.likes}</span>`;
@@ -708,6 +709,12 @@ const App = {
     btn.innerHTML = this.ic("reshare", { size: 28 }) + `<span>${p.reshares || 0}</span>`;
   },
   reelShare(id) { Social.sharePost(id); },
+  reelSave(id, btn) {
+    const saved = Social._setSaved(id);
+    if (!btn) return;
+    btn.classList.toggle("on", saved);
+    btn.innerHTML = this.ic("bookmark", { size: 28, solid: saved }) + "<span>Save</span>";
+  },
 
   // ---- premium inline icon set (24-grid, stroke-based, inherits currentColor) ----
   _ICONS: {
