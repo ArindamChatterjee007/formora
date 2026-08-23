@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <!-- Security: CSP + Referrer-Policy (meta-supported). HSTS / X-Frame-Options /
        X-Content-Type-Options are HTTP-header-only and must be set at the edge/CDN. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://accounts.google.com https://apis.google.com https://*.googleapis.com https://api.pexels.com https://api.emailjs.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://accounts.google.com https://apis.google.com https://*.googleapis.com https://api.pexels.com https://api.emailjs.com https://ipapi.co https://open.er-api.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Formora · Your Aesthetic Physique Coach</title>
   <!-- PWA: installable on iPhone (Add to Home Screen) and Android — no App Store, no fee -->
   <meta name="description" content="Formora — your aesthetic physique coach. Train, track &amp; connect." />
   <meta name="theme-color" content="#0e0f13" />
-  <link rel="manifest" href="manifest.webmanifest?v=102" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=102" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=102" />
+  <link rel="manifest" href="manifest.webmanifest?v=103" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=103" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=103" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -22,7 +22,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 102;
+      var V = 103;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -39,7 +39,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=102" />
+  <link rel="stylesheet" href="css/styles.css?v=103" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -202,20 +202,20 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=102"></script>
-  <script src="js/data.js?v=102"></script>
-  <script src="js/exercises.js?v=102"></script>
-  <script src="js/storage.js?v=102"></script>
-  <script src="js/engine.js?v=102"></script>
-  <script src="js/charts.js?v=102"></script>
-  <script src="js/nutrition.js?v=102"></script>
-  <script src="js/auth.js?v=102"></script>
-  <script src="js/social.js?v=102"></script>
-  <script src="js/cloud.js?v=102"></script>
-  <script src="js/entitlements.js?v=102"></script>
-  <script src="js/supaauth.js?v=102"></script>
-  <script src="js/camera.js?v=102"></script>
-  <script src="js/mailer.js?v=102"></script>
-  <script src="js/app.js?v=102"></script>
+  <script src="js/config.js?v=103"></script>
+  <script src="js/data.js?v=103"></script>
+  <script src="js/exercises.js?v=103"></script>
+  <script src="js/storage.js?v=103"></script>
+  <script src="js/engine.js?v=103"></script>
+  <script src="js/charts.js?v=103"></script>
+  <script src="js/nutrition.js?v=103"></script>
+  <script src="js/auth.js?v=103"></script>
+  <script src="js/social.js?v=103"></script>
+  <script src="js/cloud.js?v=103"></script>
+  <script src="js/entitlements.js?v=103"></script>
+  <script src="js/supaauth.js?v=103"></script>
+  <script src="js/camera.js?v=103"></script>
+  <script src="js/mailer.js?v=103"></script>
+  <script src="js/app.js?v=103"></script>
 </body>
 </html>

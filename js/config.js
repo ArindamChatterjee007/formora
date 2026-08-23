@@ -75,6 +75,45 @@ window.LEMONSQUEEZY = {
   variant: { pro: 2049632, elite: 2049732 },
 };
 
+/* ---- Auto local-currency display — every visitor sees prices in THEIR currency.
+   country→currency via ipapi.co + USD→local rate via open.er-api.com (both free, no key),
+   cached 24h. Display-only estimate ("≈"); the actual charge is USD (Lemon Squeezy, the
+   buyer's bank converts) or ₹ (Razorpay/UPI for India, once live). Silently falls back to USD. ---- */
+window.Currency = {
+  cur: "USD", rate: 1, ready: false,
+  _sym: { USD: "$", INR: "₹", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$", CAD: "C$", AED: "AED ", SGD: "S$", BRL: "R$" },
+  async init() {
+    if (this.ready) return;
+    try {
+      const c = JSON.parse(localStorage.getItem("fm_cur") || "null");
+      if (c && c.t > Date.now() - 864e5 && c.cur) { this.cur = c.cur; this.rate = c.rate || 1; this.ready = true; return; }
+    } catch (_) {}
+    try {
+      const geo = await (await fetch("https://ipapi.co/json/")).json();
+      this.cur = (geo && geo.currency ? String(geo.currency) : "USD").toUpperCase();
+    } catch (_) { this.cur = "USD"; }
+    if (this.cur !== "USD") {
+      try {
+        const fx = await (await fetch("https://open.er-api.com/v6/latest/USD")).json();
+        this.rate = (fx && fx.rates && fx.rates[this.cur]) || 1;
+      } catch (_) { this.rate = 1; }
+      if (this.rate === 1) this.cur = "USD";
+    }
+    this.ready = true;
+    try { localStorage.setItem("fm_cur", JSON.stringify({ cur: this.cur, rate: this.rate, t: Date.now() })); } catch (_) {}
+  },
+  isLocal() { return this.cur !== "USD" && this.rate !== 1; },
+  _fmt(usd) {
+    const n = parseFloat(usd) || 0;
+    if (!this.isLocal()) return "$" + n.toFixed(2);
+    const local = Math.round(n * this.rate);
+    try { return new Intl.NumberFormat(undefined, { style: "currency", currency: this.cur, maximumFractionDigits: 0 }).format(local); }
+    catch (_) { return (this._sym[this.cur] || this.cur + " ") + local; }
+  },
+  price(usd) { return this._fmt(usd); },
+  yearly(s) { const m = String(s).match(/([\d.]+)/); const per = /\/yr/.test(s) ? "/yr" : (/\/mo/.test(s) ? "/mo" : ""); return m ? this._fmt(m[1]) + per : String(s); }
+};
+
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").
    A banned user is blocked at login with a suspension notice, and their posts /
    stories / profile are hidden across the app. Remove a uid here to lift a ban. ---- */
