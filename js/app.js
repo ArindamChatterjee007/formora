@@ -893,6 +893,13 @@ const App = {
       ? `Session done ✅ · ${done.exercises.length} exercises`
       : isRest ? "Rest day 😴 — recovery mode" : `Suggested: ${SPLITS[rec].label}`;
     const trainBadge = done ? "Done" : isRest ? "Rest" : "Planned";
+    const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
+    const ep = Engine.experiencePlan();
+    const programCard = `<div class="card program-cta">
+        <div class="hc-head"><h2>Your training program</h2><span class="hc-badge">${isPro ? "Pro" : "Pro \u2728"}</span></div>
+        <div class="hc-line">A periodised 4-week plan for your <b>${esc(phys.name)}</b> goal \u2014 ${ep.freq} days/week, auto-progressed each week.</div>
+        <div class="hc-actions"><button class="btn" onclick="App.openProgram()">${isPro ? "View my program \u2192" : "Unlock with Pro \u2192"}</button></div>
+      </div>`;
 
     el.innerHTML = `
       <section class="home-hero card">
@@ -940,6 +947,8 @@ const App = {
           </div>
         </div>
       </div>
+
+      ${programCard}
 
       <div class="home-quick">
         <button class="quick" onclick="App.goTab('nutrition')"><span>${this.ic("apple", { size: 20 })}</span>Plan meals</button>
@@ -1316,6 +1325,40 @@ const App = {
     this.renderTab(active);
   },
   closeModal() { document.getElementById("modal").classList.add("hidden"); },
+  // ---- Pro training programme (T-38). Free members hit the paywall; Pro/Elite get
+  // a full periodised multi-week block generated from their profile. ----
+  openProgram(week) {
+    if (!(typeof Entitlements !== "undefined" && Entitlements.isPro())) { this.openPricing(); return; }
+    if (!this._program) this._program = Engine.generateProgram({ unit: this._unit() });
+    this.showProgram(typeof week === "number" ? week : (this._programWeek || 0));
+  },
+  regenProgram() {
+    this._progShuffle = (this._progShuffle || 0) + 1;
+    this._program = Engine.generateProgram({ unit: this._unit(), shuffle: this._progShuffle });
+    this.showProgram(0);
+  },
+  showProgram(wi) {
+    const prog = this._program;
+    if (!prog) return;
+    this._programWeek = Math.max(0, Math.min(prog.weeks.length - 1, wi || 0));
+    const wk = prog.weeks[this._programWeek];
+    const tabs = prog.weeks.map((w, i) => `<button class="pw-tab ${i === this._programWeek ? "active" : ""}" onclick="App.showProgram(${i})">W${w.week}${w.deload ? "\u00b7D" : ""}</button>`).join("");
+    const days = wk.days.map((d) => `
+      <div class="pg-day">
+        <div class="pg-day-head"><b>Day ${d.day} \u00b7 ${esc(d.title)}</b><span>${esc(d.focus)}</span></div>
+        ${d.exercises.map((x) => `<div class="pg-ex"><div class="pg-ex-n">${x.star ? "\u2605 " : ""}${esc(x.name)}</div><div class="pg-ex-s">${x.sets} \u00d7 ${esc(x.reps)} \u00b7 RPE ${x.rpe}</div></div>`).join("")}
+      </div>`).join("");
+    document.getElementById("modal-card").innerHTML =
+      `<div class="modal-head"><h2>Your ${prog.meta.weeks}-week program</h2><button class="icon-btn" onclick="App.closeModal()">\u2715</button></div>
+       <div class="program">
+         <div class="pg-meta">${esc(prog.meta.physique)} \u00b7 ${prog.meta.days} days/week \u00b7 ${esc(prog.meta.experience)} \u00b7 \u2605 = priority muscle</div>
+         <div class="pg-weeks">${tabs}</div>
+         <div class="pg-phase ${wk.deload ? "deload" : ""}"><b>Week ${wk.week} \u2014 ${esc(wk.phase)}</b><span>${esc(wk.note)}</span></div>
+         ${days}
+         <div class="pg-actions"><button class="btn ghost wide" onclick="App.regenProgram()">\u21bb Regenerate</button></div>
+       </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
   // ---- Pricing / upgrade (T-28). Real checkout wires in once a Merchant-of-Record is live (office T-25). ----
   openPricing() {
     const P = (window.PRICING && window.PRICING.tiers) || [];
