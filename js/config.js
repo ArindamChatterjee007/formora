@@ -165,7 +165,7 @@ window.EMAILJS_TEMPLATE_ID = "";
    Setup: free account at https://posthog.com → Project Settings → copy the
    "Project API Key" (starts with phc_ — a client-side/public key by design) →
    paste below. US host default, or set https://eu.i.posthog.com for the EU. ---- */
-window.POSTHOG_KEY = "";
+window.POSTHOG_KEY = "phc_B7gWQxVAZL7mqcMrb3kjFr2xJygPg5TX9A4KwS6hzSMY";
 window.POSTHOG_HOST = "https://us.i.posthog.com";
 window.Track = {
   _ready: false, _sdk: false, _q: [], _id: null,
