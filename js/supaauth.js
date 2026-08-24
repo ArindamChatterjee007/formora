@@ -86,6 +86,21 @@ const SupaAuth = {
     const ms = Math.max(30, (this.session.expires_at - 90) - Math.floor(Date.now() / 1000)) * 1000;
     this._timer = setTimeout(() => this.refresh(), ms);
   },
+  // ---- password recovery ----
+  async recover(email) {
+    // send the reset link back to THIS app URL (must be in Supabase's redirect allow-list)
+    const redirect = (location.origin + location.pathname).replace(/[#?].*$/, "");
+    // Supabase always returns 200 (even for unknown emails) to prevent user enumeration
+    try { await fetch(this._base() + "/recover?redirect_to=" + encodeURIComponent(redirect), { method: "POST", headers: this._hdr(), body: JSON.stringify({ email }) }); } catch (_) {}
+    return true;
+  },
+  // set a new password using the recovery access-token from the emailed link, then keep the session
+  async setPasswordWithToken(accessToken, refreshToken, expiresIn, newPassword) {
+    const r = await fetch(this._base() + "/user", { method: "PUT", headers: this._hdr({ Authorization: "Bearer " + accessToken }), body: JSON.stringify({ password: newPassword }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.msg || j.error_description || j.error || "Could not reset your password. The link may have expired — request a new one.");
+    return this._store({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn || 3600, user: j });
+  },
   async logout() {
     try {
       const t = this.session && this.session.access_token;
