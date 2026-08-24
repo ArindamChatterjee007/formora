@@ -166,9 +166,9 @@ window.EMAIL_FN_URL = "";
    2) EmailJS — no domain needed, sends from your Gmail. Create a free account at
       https://www.emailjs.com → add an email service + a template with variables
       {{to_email}}, {{code}}, {{name}} → paste the 3 IDs below. Free ~200/mo.        */
-window.EMAILJS_PUBLIC_KEY = "";
-window.EMAILJS_SERVICE_ID = "";
-window.EMAILJS_TEMPLATE_ID = "";
+window.EMAILJS_PUBLIC_KEY = "k7U6Yv6KyOqj2a1NE";
+window.EMAILJS_SERVICE_ID = "service_qqb8cib";
+window.EMAILJS_TEMPLATE_ID = "owznye9";
 
 /* ---- Product analytics (PostHog, T-27) — measures the growth funnel:
    app_opened → signup_started → onboarding_completed → paywall_opened →
