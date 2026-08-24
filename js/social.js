@@ -602,7 +602,7 @@ const Social = {
   },
   addStoryPick() {
     const opts = [];
-    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("story") });
+    if (typeof CameraLoader !== "undefined" && CameraLoader.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => CameraLoader.open("story") });
     else opts.push({ label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.onStoryFile(e) }, { label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.onStoryFile(e) });
     opts.push({ label: "🖼️ Choose from gallery", accept: "image/*,video/*", cb: (e) => this.onStoryFile(e) });
     this.mediaSheet("Add to your story", opts);
@@ -688,14 +688,14 @@ const Social = {
   // composer: camera/gallery choosers for photos & reels
   pickPhotos() {
     const opts = [];
-    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("post") });
+    if (typeof CameraLoader !== "undefined" && CameraLoader.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => CameraLoader.open("post") });
     else opts.push({ label: "📷 Take a photo", accept: "image/*", capture: true, cb: (e) => this.postPhoto(e) });
     opts.push({ label: "🖼️ Choose from gallery", accept: "image/*", multiple: true, cb: (e) => this.postPhoto(e) });
     this.mediaSheet("Add a photo", opts);
   },
   pickReel() {
     const opts = [];
-    if (typeof Camera !== "undefined" && Camera.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => Camera.open("post") });
+    if (typeof CameraLoader !== "undefined" && CameraLoader.supported()) opts.push({ label: "🎨 Formora Camera + filters", action: () => CameraLoader.open("post") });
     else opts.push({ label: "🎥 Record a video", accept: "video/*", capture: true, cb: (e) => this.postVideo(e) });
     opts.push({ label: "🖼️ Choose from gallery", accept: "video/*", cb: (e) => this.postVideo(e) });
     this.mediaSheet("Add a Flex", opts);
