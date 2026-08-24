@@ -1976,10 +1976,11 @@ const App = {
       : `<div class="card upgrade-card" onclick="App.openPricing()">
           <div class="uc-glow"></div>
           <div class="uc-badge">✨ Formora Pro</div>
-          <div class="uc-title">Unlock advanced analytics</div>
-          <div class="uc-price">Volume trends · estimated 1-rep-max progression · deeper insights</div>
+          <div class="uc-title">Unlock analytics &amp; progress photos</div>
+          <div class="uc-price">Volume trends · 1-rep-max progression · progress photo studio · deeper insights</div>
           <button class="btn wide uc-btn" onclick="event.stopPropagation();App.openPricing()">See plans →</button>
         </div>`;
+    const photoStudio = isPro ? this.renderPhotoStudio() : "";
     el.innerHTML = `
       <div class="card goal-card">
         <h2>Progress to your goal</h2>
@@ -2030,6 +2031,7 @@ const App = {
         <div id="balance"></div>
       </div>
       ${advanced}
+      ${photoStudio}
       <div class="card"><h2>Coach's read</h2>
         <ul class="guide">${Engine.guidance().map((m) => `<li>${m}</li>`).join("")}</ul>
       </div>`;
@@ -2045,6 +2047,67 @@ const App = {
     Store.logWeight(v);
     this.renderChips();
     this.renderProgress();
+  },
+
+  // ---- Progress Photo Studio (Pro) — private, on-device visual progress ----
+  _progKey() { return "fm_progress_" + (((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).id || "me"); },
+  progressPhotos() { try { return JSON.parse(localStorage.getItem(this._progKey()) || "[]").sort((a, b) => a.ts - b.ts); } catch (e) { return []; } },
+  addProgressPhoto() {
+    if (!(typeof Entitlements !== "undefined" && Entitlements.isPro())) return this.openPricing();
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*"; inp.hidden = true;
+    inp.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0]; inp.remove();
+      if (!f) return;
+      resizeImage(f, 760, 0.68).then((url) => {
+        let arr = this.progressPhotos();
+        arr.push({ id: "p" + Date.now(), ts: Date.now(), url, weightKg: Store.latestWeight(), bodyFat: Engine.stats().bodyFat });
+        arr = arr.slice(-40);
+        try { localStorage.setItem(this._progKey(), JSON.stringify(arr)); }
+        catch (err) { alert("Storage is full — delete a few older progress photos and try again."); return; }
+        if (this.toast) this.toast("Progress photo saved \ud83d\udcf8");
+        this.renderProgress();
+      }).catch(() => alert("Couldn't read that image."));
+    });
+    document.body.appendChild(inp); inp.click();
+  },
+  removeProgressPhoto(id) {
+    if (!confirm("Delete this progress photo?")) return;
+    const arr = this.progressPhotos().filter((p) => p.id !== id);
+    try { localStorage.setItem(this._progKey(), JSON.stringify(arr)); } catch (e) {}
+    this.closeModal(); this.renderProgress();
+  },
+  viewProgressPhoto(id) {
+    const p = this.progressPhotos().find((x) => x.id === id); if (!p) return;
+    document.getElementById("modal-card").innerHTML = `<div class="modal-head"><h2>${new Date(p.ts).toLocaleDateString()}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <img class="pp-full" src="${esc(p.url)}" alt="progress photo">
+      <div class="pp-meta">${p.weightKg} kg · ~${p.bodyFat}% body fat</div>
+      <button class="btn ghost wide" style="margin-top:12px" onclick="App.removeProgressPhoto('${p.id}')">Delete photo</button>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  renderPhotoStudio() {
+    const arr = this.progressPhotos();
+    let cmp = "";
+    if (arr.length >= 2) {
+      const a = arr[0], b = arr[arr.length - 1];
+      const days = Math.max(1, Math.round((b.ts - a.ts) / 86400000));
+      const dW = Math.round((b.weightKg - a.weightKg) * 10) / 10;
+      const dBF = Math.round((b.bodyFat - a.bodyFat) * 10) / 10;
+      const workouts = (Store.state.workoutLog || []).filter((w) => { const t = Date.parse(w.date); return t >= a.ts - 86400000 && t <= b.ts + 86400000; }).length;
+      const wTxt = dW === 0 ? "held your weight" : `${dW < 0 ? "lost" : "gained"} ${Math.abs(dW)} kg`;
+      const bfTxt = dBF === 0 ? "" : ` and ${dBF < 0 ? "dropped" : "added"} ${Math.abs(dBF)}% body fat`;
+      const closer = (dW < 0 || dBF < 0) ? `The camera doesn't lie — real progress toward your ${esc(Engine.getPhysique().name)} \ud83d\udcaa` : `Keep stacking sessions — your ${esc(Engine.getPhysique().name)} is being built rep by rep.`;
+      cmp = `<div class="pp-ba"><figure><img src="${esc(a.url)}"><figcaption>Start · ${a.weightKg}kg</figcaption></figure><figure><img src="${esc(b.url)}"><figcaption>Now · ${b.weightKg}kg</figcaption></figure></div>
+        <div class="pp-analysis"><b>Your ${days}-day change:</b> you've ${wTxt}${bfTxt} across ${workouts} logged workout${workouts === 1 ? "" : "s"}. ${closer}</div>`;
+    }
+    const strip = arr.slice().reverse().map((p) => `<button class="pp-thumb" onclick="App.viewProgressPhoto('${p.id}')"><img src="${esc(p.url)}" alt="progress"><span>${new Date(p.ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></button>`).join("");
+    return `<div class="card">
+      <h2>Progress photos <span class="pro-tag">PRO</span></h2>
+      <div class="sub">Your visual transformation — stored privately on this device</div>
+      ${cmp}
+      ${arr.length ? `<div class="pp-strip">${strip}</div>` : `<div class="chart-empty">Add your first progress photo — then one every 1–2 weeks to watch your body change.</div>`}
+      <button class="btn wide" style="margin-top:12px" onclick="App.addProgressPhoto()">${this.ic("camera", { size: 16 })} Add progress photo</button>
+    </div>`;
   },
 
   // diet-safe example text — never suggest non-veg foods to veg/vegan users

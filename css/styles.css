@@ -647,6 +647,18 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .auth-legal a{ color:var(--muted); text-decoration:underline; }
 .about-legal{ font-size:12px; margin-top:8px; }
 .about-legal a{ color:var(--muted); text-decoration:underline; }
+/* Progress Photo Studio (Pro) */
+.pp-ba{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pp-ba figure{ margin:0; }
+.pp-ba img{ width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:var(--card2); }
+.pp-ba figcaption{ font-size:11px; color:var(--muted); text-align:center; margin-top:4px; }
+.pp-analysis{ font-size:13px; line-height:1.5; margin:12px 0 4px; }
+.pp-strip{ display:flex; gap:8px; overflow-x:auto; padding:12px 0 4px; -webkit-overflow-scrolling:touch; }
+.pp-thumb{ flex:0 0 auto; border:none; background:none; padding:0; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.pp-thumb img{ width:64px; height:84px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
+.pp-thumb span{ font-size:10px; color:var(--muted); }
+.pp-full{ width:100%; max-height:60vh; object-fit:contain; border-radius:12px; background:var(--card2); }
+.pp-meta{ text-align:center; font-size:13px; color:var(--muted); margin:10px 0; }
 .gender-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
 .gender-toggle button {
   flex: 1; padding: 11px; border: 1px solid var(--line); background: var(--bg2); color: var(--muted);
