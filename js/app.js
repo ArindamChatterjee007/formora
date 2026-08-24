@@ -150,6 +150,7 @@ const App = {
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
     this.renderChips();
+    if (window.Track) { Track.identify((typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : u.id, { name: u.name || "" }); Track.event("app_opened"); }
     this.selectTab("home");
     if (this._showWelcome) { this._showWelcome = false; try { this.showWelcome(); } catch (e) {} }
   },
@@ -444,6 +445,7 @@ const App = {
     if (pass !== pass2) return this.authErr("Passwords don't match.");
     if (!Auth.remote() && Auth.findByEmail(email)) return this.authErr("An account with this email already exists. Try logging in.");
     this.signupDraft = { name, email, phone, pass };
+    window.Track && Track.event("signup_started");
     this.onboardMode = "signup";
     this.showAuth("details");
   },
@@ -1378,6 +1380,7 @@ const App = {
     const ep = Engine.experiencePlan();
     const name = ((p.name || "").split(" ")[0]) || "champ";
     const goalW = p.targetWeightKg ? `${Store.latestWeight()} \u2192 <b>${p.targetWeightKg}</b> kg` : `${Store.latestWeight()} kg`;
+    window.Track && Track.event("onboarding_completed", { physique: phys.name, goal_kg: p.targetWeightKg || null });
     document.getElementById("modal-card").innerHTML = `
       <div class="welcome">
         <div class="wc-emoji">\ud83c\udf89</div>
@@ -1440,6 +1443,7 @@ const App = {
   },
   // ---- Pricing / upgrade (T-28). Real checkout wires in once a Merchant-of-Record is live (office T-25). ----
   openPricing() {
+    window.Track && Track.event("paywall_opened");
     const P = (window.PRICING && window.PRICING.tiers) || [];
     const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
     const tiers = P.map((t) => `
@@ -1470,6 +1474,7 @@ const App = {
     });
   },
   async choosePlan(tier, rail) {
+    window.Track && Track.event("plan_selected", { tier: tier, rail: rail || "card" });
     // India UPI rail (Razorpay Standard Checkout) — order made server-side, charged in ₹,
     // uid+tier in notes; the razorpay-webhook grants the entitlement on payment.captured.
     if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled) {

@@ -159,6 +159,50 @@ window.EMAILJS_PUBLIC_KEY = "";
 window.EMAILJS_SERVICE_ID = "";
 window.EMAILJS_TEMPLATE_ID = "";
 
+/* ---- Product analytics (PostHog, T-27) — measures the growth funnel:
+   app_opened → signup_started → onboarding_completed → paywall_opened →
+   plan_selected → post_created / shared. INERT until you set POSTHOG_KEY.
+   Setup: free account at https://posthog.com → Project Settings → copy the
+   "Project API Key" (starts with phc_ — a client-side/public key by design) →
+   paste below. US host default, or set https://eu.i.posthog.com for the EU. ---- */
+window.POSTHOG_KEY = "";
+window.POSTHOG_HOST = "https://us.i.posthog.com";
+window.Track = {
+  _ready: false, _sdk: false, _q: [], _id: null,
+  init() {
+    if (this._ready || !window.POSTHOG_KEY) return;
+    this._ready = true;
+    try {
+      var host = window.POSTHOG_HOST || "https://us.i.posthog.com";
+      var s = document.createElement("script"); s.async = true;
+      s.src = host.replace(".i.posthog.com", "-assets.i.posthog.com") + "/static/array.js";
+      var self = this;
+      s.onload = function () {
+        try {
+          window.posthog.init(window.POSTHOG_KEY, { api_host: host, capture_pageview: true, persistence: "localStorage" });
+          self._sdk = true;
+          if (self._id) window.posthog.identify(self._id[0], self._id[1]);
+          var q = self._q; self._q = [];
+          q.forEach(function (e) { try { window.posthog.capture(e[0], e[1]); } catch (_) {} });
+        } catch (e) {}
+      };
+      document.head.appendChild(s);
+    } catch (e) {}
+  },
+  event(name, props) {
+    if (!window.POSTHOG_KEY) return;
+    this.init();
+    if (this._sdk && window.posthog) { try { window.posthog.capture(name, props || {}); } catch (e) {} }
+    else this._q.push([name, props || {}]);
+  },
+  identify(id, props) {
+    if (!window.POSTHOG_KEY) return;
+    this.init();
+    this._id = [String(id), props || {}];
+    if (this._sdk && window.posthog && window.posthog.identify) { try { window.posthog.identify(String(id), props || {}); } catch (e) {} }
+  },
+};
+
 // tasteful, athletic search terms per physique (id must match PHYSIQUES ids)
 // localized to Indian fitness models for relatable references
 window.PHOTO_QUERIES = {
