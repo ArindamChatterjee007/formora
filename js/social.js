@@ -258,21 +258,25 @@ const Social = {
     if (typeof App !== "undefined" && App.toast) App.toast(this._feedSound ? "🔊 Sound on" : "Muted");
   },
   _bindFeedVideos() {
-    const vids = document.querySelectorAll("#view-feed .post-media.video video");
-    if (!vids.length) { if (this._feedVidObs) { this._feedVidObs.disconnect(); this._feedVidObs = null; } this.stopMusic(); return; }
+    const vids = [].slice.call(document.querySelectorAll("#view-feed .post-media.video video"));
+    const pms = [].slice.call(document.querySelectorAll("#view-feed .post-media[data-pmsrc]"));
+    const nodes = vids.concat(pms);
+    if (!nodes.length) { if (this._feedVidObs) { this._feedVidObs.disconnect(); this._feedVidObs = null; } this.stopMusic(); return; }
     if (this._feedVidObs) this._feedVidObs.disconnect();
     this._feedVidObs = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
-        const v = e.target;
-        const msrc = v.getAttribute("data-msrc") || "";
+        const el = e.target;
+        const isVid = el.tagName === "VIDEO";
+        const msrc = isVid ? (el.getAttribute("data-msrc") || "") : (el.getAttribute("data-pmsrc") || "");
         if (e.isIntersecting && e.intersectionRatio > 0.6) {
-          document.querySelectorAll("#view-feed .post-media.video video").forEach((o) => { if (o !== v) o.pause(); });
-          if (msrc) { v.muted = true; Social.playMusic(msrc); } else { v.muted = !Social._feedSound; if (Social._musicSrc) Social.stopMusic(); }
-          v.play().catch(() => {});
-        } else { v.pause(); if (msrc && Social._musicSrc === msrc) Social.stopMusic(); }
+          document.querySelectorAll("#view-feed .post-media.video video").forEach((o) => { if (o !== el) o.pause(); });
+          if (msrc) { if (isVid) el.muted = true; Social.playMusic(msrc); }
+          else { if (isVid) el.muted = !Social._feedSound; if (Social._musicSrc) Social.stopMusic(); }
+          if (isVid) el.play().catch(() => {});
+        } else { if (isVid) el.pause(); if (msrc && Social._musicSrc === msrc) Social.stopMusic(); }
       });
     }, { threshold: [0, 0.6, 1] });
-    vids.forEach((v) => this._feedVidObs.observe(v));
+    nodes.forEach((n) => this._feedVidObs.observe(n));
   },
   // double-tap media = like (Instagram-style) with a heart burst; single tap keeps its action
   mediaTap(postId, ev, kind) {
@@ -310,20 +314,49 @@ const Social = {
   // ---- music (royalty-free): attach a track in the composer; plays in feed + reels ----
   pendingMusic: null,
   _musicSrc: null,
+  _musicCat: "Trending",
+  _musicQuery: "",
   pickMusic() {
     const M = (window.MUSIC && window.MUSIC.tracks) || [];
     const card = document.getElementById("modal-card"); if (!card) return;
     const pm = this.pendingMusic;
-    const rows = M.map((t) => `<div class="music-row ${pm && pm.id === t.id ? "sel" : ""}" onclick="Social.selectMusic('${t.id}')">
-      <button class="music-play" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${this._preview && this._preview.id === t.id ? "⏸" : "▶"}</button>
-      <div class="music-meta"><div class="music-t">${esc(t.title)}</div><div class="music-a">${esc(t.genre)} · ${esc(t.artist)}</div></div>
-      ${pm && pm.id === t.id ? `<span class="music-check">✓</span>` : ""}
-    </div>`).join("");
+    const cat = this._musicCat || "Trending";
+    const cats = ["Trending", "Workout", "Hype", "Chill", "Lo-fi", "Focus", "Cinematic"];
+    const chips = cats.map((c) => `<button class="music-chip ${c === cat ? "on" : ""}" onclick="Social.setMusicCat('${c}')">${c === "Trending" ? "🔥 " : ""}${esc(c)}</button>`).join("");
+    const rows = M.map((t) => {
+      const tt = (t.title + " " + t.genre + " " + t.artist).toLowerCase();
+      const on = pm && pm.id === t.id;
+      return `<div class="music-row ${on ? "sel" : ""}" data-tt="${esc(tt)}" data-cat="${esc(t.genre)}" data-trend="${t.trending ? "1" : "0"}" onclick="Social.selectMusic('${t.id}')">
+        <button class="music-play" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${this._preview && this._preview.id === t.id ? "⏸" : "▶"}</button>
+        <div class="music-meta"><div class="music-t">${esc(t.title)}${t.trending ? ` <span class="music-fire">🔥</span>` : ""}</div><div class="music-a">${esc(t.genre)} · ${esc(t.artist)}</div></div>
+        ${on ? `<span class="music-check">✓</span>` : ""}
+      </div>`;
+    }).join("");
     card.innerHTML = `<div class="modal-head"><h2>Add music 🎵</h2><button class="icon-btn" onclick="Social._stopPreview();App.closeModal()">✕</button></div>
-      <div class="music-list">${rows || `<div class="sub">No tracks available.</div>`}</div>
+      <input id="music-search" class="music-search" type="search" placeholder="Search songs, moods, genres…" value="${esc(this._musicQuery || "")}" oninput="Social.filterMusic(this.value)" autocomplete="off">
+      <div class="music-chips">${chips}</div>
+      <div class="music-list" id="music-list">${rows || `<div class="sub">No tracks available.</div>`}</div>
+      <div class="music-empty sub" id="music-empty" style="display:none;text-align:center;padding:12px 0">No songs match — try another search.</div>
       <div class="music-credit">${esc((window.MUSIC && window.MUSIC.credit) || "")}</div>
       <div class="music-actions">${pm ? `<button class="btn ghost wide" onclick="Social.removeMusic()">Remove</button>` : ""}<button class="btn wide" onclick="Social.musicDone()">Done</button></div>`;
     document.getElementById("modal").classList.remove("hidden");
+    this._applyMusicFilter();
+  },
+  setMusicCat(c) { this._musicCat = c; this._musicQuery = ""; this.pickMusic(); },
+  filterMusic(q) { this._musicQuery = q; this._applyMusicFilter(); },
+  _applyMusicFilter() {
+    const ql = (this._musicQuery || "").trim().toLowerCase();
+    const cat = this._musicCat || "Trending";
+    const list = document.getElementById("music-list"); if (!list) return;
+    let shown = 0;
+    list.querySelectorAll(".music-row").forEach((r) => {
+      let show;
+      if (ql) show = (r.getAttribute("data-tt") || "").indexOf(ql) !== -1;
+      else show = cat === "Trending" ? r.getAttribute("data-trend") === "1" : r.getAttribute("data-cat") === cat;
+      r.style.display = show ? "" : "none";
+      if (show) shown++;
+    });
+    const empty = document.getElementById("music-empty"); if (empty) empty.style.display = shown ? "none" : "block";
   },
   selectMusic(id) {
     const t = ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id); if (!t) return;
@@ -344,6 +377,9 @@ const Social = {
   _ensureMusic() { if (!this._musicAudio) { const a = document.createElement("audio"); a.loop = true; a.preload = "none"; this._musicAudio = a; } return this._musicAudio; },
   playMusic(src) { if (!src) return this.stopMusic(); const a = this._ensureMusic(); if (this._musicSrc !== src) { a.src = src; this._musicSrc = src; } a.muted = !this._feedSound; a.play().catch(() => {}); },
   stopMusic() { if (this._musicAudio) { try { this._musicAudio.pause(); } catch (e) {} } this._musicSrc = null; },
+  _musicPill(p) { return (p && p.music) ? `<span class="post-music" title="${esc(p.music.artist || "")}">🎵 ${esc(p.music.title || "Music")}</span>` : ""; },
+  _pmAttr(p) { return (p && p.music) ? `data-pmsrc="${esc(p.music.src)}"` : ""; },
+  _photoMusicCtrl(p) { return (p && p.music) ? `<button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button>${this._musicPill(p)}` : ""; },
   // ---- haptics + share-to-grow (viral loop) ----
   haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} },
   _share(text) {
@@ -483,12 +519,12 @@ const Social = {
     const a = this.persona(p.author);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
-      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" data-msrc="${esc(p.music ? p.music.src : "")}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span></div>`
+      ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" data-msrc="${esc(p.music ? p.music.src : "")}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span>${this._musicPill(p)}</div>`
       : pics.length
       ? (pics.length > 1
-        ? `<div class="post-media carousel" onclick="Social.mediaTap('${p.id}',event,'photo')">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div></div>`
-        : `<div class="post-media" onclick="Social.mediaTap('${p.id}',event,'photo')"><img src="${esc(pics[0])}" alt="post" draggable="false"></div>`)
-      : `<div class="post-media grad" onclick="Social.mediaTap('${p.id}',event,'photo')" style="background:linear-gradient(135deg,${esc((p.gradient || ["#ff6b3d", "#ff3d7f"]).join(","))})"><span>${esc(p.tag || "Flex")} 💪</span></div>`;
+        ? `<div class="post-media carousel" ${this._pmAttr(p)} onclick="Social.mediaTap('${p.id}',event,'photo')">${pics.map((src) => `<div class="cslide"><img src="${esc(src)}" alt="post" draggable="false"></div>`).join("")}<div class="cdots">${pics.map(() => `<span class="cdot"></span>`).join("")}</div>${this._photoMusicCtrl(p)}</div>`
+        : `<div class="post-media" ${this._pmAttr(p)} onclick="Social.mediaTap('${p.id}',event,'photo')"><img src="${esc(pics[0])}" alt="post" draggable="false">${this._photoMusicCtrl(p)}</div>`)
+      : `<div class="post-media grad" ${this._pmAttr(p)} onclick="Social.mediaTap('${p.id}',event,'photo')" style="background:linear-gradient(135deg,${esc((p.gradient || ["#ff6b3d", "#ff3d7f"]).join(","))})"><span>${esc(p.tag || "Flex")} 💪</span>${this._photoMusicCtrl(p)}</div>`;
     const comments = (p.comments || []).map((c) => `<div class="cmt"><b>${esc(this.persona(c.by).name)}</b> ${esc(c.text)}</div>`).join("");
     const reshared = p.resharedFrom ? `<div class="reshare-note">🔁 reshared from ${esc(this.persona(p.resharedFrom).name)}</div>` : "";
     return `
