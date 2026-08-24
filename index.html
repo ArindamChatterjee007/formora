@@ -11,9 +11,9 @@
   <!-- PWA: installable on iPhone (Add to Home Screen) and Android — no App Store, no fee -->
   <meta name="description" content="Formora — your aesthetic physique coach. Train, track &amp; connect." />
   <meta name="theme-color" content="#0e0f13" />
-  <link rel="manifest" href="manifest.webmanifest?v=121" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=121" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=121" />
+  <link rel="manifest" href="manifest.webmanifest?v=122" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=122" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=122" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -22,7 +22,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 121;
+      var V = 122;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -39,7 +39,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=121" />
+  <link rel="stylesheet" href="css/styles.css?v=122" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -202,18 +202,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=121"></script>
-  <script src="js/data.js?v=121"></script>
-  <script src="js/exercises.js?v=121"></script>
-  <script src="js/storage.js?v=121"></script>
-  <script src="js/engine.js?v=121"></script>
-  <script src="js/charts.js?v=121"></script>
-  <script src="js/nutrition.js?v=121"></script>
-  <script src="js/auth.js?v=121"></script>
-  <script src="js/social.js?v=121"></script>
-  <script src="js/cloud.js?v=121"></script>
-  <script src="js/entitlements.js?v=121"></script>
-  <script src="js/supaauth.js?v=121"></script>
+  <script src="js/config.js?v=122"></script>
+  <script src="js/data.js?v=122"></script>
+  <script src="js/exercises.js?v=122"></script>
+  <script src="js/storage.js?v=122"></script>
+  <script src="js/engine.js?v=122"></script>
+  <script src="js/charts.js?v=122"></script>
+  <script src="js/nutrition.js?v=122"></script>
+  <script src="js/auth.js?v=122"></script>
+  <script src="js/social.js?v=122"></script>
+  <script src="js/cloud.js?v=122"></script>
+  <script src="js/entitlements.js?v=122"></script>
+  <script src="js/supaauth.js?v=122"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -224,7 +224,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=121";
+          s.src = "js/mod/camera.js?v=122";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -236,7 +236,7 @@
       }
     };
   </script>
-  <script src="js/mailer.js?v=121"></script>
-  <script src="js/app.js?v=121"></script>
+  <script src="js/mailer.js?v=122"></script>
+  <script src="js/app.js?v=122"></script>
 </body>
 </html>
