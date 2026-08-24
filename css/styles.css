@@ -1202,6 +1202,29 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .post-media.video video { width: 100%; max-height: 620px; display: block; background: #000; object-fit: contain; }
 .fv-mute { position: absolute; bottom: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.5); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; backdrop-filter: blur(6px); }
 .reel-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; backdrop-filter: blur(4px); }
+
+/* ===== music picker + post music pill ===== */
+.post-media { position: relative; }
+.music-search { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: #12151d; color: var(--text, #fff); font-size: 14px; outline: none; }
+.music-search:focus { border-color: var(--accent); }
+.music-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.music-chips::-webkit-scrollbar { display: none; }
+.music-chip { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted, #9aa4b2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.music-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.music-list { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.music-row { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: 12px; cursor: pointer; transition: background .15s; }
+.music-row:hover { background: rgba(255,255,255,.04); }
+.music-row.sel { background: rgba(255,61,127,.12); }
+.music-play { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.music-meta { flex: 1 1 auto; min-width: 0; }
+.music-t { font-weight: 700; font-size: 14px; color: var(--text, #fff); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-fire { font-size: 11px; }
+.music-a { font-size: 12px; color: var(--muted, #9aa4b2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-check { flex: 0 0 auto; color: var(--accent); font-weight: 800; font-size: 18px; }
+.music-credit { font-size: 11px; color: var(--muted, #9aa4b2); text-align: center; padding: 10px 0 4px; }
+.music-actions { display: flex; gap: 10px; margin-top: 8px; }
+.post-music { position: absolute; left: 10px; bottom: 12px; display: inline-flex; align-items: center; gap: 4px; max-width: 62%; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; backdrop-filter: blur(4px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; animation: musicpop .3s ease; }
+@keyframes musicpop { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .composer-video { position: relative; margin-top: 10px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
 .composer-video video { width: 100%; max-height: 320px; display: block; background: #000; }
 .composer-video .cp-x { position: absolute; top: 8px; right: 8px; }
