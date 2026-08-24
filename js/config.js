@@ -54,11 +54,22 @@ window.SOCIAL_API = "";
 window.MUSIC = {
   credit: "Royalty-free music by SoundHelix (T. Sch\u00fcrger)",
   tracks: [
-    { id: "m1", title: "Adrenaline",  artist: "Formora Sounds", genre: "Workout", src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track1.mp3" },
-    { id: "m2", title: "Momentum",    artist: "Formora Sounds", genre: "Hype",    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track2.mp3" },
-    { id: "m3", title: "Golden Hour", artist: "Formora Sounds", genre: "Chill",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track3.mp3" },
-    { id: "m5", title: "Focus Flow",  artist: "Formora Sounds", genre: "Focus",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track5.mp3" },
-    { id: "m8", title: "Night Drive", artist: "Formora Sounds", genre: "Lo-fi",   src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track8.mp3" },
+    { id: "m1",  title: "Adrenaline",   artist: "Formora Sounds", genre: "Workout",   trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track1.mp3" },
+    { id: "m4",  title: "Iron Will",    artist: "Formora Sounds", genre: "Workout",                  src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track4.mp3" },
+    { id: "m11", title: "Peak Power",   artist: "Formora Sounds", genre: "Workout",   trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track11.mp3" },
+    { id: "m2",  title: "Momentum",     artist: "Formora Sounds", genre: "Hype",      trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track2.mp3" },
+    { id: "m6",  title: "Overdrive",    artist: "Formora Sounds", genre: "Hype",      trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track6.mp3" },
+    { id: "m12", title: "Victory Lap",  artist: "Formora Sounds", genre: "Hype",                     src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track12.mp3" },
+    { id: "m3",  title: "Golden Hour",  artist: "Formora Sounds", genre: "Chill",     trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track3.mp3" },
+    { id: "m7",  title: "Sunrise Sets", artist: "Formora Sounds", genre: "Chill",                    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track7.mp3" },
+    { id: "m13", title: "Cloud Nine",   artist: "Formora Sounds", genre: "Chill",                    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track13.mp3" },
+    { id: "m8",  title: "Night Drive",  artist: "Formora Sounds", genre: "Lo-fi",     trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track8.mp3" },
+    { id: "m10", title: "Neon Nights",  artist: "Formora Sounds", genre: "Lo-fi",                    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track10.mp3" },
+    { id: "m16", title: "Afterglow",    artist: "Formora Sounds", genre: "Lo-fi",                    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track16.mp3" },
+    { id: "m5",  title: "Focus Flow",   artist: "Formora Sounds", genre: "Focus",     trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track5.mp3" },
+    { id: "m9",  title: "Deep Focus",   artist: "Formora Sounds", genre: "Focus",                    src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track9.mp3" },
+    { id: "m14", title: "Epic Rise",    artist: "Formora Sounds", genre: "Cinematic", trending: true, src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track14.mp3" },
+    { id: "m15", title: "Warrior",      artist: "Formora Sounds", genre: "Cinematic",                src: "https://ptukgtxpigdkdzsewuvz.supabase.co/storage/v1/object/public/media/music/track15.mp3" },
   ],
 };
 
