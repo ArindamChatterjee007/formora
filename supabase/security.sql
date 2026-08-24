@@ -1,8 +1,9 @@
 -- ============================================================
 -- Formora — Supabase security hardening (Row Level Security)
 --
--- STATUS: APPLIED to production on 2026-08-23 with the v98 auth cutover
--- (USE_SUPABASE_AUTH=true). Identity is the Supabase user UUID (auth.uid());
+-- STATUS: APPLIED to production. Re-applied clean on 2026-08-25 with the v132
+-- fresh-start cutover (USE_SUPABASE_AUTH=true) after the v99 rollback. Identity
+-- is the Supabase user UUID (auth.uid());
 -- the app sends uid/author/from_uid = auth.uid() (see js/cloud.js
 -- _ensureIdentity). Verified live: the public anon key is DENIED (HTTP 401)
 -- on every member-data table; authenticated users can read/write ONLY their
@@ -76,29 +77,58 @@ create policy accounts_upd  on public.accounts for update using (auth.uid()::tex
 --    below). The biometric-stripping in the body is optional defense-in-depth:
 --    since v96 the app no longer uploads biometrics to profiles, so there is
 --    nothing to strip. Kept for fresh installs / legacy rows.
+-- CORRECTED to the live schema (requests/comments/stories have NO `data` column;
+-- only posts/profiles do). Runs as INVOKER; the authenticated role has SELECT +
+-- read-all policies on the feed tables (granted below), so the feed loads.
 create or replace function public.get_state()
 returns jsonb
 language sql
-security definer
+stable
 set search_path = public
 as $$
   select jsonb_build_object(
-    'users', coalesce((
-      select jsonb_object_agg(p.uid,
-        case when auth.uid()::text = p.uid
-          then p.data
-          else p.data - 'weightKg' - 'bmi' - 'heightCm' - 'gender'
-        end)
-      from public.profiles p
-    ), '{}'::jsonb),
-    'posts',    coalesce((select jsonb_object_agg(id, data) from public.posts), '{}'::jsonb),
-    'requests', coalesce((select jsonb_object_agg(id, data) from public.requests), '{}'::jsonb),
-    'comments', coalesce((select jsonb_object_agg(id, data) from public.comments), '{}'::jsonb),
-    'stories',  coalesce((select jsonb_object_agg(id, data) from public.stories), '{}'::jsonb)
+    'users',    coalesce((select jsonb_object_agg(uid, data || jsonb_build_object('uid', uid)) from public.profiles), '{}'::jsonb),
+    'posts',    coalesce((select jsonb_object_agg(id, data || jsonb_build_object('id', id, 'author', author, 'likes', likes, 'ts', (extract(epoch from ts)*1000)::bigint)) from public.posts), '{}'::jsonb),
+    'requests', coalesce((select jsonb_object_agg(id, jsonb_build_object('id', id, 'from', from_uid, 'to', to_uid, 'status', status, 'ts', (extract(epoch from ts)*1000)::bigint)) from public.requests), '{}'::jsonb),
+    'comments', coalesce((select jsonb_object_agg(id, jsonb_build_object('id', id, 'post_id', post_id, 'author', author, 'body', body, 'parent_id', parent_id, 'mentions', mentions, 'ts', (extract(epoch from ts)*1000)::bigint)) from public.comments), '{}'::jsonb),
+    'stories',  coalesce((select jsonb_object_agg(id, jsonb_build_object('id', id, 'author', author, 'photo', photo, 'kind', kind, 'ts', (extract(epoch from ts)*1000)::bigint)) from public.stories where ts > now() - interval '24 hours'), '{}'::jsonb)
   );
 $$;
 
 grant execute on function public.get_state() to authenticated;  -- required for the feed
+revoke execute on function public.get_state() from anon;         -- login-gated
+
+-- Table privileges for the authenticated role (RLS still restricts each to own rows).
+grant select, insert, update         on public.profiles      to authenticated;
+grant select, insert, update, delete on public.posts         to authenticated;
+grant select, insert, delete         on public.comments      to authenticated;
+grant select, insert, delete         on public.stories       to authenticated;
+grant select, insert, update         on public.requests      to authenticated;
+grant select, insert, update, delete on public.messages      to authenticated;
+grant select, insert, update         on public.notifications to authenticated;
+grant select, insert, update         on public.accounts      to authenticated;
+
+-- like_post / unlike_post: SECURITY DEFINER so a user can like ANY post (the
+-- likes-only write must bypass the author-only posts UPDATE policy). The liker
+-- is auth.uid() (server-verified) so likes can't be spoofed as another user.
+create or replace function public.like_post(p_id text, p_uid text)
+returns void language sql security definer set search_path = public as $$
+  update public.posts set likes = coalesce(likes,'{}'::jsonb) || jsonb_build_object(coalesce(auth.uid()::text, p_uid), true) where id = p_id;
+$$;
+create or replace function public.unlike_post(p_id text, p_uid text)
+returns void language sql security definer set search_path = public as $$
+  update public.posts set likes = likes - coalesce(auth.uid()::text, p_uid) where id = p_id;
+$$;
+grant execute on function public.like_post(text,text), public.unlike_post(text,text) to authenticated;
+
+-- entitlements (Pro/Elite) + billing_events: owner reads own entitlement; only the
+-- billing webhook (service role, bypasses RLS) writes. billing_events = no client access.
+alter table if exists public.entitlements   enable row level security;
+alter table if exists public.billing_events enable row level security;
+revoke all on public.entitlements, public.billing_events from anon;
+drop policy if exists ent_read on public.entitlements;
+create policy ent_read on public.entitlements for select using (auth.uid()::text = uid);
+grant select on public.entitlements to authenticated;
 
 -- 5. Storage: restrict the public 'media' bucket to authenticated uploads.
 --    (Reads can stay public; writes should require a session.)
