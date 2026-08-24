@@ -254,11 +254,11 @@ const App = {
           <h1 class="landing-h1">Build your dream physique.</h1>
           <p class="landing-sub">Adaptive daily workouts, smart meal plans and progress tracking — personalised to the exact look you want.</p>
           <div class="landing-feats">
-            <span>🏋️ Adaptive workouts</span><span>🍽️ Meal planner</span>
-            <span>📈 Streaks &amp; progress</span><span>🎯 Physique goals</span>
+            <span>${this.ic("dumbbell", { size: 14 })} Adaptive workouts</span><span>${this.ic("utensils", { size: 14 })} Meal planner</span>
+            <span>${this.ic("chart", { size: 14 })} Streaks &amp; progress</span><span>${this.ic("target", { size: 14 })} Physique goals</span>
           </div>
           <div class="landing-sub" style="margin-top:12px;font-size:12.5px;opacity:.75">Free to start · no card needed · iPhone, Android &amp; web</div>
-          <div style="margin-top:8px;font-size:12.5px"><a href="guides/" style="color:#ff9d4d;text-decoration:none">📚 Free fitness guides →</a></div>
+          <div style="margin-top:10px;font-size:12.5px"><a href="guides/" style="color:#ff9d4d;text-decoration:none;display:inline-flex;align-items:center;gap:6px">${this.ic("book", { size: 14 })} Free fitness guides →</a></div>
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
@@ -364,7 +364,7 @@ const App = {
     }
 
     card.innerHTML = `${brand}${body}
-      <div class="auth-note">${window.SHEETS_API ? "☁️ Secure cloud login — sign in from any device." : "🔒 Private login — your data is saved on this device."}</div>`;
+      <div class="auth-note"><span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${this.ic("lock", { size: 12 })} ${window.SHEETS_API ? "Secure cloud login — sign in from any device." : "Private login — your data is saved on this device."}</span></div>`;
     if (window.GOOGLE_CLIENT_ID && isLanding && !window.Capacitor) this.renderGoogleButton();
   },
 
@@ -771,6 +771,10 @@ const App = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
     cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+    utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3H3Z"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   },
   ic(name, opts) {
     opts = opts || {};
