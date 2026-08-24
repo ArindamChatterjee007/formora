@@ -262,11 +262,15 @@ const App = {
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
     // Web uses Google Identity Services (GSI). Native uses the SocialLogin plugin (real Google account picker).
-    const gbtn = window.Capacitor
-      ? `<button class="gbtn" onclick="App.goGoogleNative()">${this.googleIcon()} Continue with Google</button>`
-      : (window.GOOGLE_CLIENT_ID
-        ? `<div id="gsi-btn" class="gsi-wrap"></div>`
-        : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
+    // Under secure Supabase Auth, Google is temporarily hidden (re-added later via Supabase id_token sign-in).
+    const secureAuth = (typeof SupaAuth !== "undefined" && SupaAuth.active());
+    const gbtn = secureAuth
+      ? ""
+      : (window.Capacitor
+        ? `<button class="gbtn" onclick="App.goGoogleNative()">${this.googleIcon()} Continue with Google</button>`
+        : (window.GOOGLE_CLIENT_ID
+          ? `<div id="gsi-btn" class="gsi-wrap"></div>`
+          : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`));
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
 
@@ -363,7 +367,7 @@ const App = {
 
     card.innerHTML = `${brand}${body}
       <div class="auth-note">${window.SHEETS_API ? "☁️ Secure cloud login — sign in from any device." : "🔒 Private login — your data is saved on this device."}</div>`;
-    if (window.GOOGLE_CLIENT_ID && isLanding && !window.Capacitor) this.renderGoogleButton();
+    if (window.GOOGLE_CLIENT_ID && isLanding && !window.Capacitor && !secureAuth) this.renderGoogleButton();
   },
 
   // real Google Sign-In (loads Google Identity Services on demand)
@@ -501,12 +505,8 @@ const App = {
     this.onboardProfile = { patch, weightKg: patch.startWeightKg };
     const d = this.signupDraft || {};
     try {
-      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
-        const s = await SupaAuth.signup(d.email, d.pass, { name: d.name });
-        if (s && s.needsConfirm) { this.authErr("Almost there — check your email to confirm your account, then log in."); return this.showAuth("login"); }
-        Auth.supabaseSignIn({ name: d.name, email: d.email });
-        return this.enterApp();
-      }
+      // Verify the email first (real OTP via EmailJS). Under secure Supabase Auth the
+      // isolated DB session is created AFTER verification (in doVerifyOtp).
       const r = await Auth.signup({ name: d.name, email: d.email, phone: d.phone, password: d.pass });
       if (r && r.direct) return this.enterApp();     // cloud backend: signed in
       const del = await Auth.deliverCode();          // email a 6-digit code to verify the address
@@ -549,9 +549,21 @@ const App = {
     Auth.sendPhoneOtp(phone);
     this.showAuth("otp");
   },
-  doVerifyOtp() {
+  async doVerifyOtp() {
     const code = document.getElementById("o-code").value.trim();
-    try { Auth.verifyOtp(code); this.pendingCode = null; this.enterApp(); }
+    try {
+      Auth.verifyOtp(code); this.pendingCode = null;
+      // email verified → now create/adopt the secure Supabase session (RLS identity)
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+        const d = this.signupDraft || {};
+        if (d.email && d.pass) {
+          try { await SupaAuth.signup(d.email, d.pass, { name: d.name }); }
+          catch (_) { try { await SupaAuth.login(d.email, d.pass); } catch (__) {} }
+          Auth.supabaseSignIn({ email: d.email, name: d.name });
+        }
+      }
+      this.enterApp();
+    }
     catch (e) { this.authErr(e.message); }
   },
   async doResend() {
