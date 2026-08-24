@@ -151,6 +151,7 @@ const App = {
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
     this.renderChips();
     this.selectTab("home");
+    if (this._showWelcome) { this._showWelcome = false; try { this.showWelcome(); } catch (e) {} }
   },
 
   applyAccount(u) {
@@ -272,7 +273,8 @@ const App = {
         ${err}
         <button class="btn wide" onclick="App.doLogin()">Log in</button>
         <div class="auth-switch">New here? <a onclick="App.showAuth('signup')">Create an account</a></div>
-        <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>`;
+        <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>
+        <div class="auth-legal">By using Formora you agree to our <a href="legal.html#terms" target="_blank" rel="noopener">Terms</a> &amp; <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a>.</div>`;
     } else if (this.authView === "signup") {
       body = `${gbtn}
         ${gbtn ? `<div class="auth-or"><span>or sign up with details</span></div>` : ""}
@@ -283,7 +285,8 @@ const App = {
         <div class="field"><label>Confirm password</label><input id="s-pass2" type="password" placeholder="repeat password"></div>
         ${err}
         <button class="btn wide" onclick="App.doSignupStart()">Continue →</button>
-        <div class="auth-switch">Already have an account? <a onclick="App.showAuth('login')">Log in</a></div>`;
+        <div class="auth-switch">Already have an account? <a onclick="App.showAuth('login')">Log in</a></div>
+        <div class="auth-legal">By creating an account you agree to our <a href="legal.html#terms" target="_blank" rel="noopener">Terms</a>, <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a> &amp; <a href="legal.html#disclaimer" target="_blank" rel="noopener">Health disclaimer</a>.</div>`;
     } else if (this.authView === "details") {
       body = `<div class="auth-sub">A few details so your plan fits <b>you</b> — you can change these anytime.</div>
         <div class="form-grid">
@@ -475,6 +478,7 @@ const App = {
     return patch;
   },
   submitDetails() {
+    this._showWelcome = true; // T-16: reveal the personalised preview + Pro upsell on first entry
     return this.onboardMode === "login" ? this.finishOnboarding() : this.doCreateAccount();
   },
   // first-time details for an already-logged-in user (e.g. Google sign-in)
@@ -1366,6 +1370,40 @@ const App = {
     this.renderTab(active);
   },
   closeModal() { document.getElementById("modal").classList.add("hidden"); },
+  // Personalised preview + Pro upsell shown once, right after onboarding (T-16 funnel).
+  showWelcome() {
+    const p = Store.state.profile;
+    const s = Engine.stats();
+    const phys = Engine.getPhysique();
+    const ep = Engine.experiencePlan();
+    const name = ((p.name || "").split(" ")[0]) || "champ";
+    const goalW = p.targetWeightKg ? `${Store.latestWeight()} \u2192 <b>${p.targetWeightKg}</b> kg` : `${Store.latestWeight()} kg`;
+    document.getElementById("modal-card").innerHTML = `
+      <div class="welcome">
+        <div class="wc-emoji">\ud83c\udf89</div>
+        <h2 class="wc-h">You're all set, ${esc(name)}!</h2>
+        <p class="wc-sub">Your <b>${esc(phys.name)}</b> plan is ready \u2014 tuned to your body and goal.</p>
+        <div class="wc-fig">${this.physiqueFigure(phys.fig)}</div>
+        <div class="wc-stats">
+          <div class="wc-stat"><div class="v">${goalW}</div><div class="l">Weight goal</div></div>
+          <div class="wc-stat"><div class="v">${s.calTarget}</div><div class="l">Daily kcal</div></div>
+          <div class="wc-stat"><div class="v">${s.proteinG}g</div><div class="l">Protein/day</div></div>
+          <div class="wc-stat"><div class="v">${ep.freq}\u00d7</div><div class="l">Sessions/wk</div></div>
+        </div>
+        <ul class="wc-inc">
+          <li>Adaptive daily workouts for your ${esc(phys.name)}</li>
+          <li>Smart meal planner at ${s.calTarget} kcal</li>
+          <li>Progress tracking, streaks &amp; the community feed</li>
+        </ul>
+        <div class="wc-pro" onclick="App.closeModal();App.openPricing()">
+          <div class="wc-pro-badge">\u2728 Formora Pro</div>
+          <div class="wc-pro-t">Unlock AI multi-week programs, all 115 camera filters &amp; advanced analytics</div>
+          <div class="wc-pro-p">See plans \u2192</div>
+        </div>
+        <button class="btn wide" onclick="App.closeModal()">Start training \ud83d\udcaa</button>
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
   // ---- Pro training programme (T-38). Free members hit the paywall; Pro/Elite get
   // a full periodised multi-week block generated from their profile. ----
   openProgram(week) {
@@ -2475,6 +2513,7 @@ const App = {
         <div class="about-brand"><svg viewBox="0 0 44 44" width="26" height="26" fill="none" aria-hidden="true"><defs><linearGradient id="alg" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#alg)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg><span>Formora</span></div>
         <div class="about-ver">Version ${window.APP_VERSION || "1.0.0"}</div>
         <div class="about-sub">Your aesthetic physique coach — train · track · connect.</div>
+        <div class="about-legal"><a href="legal.html#terms" target="_blank" rel="noopener">Terms</a> · <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a> · <a href="legal.html#disclaimer" target="_blank" rel="noopener">Health disclaimer</a></div>
       </div>`;
   },
 
