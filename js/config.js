@@ -44,7 +44,7 @@ window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // so we reverted to the stable anon-key app: local login persists, the feed loads
 // without a login wall, and posts stay owned by uidFor(email). RLS is disabled in
 // the DB to match. Re-enable later WITH backups + a real existing-user migration.
-window.USE_SUPABASE_AUTH = false;
+window.USE_SUPABASE_AUTH = true;
 window.SOCIAL_API = "";
 
 /* ---- Music library (royalty-free) — attach a track to a Flex/post and it plays
