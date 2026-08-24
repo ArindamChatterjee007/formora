@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://arindamchatterjee007.github.io/formora/sitemap.xml
