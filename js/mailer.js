@@ -37,7 +37,8 @@ const Mailer = {
     if (this.emailjsReady()) {
       try {
         const ej = await this._loadEmailJS();
-        await ej.send(window.EMAILJS_SERVICE_ID, window.EMAILJS_TEMPLATE_ID, { to_email: to, email: to, code: String(code), name: name || "there" }, window.EMAILJS_PUBLIC_KEY);
+        const msg = "Your Formora verification code is " + code + ". Enter it in the app to verify your email. This code expires shortly. \u2014 Team Formora";
+        await ej.send(window.EMAILJS_SERVICE_ID, window.EMAILJS_TEMPLATE_ID, { to_email: to, email: to, code: String(code), name: name || "there", message: msg }, window.EMAILJS_PUBLIC_KEY);
         return { sent: true, via: "emailjs" };
       } catch (e) { console.warn("[Mailer] EmailJS send failed:", e); }
     }
