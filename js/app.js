@@ -43,12 +43,26 @@ const App = {
     document.addEventListener("visibilitychange", () => this.onVisibility());
     this.guardImages();
     this.bindSwipe();
+    if (this._checkRecovery()) return;
     if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
       const s = SupaAuth.load();
       if (s && s.email) { SupaAuth.token(); Auth.supabaseSignIn({ email: s.email, name: (Auth.findByEmail(s.email) || {}).name }); this.enterApp(); }
       else this.showAuth("login");
     } else if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
+  },
+  // a Supabase password-reset link redirects back with #access_token=...&type=recovery
+  _checkRecovery() {
+    try {
+      const h = location.hash || "";
+      if (!/type=recovery/.test(h) || h.indexOf("access_token=") < 0) return false;
+      const p = new URLSearchParams(h.replace(/^#/, ""));
+      const at = p.get("access_token"); if (!at) return false;
+      this._recoverTokens = { access_token: at, refresh_token: p.get("refresh_token") || "", expires_in: +(p.get("expires_in") || 3600) };
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {}
+      this.showAuth("reset");
+      return true;
+    } catch (_) { return false; }
   },
   // ---- image protection: block right-click / drag / copy-paste on photos, blur when window loses focus (screenshot deterrent) ----
   guardImages() {
@@ -279,6 +293,7 @@ const App = {
         <div class="field"><label>Password</label><input id="a-pass" type="password" placeholder="••••••••"></div>
         ${err}
         <button class="btn wide" onclick="App.doLogin()">Log in</button>
+        <div class="auth-switch"><a onclick="App.showAuth('forgot')">Forgot your password?</a></div>
         <div class="auth-switch">New here? <a onclick="App.showAuth('signup')">Create an account</a></div>
         <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>
         <div class="auth-legal">By using Formora you agree to our <a href="legal.html#terms" target="_blank" rel="noopener">Terms</a> &amp; <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a>.</div>`;
@@ -338,6 +353,19 @@ const App = {
         ${err}
         <button class="btn wide" onclick="App.doGoogleContinue()">Continue</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back</a></div>`;
+    } else if (this.authView === "forgot") {
+      body = `<div class="auth-sub">Enter your account email and we'll send you a link to reset your password.</div>
+        <div class="field"><label>Email</label><input id="f-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        ${err}
+        <button class="btn wide" onclick="App.doForgot()">Send reset link</button>
+        <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
+    } else if (this.authView === "reset") {
+      body = `<div class="auth-sub">Choose a new password for your account.</div>
+        <div class="field"><label>New password</label><input id="r-pass" type="password" placeholder="min 6 characters" autocomplete="new-password"></div>
+        <div class="field"><label>Confirm new password</label><input id="r-pass2" type="password" placeholder="repeat password" autocomplete="new-password"></div>
+        ${err}
+        <button class="btn wide" onclick="App.doResetPassword()">Update password &amp; log in</button>
+        <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
     } else if (this.authView === "phone") {
       body = `<div class="auth-sub">Verify your phone to finish signing in</div>
         <div class="field"><label>Phone number</label><input id="p-phone" type="tel" placeholder="+91 98765 43210" value="${Auth.pending?.account?.phone || ""}"></div>
@@ -574,6 +602,31 @@ const App = {
       if (this.toast) this.toast(del.sent ? "New code emailed ✓" : "New code generated");
     }
     this.showAuth("otp");
+  },
+
+  async doForgot() {
+    const email = (document.getElementById("f-email").value || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return this.authErr("Enter a valid email address.");
+    try {
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) await SupaAuth.recover(email);
+      this.showAuth("login");
+      if (this.toast) this.toast("If that email is registered, a reset link is on its way — check your inbox (and spam).");
+    } catch (e) { this.authErr(e.message); }
+  },
+  async doResetPassword() {
+    const p1 = document.getElementById("r-pass").value || "";
+    const p2 = document.getElementById("r-pass2").value || "";
+    if (p1.length < 6) return this.authErr("Password must be at least 6 characters.");
+    if (p1 !== p2) return this.authErr("Those passwords don't match.");
+    const t = this._recoverTokens;
+    if (!t || !t.access_token) return this.authErr("This reset link has expired — request a new one from Forgot your password.");
+    try {
+      const sess = await SupaAuth.setPasswordWithToken(t.access_token, t.refresh_token, t.expires_in, p1);
+      this._recoverTokens = null;
+      Auth.supabaseSignIn({ email: (sess && sess.email) || "", name: (Auth.findByEmail((sess && sess.email) || "") || {}).name });
+      if (this.toast) this.toast("Password updated — you're logged in.");
+      this.enterApp();
+    } catch (e) { this.authErr(e.message); }
   },
 
   // floating energy particles in the animated background
