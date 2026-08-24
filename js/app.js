@@ -2349,6 +2349,7 @@ const App = {
       </div>
       <div class="plan-actions">
         <button class="btn ghost" onclick="App.generatePlan()">↻ Regenerate</button>
+        <button class="btn ghost" onclick="App.showGroceryList()">🛒 Grocery list</button>
         <button class="btn" onclick="App.logWholeDay()">Log whole day</button>
       </div>
     </div>`;
@@ -2367,6 +2368,51 @@ const App = {
       Store.logFood({ text: `Add-on: ${a.name}`, kcal: a.kcal, protein: a.protein, estimated: true });
     this.dayPlan = null;
     this.renderNutrition();
+  },
+
+  // ---- grocery list from the day plan (T-18) ----
+  // Meal names are already " + "-separated components (e.g. "Chicken curry + rice + salad"),
+  // so we split, drop parentheticals/leading quantities, and aggregate into a shopping list.
+  groceryItems() {
+    const p = this.dayPlan;
+    if (!p) return [];
+    const counts = {}, order = [];
+    const add = (name) => {
+      for (let part of String(name).split("+")) {
+        part = part.replace(/\([^)]*\)/g, " ").replace(/^\s*\d+\s+/, "").trim();
+        if (!part) continue;
+        const key = part.toLowerCase();
+        if (!(key in counts)) { counts[key] = { label: part, n: 0 }; order.push(key); }
+        counts[key].n++;
+      }
+    };
+    for (const x of p.plan) add(x.meal.name);
+    for (const a of (p.addons || [])) add(a.name);
+    return order.map((k) => counts[k]);
+  },
+  showGroceryList() {
+    const items = this.groceryItems();
+    if (!items.length) { this.toast && this.toast("Generate a plan first"); return; }
+    this._groceryText = "Formora — grocery list\n" + items.map((it) => "• " + it.label + (it.n > 1 ? ` ×${it.n}` : "")).join("\n");
+    const li = items.map((it) => `<li style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center"><span>${esc(it.label)}</span>${it.n > 1 ? `<span class="pm-portion">×${it.n}</span>` : ""}</li>`).join("");
+    document.getElementById("modal-card").innerHTML =
+      `<div class="modal-head"><h2>🛒 Grocery list</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+       <div class="sub" style="margin:-4px 0 10px">Auto-built from today's plan — a starting shopping list.</div>
+       <ul style="list-style:none;padding:0;margin:0 0 14px">${li}</ul>
+       <div class="plan-actions">
+         <button class="btn ghost" onclick="App.copyGrocery()">Copy list</button>
+         <button class="btn" onclick="App.shareGrocery()">Share</button>
+       </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  copyGrocery() {
+    const t = this._groceryText || "";
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => this.toast && this.toast("Copied ✓"));
+  },
+  shareGrocery() {
+    const text = this._groceryText || "";
+    if (navigator.share) navigator.share({ title: "Grocery list", text }).catch(() => {});
+    else this.copyGrocery();
   },
 
   // ---- time-based meal tabs + alternatives ----
