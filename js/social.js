@@ -463,7 +463,7 @@ const Social = {
   haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} },
   _share(text) {
     window.Track && Track.event("shared");
-    const url = "https://arindamchatterjee007.github.io/formora/";
+    const url = this._refUrl();
     const data = { title: "Formora", text: (text || "Train with me on Formora") + " \ud83d\udcaa", url };
     if (navigator.share) return navigator.share(data).then(() => this.haptic(12)).catch(() => {});
     const done = () => { if (typeof App !== "undefined" && App.toast) App.toast("Link copied \u2014 share it anywhere \ud83d\udd17"); };
@@ -476,6 +476,23 @@ const Social = {
     this._share(post && post.text ? post.text : "Check out this fitness progress on Formora");
   },
   shareApp() { this._share("I'm getting fit with Formora \u2014 an AI coach + fitness social app"); },
+  _myRef() { try { let r = localStorage.getItem("fm_myref"); if (!r) { r = Math.random().toString(36).slice(2, 8); localStorage.setItem("fm_myref", r); } return r; } catch (e) { return ""; } },
+  _refUrl() { const r = this._myRef(); const base = "https://arindamchatterjee007.github.io/formora/"; return r ? base + "?ref=" + r : base; },
+  inviteFriends() {
+    const card = document.getElementById("modal-card"); if (!card) return;
+    const url = this._refUrl();
+    card.innerHTML = `<div class="modal-head"><h2>Invite friends \ud83c\udf81</h2><button class="icon-btn" onclick="App.closeModal()">\u2715</button></div>
+      <div style="text-align:center;padding:6px 2px 2px">
+        <div style="font-size:52px;line-height:1">\ud83d\udcaa</div>
+        <div style="font-weight:800;font-size:19px;margin:8px 0 4px">Train together, stay consistent</div>
+        <div class="sub" style="margin-bottom:14px">Friends who train together stick with it. Invite yours \u2014 they'll show up in your feed and you'll keep each other going.</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px"><input id="inv-link" readonly value="${esc(url)}" style="flex:1;min-width:0;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:#12151d;color:#fff;font-size:13px"><button class="btn" onclick="Social.copyInvite()">Copy</button></div>
+        <button class="btn wide" onclick="Social.doInvite()">Share your invite link</button>
+      </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  copyInvite() { const el = document.getElementById("inv-link"); const url = el ? el.value : this._refUrl(); if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { if (typeof App !== "undefined" && App.toast) App.toast("Invite link copied \ud83d\udd17"); }).catch(() => {}); window.Track && Track.event("invite_shared"); },
+  doInvite() { window.Track && Track.event("invite_shared"); this._share("Come train with me on Formora \u2014 free AI workouts + a fitness feed to flex your progress"); },
   // ---- save / bookmark (local, personal) ----
   isSaved(id) { try { return JSON.parse(localStorage.getItem("fm_saved") || "[]").includes(id); } catch (e) { return false; } },
   _setSaved(id) {
