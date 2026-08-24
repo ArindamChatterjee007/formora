@@ -500,9 +500,11 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .landing-sub { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0 auto 14px; max-width: 340px; }
 .landing-feats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .landing-feats span {
+  display: inline-flex; align-items: center; gap: 6px;
   background: var(--card2); border: 1px solid var(--line); border-radius: 999px;
   padding: 6px 11px; font-size: 11.5px; font-weight: 600; color: var(--text);
 }
+.landing-feats .ic { color: var(--accent); }
 .auth-brand { text-align: center; font-weight: 800; letter-spacing: 2px; font-size: 24px; }
 .auth-brand span { color: var(--accent); }
 .auth-tag { text-align: center; color: var(--muted); font-size: 13px; margin: 4px 0 22px; }
