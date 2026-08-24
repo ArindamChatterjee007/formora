@@ -245,8 +245,11 @@ const App = {
   renderAuth() {
     const card = document.getElementById("auth-card");
     const isLanding = this.authView === "login" || this.authView === "signup";
+    const invited = (function () { try { return !!localStorage.getItem("fm_ref"); } catch (e) { return false; } })();
+    const inviteBanner = invited ? `<div style="background:linear-gradient(135deg,rgba(255,157,77,.16),rgba(255,61,127,.16));border:1px solid rgba(255,90,77,.4);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13.5px;margin-bottom:14px;text-align:center">🎉 You've been invited — start free with your friend on Formora 💪</div>` : "";
     const brand = isLanding
       ? `<div class="landing-hero">
+          ${inviteBanner}
           <div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg1" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg1)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
           <h1 class="landing-h1">Build your dream physique.</h1>
           <p class="landing-sub">Adaptive daily workouts, smart meal plans and progress tracking — personalised to the exact look you want.</p>
@@ -254,6 +257,7 @@ const App = {
             <span>🏋️ Adaptive workouts</span><span>🍽️ Meal planner</span>
             <span>📈 Streaks &amp; progress</span><span>🎯 Physique goals</span>
           </div>
+          <div class="landing-sub" style="margin-top:12px;font-size:12.5px;opacity:.75">Free to start · no card needed · iPhone, Android &amp; web</div>
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
