@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v116",
+    "liveVersion": "v117",
     "updated": "2026-08-24",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -30,8 +30,12 @@
     { "key": "req",     "title": "Requirements Engineer",          "emoji": "📋", "team": "Product",                "level": "ic",   "reports": "pm",      "does": "Turns asks into specs + acceptance criteria" },
     { "key": "design",  "title": "Product Designer",               "emoji": "🎨", "team": "Product",                "level": "ic",   "reports": "pm",      "does": "UI/UX, brand, paywall + onboarding design" },
     { "key": "cto",     "title": "CTO / Eng Lead",                 "emoji": "🛠️", "team": "Engineering",           "level": "lead", "reports": "ceo",     "does": "Architecture, security, ships through the pipeline" },
-    { "key": "eng",     "title": "Engineer",                       "emoji": "💻", "team": "Engineering",            "level": "ic",   "reports": "cto",     "does": "Implements features dev→release→beta→main" },
-    { "key": "qa",      "title": "QA / Security",                  "emoji": "🔍", "team": "Engineering",            "level": "ic",   "reports": "cto",     "does": "Tests, reviews, blocks regressions + vulnerabilities" },
+    { "key": "architect", "title": "Principal Architect", "emoji": "🏛️", "team": "Engineering", "level": "lead", "reports": "cto", "does": "Owns system design + technical direction; signs off each feature's ARCHITECTURE before build (music engine, camera, data model, code-splitting)" },
+    { "key": "eng",     "title": "Engineer",                       "emoji": "💻", "team": "Engineering",            "level": "ic",   "reports": "architect", "does": "Implements features dev→release→beta→main to the architect's design" },
+    { "key": "qalead",  "title": "QA Lead", "emoji": "🔍", "team": "Engineering", "level": "lead", "reports": "cto", "does": "Owns quality; runs the test plan, triages every bug, signs off releases" },
+    { "key": "qa",      "title": "QA / Security Engineer", "emoji": "🛡️", "team": "Engineering", "level": "ic", "reports": "qalead", "does": "Functional + security testing; blocks regressions + vulnerabilities" },
+    { "key": "qaint",   "title": "Integration & E2E Tester", "emoji": "🧪", "team": "Engineering", "level": "ic", "reports": "qalead", "does": "End-to-end flows across features (signup→pay→unlock, feed/reels/camera/music); catches cross-feature breakage" },
+    { "key": "qaux",    "title": "UX / Functional QA", "emoji": "🕵️", "team": "Engineering", "level": "ic", "reports": "qalead", "does": "Hunts small UX/functional bugs — overlaps, dead taps, double-sound, device layout — before the founder sees them" },
     { "key": "devops",  "title": "DevOps / SRE",                   "emoji": "🚀", "team": "Engineering",            "level": "ic",   "reports": "cto",     "does": "CI/CD, promotions, deploys, verifies live" }
   ],
   "columns": [
@@ -59,7 +63,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v116 · Progress Photo Studio (Pro) + PostHog live + onboarding" },
+    { "label": "Live version", "value": "v117 · camera filter fix + single-video sound + 30 free filters" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -113,6 +117,26 @@
       { "period": "Year 3", "conservative": "$180k", "base": "$500k", "optimistic": "$1M+" }
     ]
   },
+  "roadmap": {
+    "updated": "2026-08-24",
+    "note": "Prioritised plan for everything still open. P0=now, P1=this sprint, P2=next, P3=later. (founder) = blocked on an action only Arindam can do.",
+    "nextUp": [
+      { "rank": 1, "item": "Music system overhaul — library + search + trending + photo music (T-51)", "priority": "P1", "owner": "architect+eng", "when": "in progress now" },
+      { "rank": 2, "item": "QA E2E + UX sweep — find every small bug (T-54)", "priority": "P0", "owner": "qalead", "when": "continuous" },
+      { "rank": 3, "item": "Email delivery — activate EmailJS", "priority": "P1", "owner": "founder", "when": "blocked: 2-min EmailJS signup → 3 IDs" },
+      { "rank": 4, "item": "₹1 live UPI test — prove real payment→unlock", "priority": "P1", "owner": "founder", "when": "blocked: founder pays ₹1" },
+      { "rank": 5, "item": "Premium filter pack (T-52)", "priority": "P2", "owner": "eng", "when": "next sprint" },
+      { "rank": 6, "item": "Referral / invite loop (T-20)", "priority": "P1", "owner": "growth+eng", "when": "sprint 5" },
+      { "rank": 7, "item": "Redo security RLS the safe way (T-32)", "priority": "P1", "owner": "cto", "when": "before scaling users" },
+      { "rank": 8, "item": "Native Android/iOS rebuild v94→current (T-22)", "priority": "P2", "owner": "devops", "when": "sprint 6" },
+      { "rank": 9, "item": "Code-split JS — perf budget nearly full (T-55)", "priority": "P2", "owner": "architect", "when": "before the next big feature" },
+      { "rank": 10, "item": "Activate Lemon Squeezy — real card/PayPal payouts", "priority": "P2", "owner": "founder", "when": "blocked: store KYC" },
+      { "rank": 11, "item": "Grocery lists from meal plans (T-18)", "priority": "P2", "owner": "eng", "when": "sprint 5" },
+      { "rank": 12, "item": "Marketing execution — organic/ASO/SEO/influencer/lifecycle (T-41..T-46)", "priority": "P1", "owner": "marketing", "when": "sprint 5, needs founder accounts" },
+      { "rank": 13, "item": "Financial model + founder-comp (T-26/T-47)", "priority": "P2", "owner": "finance", "when": "sprint 4-5" },
+      { "rank": 14, "item": "Publish Google consent screen / landing polish (T-23/T-24)", "priority": "P3", "owner": "devops+design", "when": "later" }
+    ]
+  },
   "tasks": [
     { "id": "T-01", "title": "Stored-XSS fixed across feed (9 sinks) + CI guard", "role": "qa", "sprint": 0, "status": "done", "priority": "P0" },
     { "id": "T-02", "title": "CSP + PBKDF2 + secret-scan + perf-budget gates", "role": "eng", "sprint": 0, "status": "done", "priority": "P0" },
@@ -162,7 +186,13 @@
     { "id": "T-46", "title": "Paid acquisition pilot — small Meta/TikTok test once M2 is hit, track CAC/ROAS", "role": "paid", "sprint": 6, "status": "backlog", "priority": "P2" },
     { "id": "T-47", "title": "Founder compensation + earnings model — when MRR supports a salary, how much to pay vs reinvest", "role": "finance", "sprint": 4, "status": "backlog", "priority": "P2", "note": "CFO/analyst model: reinvest 100% until ~$1k MRR, then a modest founder draw; project take-home at $1k/$5k/$10k MRR (costs stay near-zero on Pages+Supabase)." },
     { "id": "T-48", "title": "Music on posts/reels — royalty-free library + Instagram-style playback", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v109 — composer '🎵 Music' picker with preview; track stored in posts.data.music (no schema change); plays in Reels + feed videos synced to the global sound toggle (video auto-muted). 5 royalty-free SoundHelix clips (credited) hosted in Supabase storage. Licensed trending-song catalog needs a label deal — this is the legal MVP." },
-    { "id": "T-49", "title": "Share-to-grow (in-app sharing) + haptics", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v110 — Share button on posts + reels + a 'Share Formora' button in profile use navigator.share (native sheet) with clipboard fallback, pushing content + the install link out to WhatsApp/IG/etc for near-zero-CAC growth. Haptics (navigator.vibrate) on like + double-tap. Feeds the CMO's T-41 organic loop." }
+    { "id": "T-49", "title": "Share-to-grow (in-app sharing) + haptics", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v110 — Share button on posts + reels + a 'Share Formora' button in profile use navigator.share (native sheet) with clipboard fallback, pushing content + the install link out to WhatsApp/IG/etc for near-zero-CAC growth. Haptics (navigator.vibrate) on like + double-tap. Feeds the CMO's T-41 organic loop." },
+    { "id": "T-50", "title": "Camera filter UX fix — overlap, swipe-to-change, 30 free filters", "role": "eng", "sprint": 4, "status": "done", "priority": "P0", "note": "SHIPPED v117 — filter strip was position:absolute overlapping the taller .cam-bottom (Photo/Video switch covered it → un-tappable). Moved it INTO the bottom stack (flows above the modes); swipe left/right on the photo changes filters; free filters 10→30 (Pro=all 115)." },
+    { "id": "T-51", "title": "Music system overhaul — bigger library + search + trending/categories + music on photos (IG/Shorts-style)", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P1", "note": "Founder: library too small, no search, no trending, no photo music. Architect design: categorised royalty-free catalog (30–60 tracks: workout/hype/chill/lofi/cinematic) + search box + 'trending' shelf + audio on PHOTO posts too. Licensed real trending songs need a label deal — royalty-free is the legal MVP; expand catalog + UX to feel like Instagram/Reels." },
+    { "id": "T-52", "title": "Premium filter pack — curated VSCO/IG-grade looks", "role": "eng", "sprint": 5, "status": "backlog", "priority": "P2", "note": "Augment the CSS filters with a hand-tuned PREMIUM set (film, warm, cool, mono, vivid, moody, fade) + live thumbnail previews." },
+    { "id": "T-53", "title": "Feed/reels: only one video plays at a time (no double sound)", "role": "eng", "sprint": 4, "status": "done", "priority": "P0", "note": "SHIPPED v117 — observer played every video >60% visible, so stopping between two Flex videos played BOTH. Now playing one pauses all others in the feed/reels container. One sound at a time." },
+    { "id": "T-54", "title": "QA integration + E2E + UX sweep — catch every small issue", "role": "qalead", "sprint": 4, "status": "in_progress", "priority": "P0", "note": "New QA team (Lead + Integration/E2E + UX/Functional) sweeps signup→pay→unlock, feed/reels/camera/music/progress-photos on real device widths; logs every overlap, dead tap, double-sound + cross-feature break before the founder sees it." },
+    { "id": "T-55", "title": "Code-split JS (perf budget nearly full) — externalise a module", "role": "architect", "sprint": 5, "status": "backlog", "priority": "P2", "note": "cat js/*.js is ~429KB of the 440KB CI budget. Split a big module (camera/music) into its own file + <script> so features keep landing without failing the perf gate." }
   ],
   "activity": [
     { "ts": "2026-08-23", "role": "coo", "text": "AI Agent Office initialized — GitHub-backed board, Copilot as the AI backend." },
@@ -202,6 +232,9 @@
     { "ts": "2026-08-24", "role": "growth", "text": "SHIPPED v113 — LEGAL PAGES (part of T-17). legal.html: a real, plain-language Health/Medical Disclaimer (important — we now take money for fitness guidance), Terms of Use, Privacy Policy (honest about what we collect + that data lives in Supabase, payments via Razorpay/Lemon Squeezy, no card storage, no data selling) and subscription/billing terms. Linked from the login + sign-up screens and Profile→About. Founder: add a public support email in legal.html + get a lawyer to review before scaling. Remaining in T-17: PostHog funnel analytics." },
     { "ts": "2026-08-24", "role": "bi", "text": "SHIPPED v114 — FUNNEL ANALYTICS wired for PostHog (T-27). window.Track (config.js) lazy-loads posthog-js ONLY when POSTHOG_KEY is set (fully inert + zero network otherwise) and queues events until the SDK is ready. Events fire at every funnel step: app_opened (+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared — exactly the M1 conversion funnel BI needs. CSP now allows *.posthog.com. TURNKEY: founder makes a free PostHog project → pastes the phc_ Project API Key into config.POSTHOG_KEY → the whole funnel lights up. EMAIL DELIVERY is already code-complete (js/mailer.js supports EmailJS OR the send-email Resend edge function) — it only needs the founder's keys (EmailJS is fastest: free, no domain, sends from Gmail; paste 3 IDs into config). Until then OTP shows on-screen (verified working in the live E2E signup test)." },
     { "ts": "2026-08-24", "role": "bi", "text": "SHIPPED v115 — PostHog is LIVE. Created the org (Formora) + project (573850, US region) via the founder's Google login, grabbed the phc_ Project API Key, wired it into config.POSTHOG_KEY. The instrumented funnel (app_opened → signup_started → onboarding_completed → paywall_opened → plan_selected → post_created/shared) now streams to PostHog — BI can finally SEE the M1 conversion funnel + retention. EMAIL still pending: EmailJS signup is Cloudflare-bot-protected so it can't be automated — founder signs up at emailjs.com in their own browser (2 min), connects Gmail, makes a template with {{code}}/{{to_email}}, and shares the 3 IDs; then it's a 1-line config wire." },
-    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v116 — PROGRESS PHOTO STUDIO (Pro, T-39). The #1 retention driver in fitness apps: members snap dated progress photos (resized, stored PRIVATELY on-device — body photos never touch the cloud), and get an automatic before/after of their first vs latest shot plus a data-driven read (weight Δ, body-fat Δ, days elapsed, workouts logged in between) that ties the visual change to their numbers. Gated to Pro with an upgrade teaser for free members. Kept it HONEST — data-driven, not fake AI-vision — so I folded it into Pro's 'Advanced analytics + progress photos' and replaced Elite's misleading 'AI progress-photo analysis' line with 'Progress-photo reviews with your coach'. JS 428706/440320, CSS 97802/102400 — budget getting tight, may need to externalise a file soon." }
+    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v116 — PROGRESS PHOTO STUDIO (Pro, T-39). The #1 retention driver in fitness apps: members snap dated progress photos (resized, stored PRIVATELY on-device — body photos never touch the cloud), and get an automatic before/after of their first vs latest shot plus a data-driven read (weight Δ, body-fat Δ, days elapsed, workouts logged in between) that ties the visual change to their numbers. Gated to Pro with an upgrade teaser for free members. Kept it HONEST — data-driven, not fake AI-vision — so I folded it into Pro's 'Advanced analytics + progress photos' and replaced Elite's misleading 'AI progress-photo analysis' line with 'Progress-photo reviews with your coach'. JS 428706/440320, CSS 97802/102400 — budget getting tight, may need to externalise a file soon." },
+    { "ts": "2026-08-24", "role": "ceo", "text": "ALL-HANDS on quality (founder called it). Verdict: velocity was high but UX bugs slipped (camera filter overlap, feed double-sound, music too thin). TWO org changes: (1) HIRED a Principal Architect 🏛️ to own technical design + sign off every feature BEFORE build; (2) EXPANDED QA into a real team — QA Lead + Integration/E2E Tester + UX/Functional QA — to catch small UX + end-to-end issues before the founder does. Everyone weighed in; tasks T-50..T-55 created + a prioritised roadmap logged." },
+    { "ts": "2026-08-24", "role": "architect", "text": "Design review: the camera bottom-bar was absolutely-positioned layers stacking (overlap) — fixed by making the filter strip part of the bottom flow. The feed audio bug was a missing 'single active video' invariant — added to feed + reels. Music needs a real architecture (T-51): categorised catalog + search + trending shelf + photo audio on one shared audio element. Flagged the JS perf budget is nearly full (T-55) — next big feature gets its own file." },
+    { "ts": "2026-08-24", "role": "qaux", "text": "FOUNDER-REPORTED BUGS FIXED (v117): camera filters now tappable + swipeable (30 free, was 10), and only ONE video plays at a time in feed + reels (no more double sound). Sweeping the rest of the flows next (T-54)." }
   ]
 }
