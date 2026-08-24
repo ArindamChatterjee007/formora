@@ -289,8 +289,8 @@ const App = {
     if (this.authView === "login") {
       body = `${gbtn}
         ${gbtn ? `<div class="auth-or"><span>or</span></div>` : ""}
-        <div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@email.com"></div>
-        <div class="field"><label>Password</label><input id="a-pass" type="password" placeholder="••••••••"></div>
+        <div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        ${this.pwField("a-pass", "Password", "••••••••", "current-password")}
         ${err}
         <button class="btn wide" onclick="App.doLogin()">Log in</button>
         <div class="auth-switch"><a onclick="App.showAuth('forgot')">Forgot your password?</a></div>
@@ -302,9 +302,9 @@ const App = {
         ${gbtn ? `<div class="auth-or"><span>or sign up with details</span></div>` : ""}
         <div class="field"><label>Full name</label><input id="s-name" placeholder="Arindam"></div>
         <div class="field"><label>Email</label><input id="s-email" type="email" placeholder="you@email.com"></div>
-        <div class="field"><label>Phone number</label><input id="s-phone" type="tel" placeholder="+91 98765 43210"></div>
-        <div class="field"><label>Password</label><input id="s-pass" type="password" placeholder="min 6 characters"></div>
-        <div class="field"><label>Confirm password</label><input id="s-pass2" type="password" placeholder="repeat password"></div>
+        <div class="field"><label>Phone number <span class="inline-hint">(optional)</span></label><input id="s-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel"></div>
+        ${this.pwField("s-pass", "Password", "min 6 characters", "new-password")}
+        ${this.pwField("s-pass2", "Confirm password", "repeat password", "new-password")}
         ${err}
         <button class="btn wide" onclick="App.doSignupStart()">Continue →</button>
         <div class="auth-switch">Already have an account? <a onclick="App.showAuth('login')">Log in</a></div>
@@ -361,8 +361,8 @@ const App = {
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
     } else if (this.authView === "reset") {
       body = `<div class="auth-sub">Choose a new password for your account.</div>
-        <div class="field"><label>New password</label><input id="r-pass" type="password" placeholder="min 6 characters" autocomplete="new-password"></div>
-        <div class="field"><label>Confirm new password</label><input id="r-pass2" type="password" placeholder="repeat password" autocomplete="new-password"></div>
+        ${this.pwField("r-pass", "New password", "min 6 characters", "new-password")}
+        ${this.pwField("r-pass2", "Confirm new password", "repeat password", "new-password")}
         ${err}
         <button class="btn wide" onclick="App.doResetPassword()">Update password &amp; log in</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
@@ -476,7 +476,7 @@ const App = {
     const pass2 = document.getElementById("s-pass2").value;
     if (!name) return this.authErr("Please enter your name.");
     if (!Auth.validEmail(email)) return this.authErr("Enter a valid email address.");
-    if (!Auth.validPhone(phone)) return this.authErr("Enter a valid phone number.");
+    if (phone && !Auth.validPhone(phone)) return this.authErr("Enter a valid phone number.");
     if (pass.length < 6) return this.authErr("Password must be at least 6 characters.");
     if (pass !== pass2) return this.authErr("Passwords don't match.");
     if (!Auth.remote() && Auth.findByEmail(email)) return this.authErr("An account with this email already exists. Try logging in.");
@@ -828,6 +828,8 @@ const App = {
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
     book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3H3Z"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    eyeOff: '<path d="M9.9 5.1A9.6 9.6 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-3.4 4.1"/><path d="M6.5 6.6A15.5 15.5 0 0 0 2 12s3.6 7 10 7a9.5 9.5 0 0 0 4-.9"/><path d="M14.1 14.1A3 3 0 1 1 9.9 9.9"/><path d="m2 2 20 20"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -837,6 +839,20 @@ const App = {
   // reusable app-branded send button (gradient paper-plane) — comments, reels & DMs
   sendIcon(onclick, extra) {
     return `<button class="send-ico ${extra || ""}" onclick="${onclick}" aria-label="Send" title="Send">${this.ic("send", { size: 18, sw: 2 })}</button>`;
+  },
+  // password field with a show/hide eye toggle (inline-styled — no new CSS)
+  pwField(id, label, ph, ac) {
+    return `<div class="field" style="position:relative">
+        <label>${label}</label>
+        <input id="${id}" type="password" placeholder="${ph}" autocomplete="${ac || "current-password"}" style="width:100%;box-sizing:border-box;padding-right:42px">
+        <button type="button" onclick="App.togglePw('${id}',this)" aria-label="Show password" style="position:absolute;right:8px;bottom:6px;background:none;border:0;color:var(--muted);cursor:pointer;padding:6px;display:flex;line-height:0">${this.ic("eye", { size: 18 })}</button>
+      </div>`;
+  },
+  togglePw(id, btn) {
+    const inp = document.getElementById(id); if (!inp) return;
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    if (btn) { btn.innerHTML = this.ic(show ? "eyeOff" : "eye", { size: 18 }); btn.setAttribute("aria-label", show ? "Hide password" : "Show password"); }
   },
 
   // ---- Flex comments: in-app bottom sheet (no navigation away) ----
@@ -1569,7 +1585,7 @@ const App = {
         <div class="pt-price">${t.price === "0" ? "Free" : (typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))}<small>${esc(t.period || "")}</small></div>
         ${t.yearly ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
-        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI 🇮🇳</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal 🌍</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
+        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
       </div>`).join("");
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
