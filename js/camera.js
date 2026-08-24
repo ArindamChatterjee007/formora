@@ -132,7 +132,7 @@ const Camera = {
   cssFilter() { return (this.FILTERS[this.filterIdx] || {}).css || "none"; },
   // Free tier = first 10 filters; Pro/Elite unlock all of them.
   _isPro() { return typeof Entitlements !== "undefined" && Entitlements.isPro(); },
-  maxFilters() { return this._isPro() ? this.FILTERS.length : Math.min(10, this.FILTERS.length); },
+  maxFilters() { return this._isPro() ? this.FILTERS.length : Math.min(30, this.FILTERS.length); },
   unlockFilters() { this.close(); if (typeof App !== "undefined" && App.openPricing) setTimeout(() => App.openPricing(), 120); },
   // clean line-icons (no emoji) for a professional camera UI
   ic(n) {
@@ -206,12 +206,12 @@ const Camera = {
           <div class="cam-rec-time" id="cam-rec-time"></div>
           <button class="cam-ic" aria-label="Flip camera" onclick="Camera.flip()">${this.ic("flip")}</button>
         </div>
-        <div class="cam-filters" id="cam-filters">
-          ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
-          ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" style="background:linear-gradient(90deg,#ff9d4d,#ff3d7f);color:#fff;font-weight:700" onclick="Camera.unlockFilters()">🔒 ${this.FILTERS.length - this.maxFilters()}+ with Pro</button>` : ""}
-        </div>
         <div class="cam-bottom">
-          <div class="cam-hint" id="cam-hint">Tap to take a photo · swipe for filters</div>
+          <div class="cam-filters" id="cam-filters">
+            ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
+            ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" style="background:linear-gradient(90deg,#ff9d4d,#ff3d7f);color:#fff;font-weight:700" onclick="Camera.unlockFilters()">🔒 ${this.FILTERS.length - this.maxFilters()}+ with Pro</button>` : ""}
+          </div>
+          <div class="cam-hint" id="cam-hint">Swipe the photo to change filter · tap to shoot</div>
           <div class="cam-modes">
             <button class="cam-mode active" id="cam-mode-photo" onclick="Camera.setMode('photo')">Photo</button>
             <button class="cam-mode" id="cam-mode-video" onclick="Camera.setMode('video')">Video</button>
