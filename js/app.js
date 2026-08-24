@@ -1372,7 +1372,7 @@ const App = {
     const active = document.querySelector(".tab.active")?.dataset.tab || "today";
     this.renderTab(active);
   },
-  closeModal() { document.getElementById("modal").classList.add("hidden"); },
+  closeModal() { document.getElementById("modal").classList.add("hidden"); if (typeof Social !== "undefined" && Social._stopPreview) Social._stopPreview(); },
   // Personalised preview + Pro upsell shown once, right after onboarding (T-16 funnel).
   showWelcome() {
     const p = Store.state.profile;
