@@ -316,6 +316,10 @@ const Social = {
   _musicSrc: null,
   _musicCat: "Trending",
   _musicQuery: "",
+  _musicCover(t) {
+    const g = { Workout: "#ff5a3c,#ff2d55", Hype: "#b14bff,#ff3d7f", Chill: "#2dd4bf,#3b82f6", "Lo-fi": "#6366f1,#a855f7", Focus: "#10b981,#22c55e", Cinematic: "#f59e0b,#334155" }[t.genre] || "#ff9d4d,#ff3d7f";
+    return "linear-gradient(135deg," + g + ")";
+  },
   pickMusic() {
     const M = (window.MUSIC && window.MUSIC.tracks) || [];
     const card = document.getElementById("modal-card"); if (!card) return;
@@ -323,22 +327,32 @@ const Social = {
     const cat = this._musicCat || "Trending";
     const cats = ["Trending", "Workout", "Hype", "Chill", "Lo-fi", "Focus", "Cinematic"];
     const chips = cats.map((c) => `<button class="music-chip ${c === cat ? "on" : ""}" onclick="Social.setMusicCat('${c}')">${c === "Trending" ? "🔥 " : ""}${esc(c)}</button>`).join("");
+    const playingId = this._preview && this._preview.id;
     const rows = M.map((t) => {
       const tt = (t.title + " " + t.genre + " " + t.artist).toLowerCase();
       const on = pm && pm.id === t.id;
-      return `<div class="music-row ${on ? "sel" : ""}" data-tt="${esc(tt)}" data-cat="${esc(t.genre)}" data-trend="${t.trending ? "1" : "0"}" onclick="Social.selectMusic('${t.id}')">
-        <button class="music-play" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${this._preview && this._preview.id === t.id ? "⏸" : "▶"}</button>
+      const p = playingId === t.id;
+      return `<div class="music-row ${on ? "sel" : ""} ${p ? "playing" : ""}" data-tt="${esc(tt)}" data-cat="${esc(t.genre)}" data-trend="${t.trending ? "1" : "0"}" onclick="Social.selectMusic('${t.id}')">
+        <span class="music-cover" style="background:${this._musicCover(t)}">${p ? "♫" : "♪"}</span>
         <div class="music-meta"><div class="music-t">${esc(t.title)}${t.trending ? ` <span class="music-fire">🔥</span>` : ""}</div><div class="music-a">${esc(t.genre)} · ${esc(t.artist)}</div></div>
+        <button class="music-play ${p ? "on" : ""}" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${p ? "⏸" : "▶"}</button>
         ${on ? `<span class="music-check">✓</span>` : ""}
       </div>`;
     }).join("");
+    const np = playingId ? M.find((x) => x.id === playingId) : null;
+    const nowBar = np ? `<div class="music-now">
+        <span class="music-cover lg" style="background:${this._musicCover(np)}">♫</span>
+        <div class="music-meta"><div class="music-t">${esc(np.title)}</div><div class="music-a">Now playing · ${esc(np.genre)} · ${esc(np.artist)}</div></div>
+        <button class="music-play on" onclick="Social.previewMusic('${np.id}')" aria-label="Pause">⏸</button>
+      </div><div class="music-prog"><span id="mp-fill"></span></div>` : "";
     card.innerHTML = `<div class="modal-head"><h2>Add music 🎵</h2><button class="icon-btn" onclick="Social._stopPreview();App.closeModal()">✕</button></div>
       <input id="music-search" class="music-search" type="search" placeholder="Search songs, moods, genres…" value="${esc(this._musicQuery || "")}" oninput="Social.filterMusic(this.value)" autocomplete="off">
       <div class="music-chips">${chips}</div>
+      ${nowBar}
       <div class="music-list" id="music-list">${rows || `<div class="sub">No tracks available.</div>`}</div>
       <div class="music-empty sub" id="music-empty" style="display:none;text-align:center;padding:12px 0">No songs match — try another search.</div>
       <div class="music-credit">${esc((window.MUSIC && window.MUSIC.credit) || "")}</div>
-      <div class="music-actions">${pm ? `<button class="btn ghost wide" onclick="Social.removeMusic()">Remove</button>` : ""}<button class="btn wide" onclick="Social.musicDone()">Done</button></div>`;
+      <div class="music-actions">${pm ? `<button class="btn ghost wide" onclick="Social.removeMusic()">Remove</button>` : ""}<button class="btn wide" onclick="Social.musicDone()">${pm ? "Use this sound" : "Done"}</button></div>`;
     document.getElementById("modal").classList.remove("hidden");
     this._applyMusicFilter();
   },
@@ -368,10 +382,12 @@ const Social = {
     if (this._preview && this._preview.id === id && !force) { this._stopPreview(); this.pickMusic(); return; }
     this._stopPreview();
     const a = new Audio(t.src); this._preview = { id, a };
+    a.ontimeupdate = () => { const f = document.getElementById("mp-fill"); if (f && a.duration) f.style.width = (100 * a.currentTime / a.duration) + "%"; };
+    a.onended = () => { this._stopPreview(); this.pickMusic(); };
     a.play().catch(() => {});
     this.pickMusic();
   },
-  _stopPreview() { if (this._preview) { try { this._preview.a.pause(); } catch (e) {} this._preview = null; } },
+  _stopPreview() { if (this._preview) { try { const a = this._preview.a; a.pause(); a.ontimeupdate = null; a.onended = null; } catch (e) {} this._preview = null; } },
   musicDone() { this._stopPreview(); if (typeof App !== "undefined" && App.closeModal) App.closeModal(); this.render(); },
   removeMusic() { this.pendingMusic = null; this._stopPreview(); if (typeof App !== "undefined" && App.closeModal) App.closeModal(); this.render(); },
   _ensureMusic() { if (!this._musicAudio) { const a = document.createElement("audio"); a.loop = true; a.preload = "none"; this._musicAudio = a; } return this._musicAudio; },
