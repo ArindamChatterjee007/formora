@@ -168,7 +168,7 @@ window.EMAIL_FN_URL = "";
       {{to_email}}, {{code}}, {{name}} → paste the 3 IDs below. Free ~200/mo.        */
 window.EMAILJS_PUBLIC_KEY = "k7U6Yv6KyOqj2a1NE";
 window.EMAILJS_SERVICE_ID = "service_qqb8cib";
-window.EMAILJS_TEMPLATE_ID = "owznye9";
+window.EMAILJS_TEMPLATE_ID = "template_dfxxi28";
 
 /* ---- Product analytics (PostHog, T-27) — measures the growth funnel:
    app_opened → signup_started → onboarding_completed → paywall_opened →
