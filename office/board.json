@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v112",
+    "liveVersion": "v113",
     "updated": "2026-08-24",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -59,7 +59,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v112 · save posts+reels + sharing + music + double-tap like" },
+    { "label": "Live version", "value": "v113 · onboarding preview + Pro upsell + legal pages" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -129,8 +129,8 @@
     { "id": "T-13", "title": "Prod cutover v98 (flag-on) + RLS live — access-control vuln CLOSED", "role": "devops", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "CHECKOUT LIVE (v102): Upgrade opens the real Lemon Squeezy hosted checkout (Pro $7.99 / Elite $19.99, test mode). Remaining for auto-unlock: deploy billing-webhook + founder creates the LS webhook (signing secret) + activates the store (KYC) for real payouts." },
     { "id": "T-15", "title": "entitlements.js + paywall.js + gate premium call-sites", "role": "eng", "sprint": 3, "status": "done", "priority": "P0", "note": "SHIPPED v105 — Entitlements.isPro() now gates the two BUILT premium features: camera filters (10 free / 105 Pro, with a '🔒 105+ with Pro' nudge) + AI meal plans (3 free tastes / unlimited for Pro), both opening the paywall. Advanced analytics / AI workout plans / photo-analysis are advertised but not yet built as separate units — logged as build tasks T-37/38/39." },
-    { "id": "T-16", "title": "Onboarding quiz → preview plan → trial paywall", "role": "design", "sprint": 3, "status": "backlog", "priority": "P0" },
-    { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "backlog", "priority": "P0" },
+    { "id": "T-16", "title": "Onboarding quiz → preview plan → trial paywall", "role": "design", "sprint": 3, "status": "done", "priority": "P0", "note": "SHIPPED v113 — after the sign-up quiz (details step) a new member sees a PERSONALISED PREVIEW (App.showWelcome): their target-physique figure, weight goal, daily kcal/protein, sessions/week + what the plan includes, with a Pro upsell at peak intent. Shown once via a flag through enterApp so it is purely additive and cannot break auth. The value-reveal→paywall moment that lifts M1 conversion." },
+    { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "in_progress", "priority": "P0", "note": "MoR DONE (Lemon Squeezy + Razorpay). LEGAL PAGES DONE v113 — legal.html (self-contained, brand-matched): Health/medical disclaimer + Terms + Privacy (honest re Supabase storage + Razorpay/Lemon Squeezy payments, no card storage, no data selling) + billing terms; linked from login/signup + Profile→About. REMAINING: PostHog funnel analytics (needs founder's PostHog account/key) + founder to add a support email to legal.html + lawyer review before scaling." },
     { "id": "T-18", "title": "Real AI meal plan (Pro hook)", "role": "eng", "sprint": 4, "status": "backlog", "priority": "P1" },
     { "id": "T-19", "title": "Founder-led onboarding of first 50 users", "role": "growth", "sprint": 4, "status": "backlog", "priority": "P1" },
     { "id": "T-20", "title": "Referral + push notifications + affiliate v1", "role": "growth", "sprint": 5, "status": "backlog", "priority": "P1" },
@@ -197,6 +197,8 @@
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v109 — MUSIC on posts/reels (founder ask). Composer has a '🎵 Music' picker with in-sheet preview; the chosen track is stored in posts.data.music (jsonb — NO schema change) and plays in Reels + on feed videos, synced to the global sound toggle (the video auto-mutes so only the track is heard, exactly like Instagram). 5 royalty-free clips (SoundHelix, credited) trimmed to 30s and hosted in our own Supabase storage, so CSP is unchanged. HONEST NOTE: a licensed trending-song catalog like Instagram's needs a label/distributor deal; this is the legal royalty-free MVP the mechanism is ready for. All 6 JS files pass node --check." },
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v110 — SHARE-TO-GROW, the near-zero-CAC viral loop the CMO wants. Every post + reel now has a Share button, and the profile has 'Share Formora', all using navigator.share (native OS share sheet, clipboard-copy fallback) to push the content + the install link out to WhatsApp/Instagram/etc — every shared Flex is a free ad that drives installs. Also added haptic feedback (navigator.vibrate) on like + double-tap for that satisfying tactile feel. 0 CI-guard violations, JS 415955/440320 budget." },
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v111 — Save/bookmark (retention): tap the 🔖 on any post to save it, then view your collection from Profile → 🔖 Saved. Stored locally per device. Also fixed a real bug: story videos autoplayed WITH sound (browser-blocked → often didn't play) — they now honor the global sound toggle (muted by default) so they autoplay reliably. Engagement + polish. get_errors clean." },
-    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v112 — extended Save/bookmark to Reels (Save button on the reel action rail, updates in place without a full re-render via Social._setSaved) and hardened reelLike against a null button (double-tap-to-like on a reel could pass no button element). Small robustness + consistency pass closing out the social batch (v108-v112)." }
+    { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v112 — extended Save/bookmark to Reels (Save button on the reel action rail, updates in place without a full re-render via Social._setSaved) and hardened reelLike against a null button (double-tap-to-like on a reel could pass no button element). Small robustness + consistency pass closing out the social batch (v108-v112)." },
+    { "ts": "2026-08-24", "role": "design", "text": "SHIPPED v113 — T-16 onboarding funnel (biggest M1 conversion lever). After the sign-up quiz, a new member now gets a PERSONALISED PREVIEW: their target-physique figure + weight goal + daily kcal/protein + sessions/week + what their plan includes, then a Pro upsell right at peak intent. Built as App.showWelcome shown once via a flag routed through enterApp — purely additive, post-auth, so it can NOT break the sign-up flow (guarded in try/catch too). This is the value-reveal→paywall moment the funnel was missing." },
+    { "ts": "2026-08-24", "role": "growth", "text": "SHIPPED v113 — LEGAL PAGES (part of T-17). legal.html: a real, plain-language Health/Medical Disclaimer (important — we now take money for fitness guidance), Terms of Use, Privacy Policy (honest about what we collect + that data lives in Supabase, payments via Razorpay/Lemon Squeezy, no card storage, no data selling) and subscription/billing terms. Linked from the login + sign-up screens and Profile→About. Founder: add a public support email in legal.html + get a lawyer to review before scaling. Remaining in T-17: PostHog funnel analytics." }
   ]
 }
