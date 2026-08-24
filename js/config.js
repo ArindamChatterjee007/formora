@@ -67,7 +67,7 @@ window.MUSIC = {
 // early-access interest locally.
 window.PRICING = {
   tiers: [
-    { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "10 camera filters"] },
+    { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "30 camera filters"] },
     { id: "pro",   name: "Pro",   price: "7.99",  period: "/mo", yearly: "$49.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "All 100 camera filters", "Advanced analytics + progress photos", "No ads · unlimited Flex"] },
     { id: "elite", name: "Elite", price: "19.99", period: "/mo", yearly: "$149/yr",   features: ["Everything in Pro", "Progress-photo reviews with your coach", "Monthly human-coach check-in", "Priority support", "Early access to new features"] },
   ],

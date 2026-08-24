@@ -1253,7 +1253,7 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .cam-scrim-top { top: 0; height: 132px; background: linear-gradient(to bottom, rgba(0,0,0,.55), transparent); }
 .cam-scrim-bottom { bottom: 0; height: 240px; background: linear-gradient(to top, rgba(0,0,0,.62), transparent); }
 .cam-rec-time { color: #fff; font-weight: 800; font-size: 14px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
-.cam-filters { position: absolute; bottom: 128px; left: 0; right: 0; display: flex; gap: 8px; overflow-x: auto; padding: 0 14px; z-index: 4; scrollbar-width: none; }
+.cam-filters { align-self: stretch; display: flex; gap: 8px; overflow-x: auto; padding: 2px 6px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .cam-filters::-webkit-scrollbar { display: none; }
 .cam-filter { flex: 0 0 auto; padding: 8px 15px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.35); background: rgba(0,0,0,.32); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); font-family: inherit; }
 .cam-filter.active { background: #fff; color: #111; border-color: #fff; }
