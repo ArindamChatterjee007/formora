@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v114",
+    "liveVersion": "v115",
     "updated": "2026-08-24",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -59,7 +59,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v114 · funnel analytics wired (PostHog) + onboarding + legal" },
+    { "label": "Live version", "value": "v115 · PostHog funnel tracking LIVE + onboarding + legal" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -140,7 +140,7 @@
     { "id": "T-24", "title": "Landing hero emoji chips → SVG polish", "role": "design", "sprint": 1, "status": "todo", "priority": "P3" },
     { "id": "T-25", "title": "Pick Merchant-of-Record (Lemon Squeezy / Paddle) + open account", "role": "cfo", "sprint": 3, "status": "done", "priority": "P0" },
     { "id": "T-26", "title": "Live financial model — MRR/ARR/CAC/LTV tracked on the board", "role": "finance", "sprint": 3, "status": "backlog", "priority": "P1" },
-    { "id": "T-27", "title": "Instrument the funnel (PostHog) — BI owns the North Star", "role": "bi", "sprint": 3, "status": "in_progress", "priority": "P0", "note": "INSTRUMENTED v114 — window.Track (config.js) loads posthog-js only when POSTHOG_KEY is set (inert otherwise, queues events until the SDK is ready). Events: app_opened(+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared. CSP allows *.posthog.com. ACTIVATES the moment the founder pastes their free PostHog phc_ Project API Key into config.POSTHOG_KEY." },
+    { "id": "T-27", "title": "Instrument the funnel (PostHog) — BI owns the North Star", "role": "bi", "sprint": 3, "status": "done", "priority": "P0", "note": "LIVE v115 — PostHog project created (org 'Formora', project 573850, US region) via the founder's Google login; phc_ Project API Key wired into config.POSTHOG_KEY. The 7 funnel events (app_opened(+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared) now stream to PostHog — BI can build the M1 conversion funnel + retention dashboards at us.posthog.com." },
     { "id": "T-28", "title": "Pricing page — Free / Pro / Elite tiers live", "role": "design", "sprint": 3, "status": "done", "priority": "P0" },
     { "id": "T-29", "title": "First-50-customers sales playbook + outreach", "role": "sales", "sprint": 4, "status": "backlog", "priority": "P1" },
     { "id": "T-30", "title": "Affiliate storefront v1 (supplements / gear)", "role": "bizdev", "sprint": 5, "status": "backlog", "priority": "P1" },
@@ -200,6 +200,7 @@
     { "ts": "2026-08-24", "role": "eng", "text": "SHIPPED v112 — extended Save/bookmark to Reels (Save button on the reel action rail, updates in place without a full re-render via Social._setSaved) and hardened reelLike against a null button (double-tap-to-like on a reel could pass no button element). Small robustness + consistency pass closing out the social batch (v108-v112)." },
     { "ts": "2026-08-24", "role": "design", "text": "SHIPPED v113 — T-16 onboarding funnel (biggest M1 conversion lever). After the sign-up quiz, a new member now gets a PERSONALISED PREVIEW: their target-physique figure + weight goal + daily kcal/protein + sessions/week + what their plan includes, then a Pro upsell right at peak intent. Built as App.showWelcome shown once via a flag routed through enterApp — purely additive, post-auth, so it can NOT break the sign-up flow (guarded in try/catch too). This is the value-reveal→paywall moment the funnel was missing." },
     { "ts": "2026-08-24", "role": "growth", "text": "SHIPPED v113 — LEGAL PAGES (part of T-17). legal.html: a real, plain-language Health/Medical Disclaimer (important — we now take money for fitness guidance), Terms of Use, Privacy Policy (honest about what we collect + that data lives in Supabase, payments via Razorpay/Lemon Squeezy, no card storage, no data selling) and subscription/billing terms. Linked from the login + sign-up screens and Profile→About. Founder: add a public support email in legal.html + get a lawyer to review before scaling. Remaining in T-17: PostHog funnel analytics." },
-    { "ts": "2026-08-24", "role": "bi", "text": "SHIPPED v114 — FUNNEL ANALYTICS wired for PostHog (T-27). window.Track (config.js) lazy-loads posthog-js ONLY when POSTHOG_KEY is set (fully inert + zero network otherwise) and queues events until the SDK is ready. Events fire at every funnel step: app_opened (+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared — exactly the M1 conversion funnel BI needs. CSP now allows *.posthog.com. TURNKEY: founder makes a free PostHog project → pastes the phc_ Project API Key into config.POSTHOG_KEY → the whole funnel lights up. EMAIL DELIVERY is already code-complete (js/mailer.js supports EmailJS OR the send-email Resend edge function) — it only needs the founder's keys (EmailJS is fastest: free, no domain, sends from Gmail; paste 3 IDs into config). Until then OTP shows on-screen (verified working in the live E2E signup test)." }
+    { "ts": "2026-08-24", "role": "bi", "text": "SHIPPED v114 — FUNNEL ANALYTICS wired for PostHog (T-27). window.Track (config.js) lazy-loads posthog-js ONLY when POSTHOG_KEY is set (fully inert + zero network otherwise) and queues events until the SDK is ready. Events fire at every funnel step: app_opened (+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared — exactly the M1 conversion funnel BI needs. CSP now allows *.posthog.com. TURNKEY: founder makes a free PostHog project → pastes the phc_ Project API Key into config.POSTHOG_KEY → the whole funnel lights up. EMAIL DELIVERY is already code-complete (js/mailer.js supports EmailJS OR the send-email Resend edge function) — it only needs the founder's keys (EmailJS is fastest: free, no domain, sends from Gmail; paste 3 IDs into config). Until then OTP shows on-screen (verified working in the live E2E signup test)." },
+    { "ts": "2026-08-24", "role": "bi", "text": "SHIPPED v115 — PostHog is LIVE. Created the org (Formora) + project (573850, US region) via the founder's Google login, grabbed the phc_ Project API Key, wired it into config.POSTHOG_KEY. The instrumented funnel (app_opened → signup_started → onboarding_completed → paywall_opened → plan_selected → post_created/shared) now streams to PostHog — BI can finally SEE the M1 conversion funnel + retention. EMAIL still pending: EmailJS signup is Cloudflare-bot-protected so it can't be automated — founder signs up at emailjs.com in their own browser (2 min), connects Gmail, makes a template with {{code}}/{{to_email}}, and shares the 3 IDs; then it's a 1-line config wire." }
   ]
 }
