@@ -229,6 +229,9 @@ window.PHOTO_QUERIES = {
   slim_slender: "indian woman running fitness athlete",
 };
 
+// referral: remember who invited this visitor (first-touch) for attribution
+try { var _fr = new URLSearchParams(location.search).get("ref"); if (_fr && !localStorage.getItem("fm_ref")) localStorage.setItem("fm_ref", _fr.slice(0, 24)); } catch (e) {}
+
 // verified female exercise photos per muscle group — bundled locally (same-origin) so they always load fast, never hang on an external CDN
 window.FEMALE_EX_PHOTOS = {
   Chest:     ["assets/female-ex/chest-1.jpg", "assets/female-ex/chest-2.jpg", "assets/female-ex/chest-3.jpg", "assets/female-ex/chest-4.jpg"],
