@@ -185,6 +185,37 @@
       "guarantee": "NONE — and anyone who guarantees startup success is lying to you. What I CAN guarantee: (1) you won't lose meaningful money (downside ~$150); (2) the product is genuinely good and ready; (3) the ONLY variable that decides the outcome is whether YOU distribute consistently. The product is done — distribution is the whole game now."
     }
   },
+  "playbooks": {
+    "updated": "2026-08-25",
+    "note": "Since the finance analysis concludes DISTRIBUTION decides everything, here are copy-paste scripts + a weekly cadence you can execute. This is the highest-leverage thing you can do.",
+    "contentCalendar": {
+      "cadence": "3-5 short videos/week — post the SAME clip to Instagram Reels + TikTok + YouTube Shorts.",
+      "source": "Your in-app Flex reels, progress photos and workouts ARE the raw material — repurpose them.",
+      "week": [
+        { "day": "Mon", "type": "Progress/transformation", "idea": "A 4-week progress clip or before→after. Caption: 'Trained with an actual plan for a month. Here's the difference.'" },
+        { "day": "Tue", "type": "Exercise tip", "idea": "One lift, right vs wrong (e.g. lateral raises). 15-30s, punchy." },
+        { "day": "Wed", "type": "Myth-bust", "idea": "'You don't need 2 hours in the gym.' Quick and opinionated." },
+        { "day": "Thu", "type": "Nutrition", "idea": "A cheap high-protein Indian meal with the macros on screen." },
+        { "day": "Fri", "type": "Relatable/funny", "idea": "A common beginner mistake or gym humor — the most shareable slot." },
+        { "day": "Sat", "type": "Feature demo", "idea": "Formora building a plan / the social feed / the filters. Soft CTA." },
+        { "day": "Sun", "type": "Community", "idea": "Reply to a comment as a video, or a quick Q&A." }
+      ],
+      "rules": ["Hook in the first 1.5 seconds or they scroll", "Consistency beats production quality", "Put the app link in your BIO, not the caption (platforms suppress captions with external links)", "Reply to every comment within the first hour — it boosts reach"]
+    },
+    "inviteDM": "Hey! I built a free fitness app — adaptive workouts + meal plans + a social feed to stay accountable. I'd love you as one of my first users (and your honest feedback). Here's my invite: <your ?ref link>. 30 seconds to start, works on any phone.",
+    "communityPost": "Title: Built a free aesthetic-physique app (adaptive workouts + meal plans + progress photos) — looking for first users + brutal feedback.  Body: Solo-built Formora — it makes a daily plan from your body + goal, tracks progress, and has a social feed. Free to start, no app store needed (installs straight from the browser). What would make you actually use it? (Link in the first comment.)",
+    "firstCustomers": {
+      "goal": "First 50 active users -> first paying customer (M1)",
+      "steps": [
+        "Personally DM the invite to 20-30 friends/gym contacts (use inviteDM). A personal ask converts far better than a mass blast.",
+        "Post in 3-5 fitness communities with communityPost — value-first, link in the comments.",
+        "Ship 3-5 reels this week (contentCalendar). Pin your best.",
+        "DM every new signup a personal thank-you + 'what was confusing?' Fix it fast — early users forgive bugs if you're responsive.",
+        "Once ~30-50 are active, let the paywall do its job: the locked camera filters + AI plans are the natural upgrade triggers."
+      ],
+      "where": ["Reddit: r/Fitness, r/bodyweightfitness, r/nattyorjuice, r/GYM", "Indian fitness Telegram / Discord / WhatsApp groups", "Instagram + TikTok (reels)", "College / gym WhatsApp + Instagram groups", "Fitness Facebook groups"]
+    }
+  },
   "roadmap": {
     "updated": "2026-08-24",
     "note": "Prioritised plan for everything still open. P0=now, P1=this sprint, P2=next, P3=later. (founder) = blocked on an action only Arindam can do.",
@@ -275,7 +306,7 @@
     { "id": "T-26", "title": "Live financial model — MRR/ARR/CAC/LTV tracked on the board", "role": "finance", "sprint": 3, "status": "backlog", "priority": "P1" },
     { "id": "T-27", "title": "Instrument the funnel (PostHog) — BI owns the North Star", "role": "bi", "sprint": 3, "status": "done", "priority": "P0", "note": "LIVE v115 — PostHog project created (org 'Formora', project 573850, US region) via the founder's Google login; phc_ Project API Key wired into config.POSTHOG_KEY. The 7 funnel events (app_opened(+identify), signup_started, onboarding_completed, paywall_opened, plan_selected, post_created, shared) now stream to PostHog — BI can build the M1 conversion funnel + retention dashboards at us.posthog.com." },
     { "id": "T-28", "title": "Pricing page — Free / Pro / Elite tiers live", "role": "design", "sprint": 3, "status": "done", "priority": "P0" },
-    { "id": "T-29", "title": "First-50-customers sales playbook + outreach", "role": "sales", "sprint": 4, "status": "backlog", "priority": "P1" },
+    { "id": "T-29", "title": "First-50-customers sales playbook + outreach", "role": "sales", "sprint": 4, "status": "done", "priority": "P1", "note": "DONE v133-era: copy-paste playbook in board.playbooks.firstCustomers (invite DM script, community post script, 5-step plan, where-to-post list). Execution is founder-side (personal DMs + community posts)." },
     { "id": "T-30", "title": "Affiliate storefront v1 (supplements / gear)", "role": "bizdev", "sprint": 5, "status": "backlog", "priority": "P1" },
     { "id": "T-31", "title": "Coaching marketplace spec (15–20% take)", "role": "vpsales", "sprint": 6, "status": "backlog", "priority": "P2" },
     { "id": "T-32", "title": "Redo security (RLS + auth) the SAFE way — full backup + existing-user migration + staging, NOT a big-bang cutover", "role": "cto", "sprint": 4, "status": "done", "priority": "P1", "note": "DONE v132 (2026-08-25, fresh-start, founder-approved). Proved the leak (anon key read/wrote private DMs with no login), FULL BACKUP to backups/, wiped test data, applied RLS to all member tables + fixed like_post/unlike_post to SECURITY DEFINER(auth.uid()), flipped USE_SUPABASE_AUTH=true (email OTP kept, Google temporarily hidden). VERIFIED LIVE: anon=401 on messages/accounts/profiles/notifications; authenticated own-write 201 but spoofed-write 403; DM reads only own (forge 403); session persists on reload. Clean DB (0 rows). No data loss — RLS now prevents cross-user wipes." },
@@ -287,9 +318,9 @@
     { "id": "T-38", "title": "AI workout-plan generator (Pro) — multi-week programmes distinct from the free adaptive daily workout", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v106 — Engine.generateProgram() builds a periodised multi-week block (Base→Build→Intensify→Deload) from the member's experience (→ 3–6 days/week), target physique (priority muscles get +1 set, marked ★) and unit. App.openProgram() is Pro-gated (free → paywall); week tabs + Regenerate. Free still gets the adaptive daily workout." },
     { "id": "T-39", "title": "AI progress-photo analysis (Elite) — body-comp read from a photo", "role": "eng", "sprint": 4, "status": "done", "priority": "P2", "note": "SHIPPED v116 as the PROGRESS PHOTO STUDIO (Pro). Capture dated on-device photos → before/after (first vs latest) + a data-driven analysis (weight Δ, body-fat Δ, days, workouts logged between). HONEST: it's data-driven from tracked metrics, NOT fake vision-AI — so moved under Pro ('Advanced analytics + progress photos') and replaced Elite's misleading 'AI progress-photo analysis' copy with 'Progress-photo reviews with your coach'. Photos stay on-device (privacy). Gated via Entitlements.isPro()." },
     { "id": "T-40", "title": "Social UX polish — global sound across reels/feed + double-tap-to-like", "role": "eng", "sprint": 4, "status": "done", "priority": "P1", "note": "SHIPPED v108 — one global sound state (Social._feedSound) now shared by feed videos AND fullscreen reels + their observers, so you unmute once and every reel/post stays unmuted while scrolling; double-tap any post or reel to like (Instagram-style) with a heart-burst; double-tap only ever LIKES, never unlikes." },
-    { "id": "T-41", "title": "Organic social engine — daily short-form calendar (IG/TikTok/YT Shorts) from Flex content", "role": "social", "sprint": 5, "status": "backlog", "priority": "P1", "note": "Near-zero-CAC growth loop: repurpose in-app Flex reels into a daily posting cadence with watermarks driving installs." },
+    { "id": "T-41", "title": "Organic social engine — daily short-form calendar (IG/TikTok/YT Shorts) from Flex content", "role": "social", "sprint": 5, "status": "done", "priority": "P1", "note": "DONE: a 7-day content calendar + hook/idea per day + posting rules in board.playbooks.contentCalendar. Repurpose in-app Flex reels; post the same clip to IG/TikTok/YT. Execution is founder-side." },
     { "id": "T-42", "title": "App Store Optimization — listing, screenshots, keywords (Play + App Store)", "role": "content", "sprint": 5, "status": "backlog", "priority": "P1" },
-    { "id": "T-43", "title": "SEO content hub — long-tail fitness guides + programmatic pages", "role": "content", "sprint": 5, "status": "backlog", "priority": "P2" },
+    { "id": "T-43", "title": "SEO content hub — long-tail fitness guides + programmatic pages", "role": "content", "sprint": 5, "status": "done", "priority": "P2", "note": "DONE (2026-08-25): /guides/ hub + 3 SEO articles (V-taper workout, lean-bulk meal plan, aesthetic-physique guide) with meta/OG/JSON-LD + FAQ + app CTAs, plus sitemap.xml + robots.txt at repo root. Free organic-traffic surface that compounds." },
     { "id": "T-44", "title": "Micro-influencer seeding program — ~20 fitness creators, UGC challenge", "role": "influencer", "sprint": 5, "status": "backlog", "priority": "P1" },
     { "id": "T-45", "title": "Lifecycle email/push — onboarding, streak nudges, trial→paid, win-back", "role": "lifecycle", "sprint": 5, "status": "backlog", "priority": "P1" },
     { "id": "T-46", "title": "Paid acquisition pilot — small Meta/TikTok test once M2 is hit, track CAC/ROAS", "role": "paid", "sprint": 6, "status": "backlog", "priority": "P2" },
