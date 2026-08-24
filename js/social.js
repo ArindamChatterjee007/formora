@@ -455,6 +455,26 @@ const Social = {
   removeMusic() { this.pendingMusic = null; this._stopPreview(); if (typeof App !== "undefined" && App.closeModal) App.closeModal(); this.render(); },
   _ensureMusic() { if (!this._musicAudio) { const a = document.createElement("audio"); a.loop = true; a.preload = "none"; this._musicAudio = a; } return this._musicAudio; },
   playMusic(src) { if (!src) return this.stopMusic(); const a = this._ensureMusic(); if (this._musicSrc !== src) { a.src = src; this._musicSrc = src; } a.muted = !this._feedSound; a.play().catch(() => {}); },
+  // subtle two-note chime for a new incoming message (WebAudio — no asset, respects fm_msgsound)
+  playPing() {
+    try { if (localStorage.getItem("fm_msgsound") === "off") return; } catch (_) {}
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      const ctx = this._actx || (this._actx = new AC());
+      if (ctx.state === "suspended") { try { ctx.resume(); } catch (_) {} }
+      const now = ctx.currentTime;
+      [880, 1174.7].forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        const t0 = now + i * 0.09;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(0.13, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.2);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t0); o.stop(t0 + 0.22);
+      });
+    } catch (_) {}
+  },
   stopMusic() { if (this._musicAudio) { try { this._musicAudio.pause(); } catch (e) {} } this._musicSrc = null; },
   _musicPill(p) { return (p && p.music) ? `<span class="post-music" title="${esc(p.music.artist || "")}">🎵 ${esc(p.music.title || "Music")}</span>` : ""; },
   _pmAttr(p) { return (p && p.music) ? `data-pmsrc="${esc(p.music.src)}"` : ""; },
@@ -1207,9 +1227,10 @@ const Social = {
   // a single message bubble; my own messages are tappable for edit/unsend
   dmBubble(m, meId) {
     const mine = m.from === meId;
-    const edited = m.edited ? ` <span class="msg-edited">· edited</span>` : "";
+    const edited = m.edited ? ` <span class="msg-edited">Edited</span>` : "";
     const t = m.ts ? esc(this.timeAgo(m.ts) + " ago") : "";
-    return `<div class="bubble ${mine ? "me" : "them"}" title="${t}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}</div>`;
+    const more = mine ? ` <span onclick="event.stopPropagation();Social.msgMenu('${m.id}')" title="Edit or unsend" role="button" aria-label="Message options" style="opacity:.6;cursor:pointer;font-weight:800;padding:0 3px;letter-spacing:1px">⋯</span>` : "";
+    return `<div class="bubble ${mine ? "me" : "them"}" title="${t}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}${more}</div>`;
   },
   msgMenu(id) {
     const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
@@ -1260,6 +1281,14 @@ const Social = {
     if (typeof App !== "undefined" && App.toast) App.toast(arr.includes(uid) ? "Notifications muted" : "Unmuted");
     this.chatDetails();
   },
+  msgSoundOff() { try { return localStorage.getItem("fm_msgsound") === "off"; } catch (e) { return false; } },
+  toggleMsgSound() {
+    const off = this.msgSoundOff();
+    try { localStorage.setItem("fm_msgsound", off ? "on" : "off"); } catch (e) {}
+    if (off) this.playPing();
+    if (typeof App !== "undefined" && App.toast) App.toast(off ? "Message sound on" : "Message sound off");
+    this.chatDetails();
+  },
   chatDetails() {
     const uid = this._dmWith; if (!uid) return;
     const u = this.cloudUser(uid) || { name: "Member", handle: uid, avatar: null, colors: ["#8b93a7", "#262c3a"] };
@@ -1272,6 +1301,7 @@ const Social = {
           <button class="btn ghost wide" onclick="App.closeModal();Social.viewProfile('${uid}')">${App.ic("user", { size: 16 })} View profile</button>
           <button class="btn ghost wide" onclick="App.closeModal();Social.toggleDmSearch()">${App.ic("search", { size: 16 })} Search messages</button>
           <button class="btn ghost wide" onclick="Social.toggleMute('${uid}')">${App.ic("bell", { size: 16 })} ${this.isMuted(uid) ? "Unmute notifications" : "Mute notifications"}</button>
+          <button class="btn ghost wide" onclick="Social.toggleMsgSound()">${App.ic("bell", { size: 16 })} ${this.msgSoundOff() ? "Turn on message sound" : "Turn off message sound"}</button>
           <button class="btn ghost wide danger" onclick="Social.clearMyMessages('${uid}')">${App.ic("undo", { size: 16 })} Unsend all my messages</button>
         </div>
         <div class="cd-meta">${(this._dmMsgs || []).length} message${(this._dmMsgs || []).length === 1 ? "" : "s"} · ${mine} from you</div>
@@ -1319,7 +1349,13 @@ const Social = {
     if (!this._dmWith || typeof Cloud === "undefined" || !Cloud.getMessages) return;
     Cloud.getMessages(this._dmWith).then((msgs) => {
       if (this.sub !== "chat" || !this._dmWith) return;
-      if ((msgs || []).length !== (this._dmMsgs || []).length) { this._dmMsgs = msgs || []; this.render(); this.scrollChat(); }
+      const prev = this._dmMsgs || [];
+      if ((msgs || []).length !== prev.length) {
+        const seen = new Set(prev.map((m) => m.id));
+        const newIncoming = (msgs || []).some((m) => m.from !== Cloud.me && !seen.has(m.id));
+        this._dmMsgs = msgs || []; this.render(); this.scrollChat();
+        if (newIncoming && !this.isMuted(this._dmWith)) this.playPing();
+      }
     });
   },
   openChat(id) { this.chatWith = id; this.sub = "chat"; this.render(); },

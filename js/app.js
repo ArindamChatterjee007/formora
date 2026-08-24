@@ -2688,6 +2688,18 @@ const App = {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     const list = await Cloud.getNotifications();
     Social.cloud.notifs = list || [];
+    // message sound: chime once per NEW unread message notif (seed on first poll so we don't blast on load)
+    if (!Social._pinged) Social._pinged = new Set();
+    const nkey = (n) => n.id || (n.type + "|" + n.actor + "|" + n.ts);
+    if (this._notifSeeded) {
+      (list || []).forEach((n) => {
+        if (n.type === "message" && !n.read && !Social._pinged.has(nkey(n))) {
+          Social._pinged.add(nkey(n));
+          const chatOpen = Social.sub === "chat" && Social._dmWith === n.actor;
+          if (!chatOpen && !Social.isMuted(n.actor) && Social.playPing) Social.playPing();
+        }
+      });
+    } else { (list || []).forEach((n) => Social._pinged.add(nkey(n))); this._notifSeeded = true; }
     // instant connect: if someone accepted my request, reflect it now (don't wait for the 12s state poll)
     let gained = false;
     (list || []).forEach((n) => { if (n.type === "accept" && n.actor && !(Social.cloud.connections || []).includes(n.actor)) { (Social.cloud.connections = Social.cloud.connections || []).push(n.actor); gained = true; } });
