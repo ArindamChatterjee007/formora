@@ -266,6 +266,7 @@ const Social = {
         const v = e.target;
         const msrc = v.getAttribute("data-msrc") || "";
         if (e.isIntersecting && e.intersectionRatio > 0.6) {
+          document.querySelectorAll("#view-feed .post-media.video video").forEach((o) => { if (o !== v) o.pause(); });
           if (msrc) { v.muted = true; Social.playMusic(msrc); } else { v.muted = !Social._feedSound; if (Social._musicSrc) Social.stopMusic(); }
           v.play().catch(() => {});
         } else { v.pause(); if (msrc && Social._musicSrc === msrc) Social.stopMusic(); }
