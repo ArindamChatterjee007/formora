@@ -9,11 +9,30 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Formora · Your Aesthetic Physique Coach</title>
   <!-- PWA: installable on iPhone (Add to Home Screen) and Android — no App Store, no fee -->
-  <meta name="description" content="Formora — your aesthetic physique coach. Train, track &amp; connect." />
+  <meta name="description" content="Formora is your AI physique coach — adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Train. Track. Connect. Free to start." />
   <meta name="theme-color" content="#0e0f13" />
-  <link rel="manifest" href="manifest.webmanifest?v=124" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=124" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=124" />
+  <link rel="canonical" href="https://arindamchatterjee007.github.io/formora/" />
+  <meta name="keywords" content="fitness app, AI workout planner, physique coach, gym tracker, meal plan, progress photos, aesthetic physique, bodybuilding, social fitness" />
+  <!-- Open Graph: rich preview when the link is shared to WhatsApp / Instagram / Facebook / LinkedIn -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Formora" />
+  <meta property="og:title" content="Formora — Build your dream physique" />
+  <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
+  <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=125" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Formora — Build your dream physique" />
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Formora — Build your dream physique" />
+  <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=125" />
+  <!-- Structured data for search engines -->
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
+  <link rel="manifest" href="manifest.webmanifest?v=125" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=125" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=125" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -22,7 +41,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 124;
+      var V = 125;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -39,7 +58,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=124" />
+  <link rel="stylesheet" href="css/styles.css?v=125" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -202,18 +221,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=124"></script>
-  <script src="js/data.js?v=124"></script>
-  <script src="js/exercises.js?v=124"></script>
-  <script src="js/storage.js?v=124"></script>
-  <script src="js/engine.js?v=124"></script>
-  <script src="js/charts.js?v=124"></script>
-  <script src="js/nutrition.js?v=124"></script>
-  <script src="js/auth.js?v=124"></script>
-  <script src="js/social.js?v=124"></script>
-  <script src="js/cloud.js?v=124"></script>
-  <script src="js/entitlements.js?v=124"></script>
-  <script src="js/supaauth.js?v=124"></script>
+  <script src="js/config.js?v=125"></script>
+  <script src="js/data.js?v=125"></script>
+  <script src="js/exercises.js?v=125"></script>
+  <script src="js/storage.js?v=125"></script>
+  <script src="js/engine.js?v=125"></script>
+  <script src="js/charts.js?v=125"></script>
+  <script src="js/nutrition.js?v=125"></script>
+  <script src="js/auth.js?v=125"></script>
+  <script src="js/social.js?v=125"></script>
+  <script src="js/cloud.js?v=125"></script>
+  <script src="js/entitlements.js?v=125"></script>
+  <script src="js/supaauth.js?v=125"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -224,7 +243,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=124";
+          s.src = "js/mod/camera.js?v=125";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -236,7 +255,7 @@
       }
     };
   </script>
-  <script src="js/mailer.js?v=124"></script>
-  <script src="js/app.js?v=124"></script>
+  <script src="js/mailer.js?v=125"></script>
+  <script src="js/app.js?v=125"></script>
 </body>
 </html>
