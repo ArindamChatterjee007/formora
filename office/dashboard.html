@@ -128,6 +128,9 @@
     <div class="section-h">🧮 Budget, founder pay &amp; the honest go/no-go</div>
     <div id="budget"></div>
 
+    <div class="section-h">📣 Marketing &amp; business assets — copy-paste ready</div>
+    <div id="assets"></div>
+
     <div class="section-h">Sprint board</div>
     <div class="board" id="board"></div>
 
@@ -190,6 +193,21 @@
     const odds=`<div class="panel"><div class="ph">Honest odds</div>`+g.odds.map(o=>`<div class="stream"><div class="snm">${esc(o.outcome)}</div><span class="st building">${esc(o.chance)}</span></div>`).join('')+`<div style="font-size:12px;margin-top:8px;color:var(--sub)"><b style="color:#fff">Market:</b> ${esc(B.marketPotential.verdict)}</div><div style="font-size:12px;margin-top:6px;color:#ffcf7a"><b>Guarantee:</b> ${esc(g.guarantee)}</div></div>`;
     el.innerHTML=verdict+cap+`<div class="fin"><div class="fincol">${costs}</div><div class="fincol">${pay}</div><div class="fincol">${odds}</div></div>`;
   }
+  function renderAssets(b){
+    const el=document.getElementById('assets'); if(!el) return; const A=b.assets; if(!A){ el.style.display='none'; return; }
+    const chip=t=>`<span class="st building" style="margin:2px 4px 2px 0;display:inline-block">${esc(t)}</span>`;
+    const aso=A.aso?`<div class="panel"><div class="ph">📱 ASO · Play Store listing (T-42)</div><div style="font-size:13px"><b>${esc(A.aso.appName)}</b><br><span style="color:var(--sub)">${esc(A.aso.subtitle)}</span></div><div style="font-size:12.5px;margin-top:8px;line-height:1.5">${esc(A.aso.longDescription)}</div><div style="margin-top:8px">${(A.aso.keywords||[]).map(chip).join('')}</div><div style="font-size:12px;margin-top:8px;color:var(--sub)"><b style="color:#fff">Screens:</b> ${(A.aso.screenshotCaptions||[]).map(esc).join(' · ')}</div><div class="st done" style="margin-top:8px;display:inline-block">${esc(A.aso.status)}</div></div>`:'';
+    const seqBlock=(name,arr)=>`<div style="margin-top:6px"><b style="font-size:12px;color:#ffcf7a">${esc(name)}</b>`+(arr||[]).map(s=>`<div class="stream" style="display:block"><div class="snm">${esc(s.subject)} <span class="ty">${esc(s.trigger)}</span></div><div class="snote">${esc(s.body)}</div></div>`).join('')+`</div>`;
+    const L=A.lifecycleMessaging;
+    const life=L?`<div class="panel"><div class="ph">✉️ Lifecycle emails (T-45)</div>${seqBlock('Onboarding',L.sequences.onboarding)}${seqBlock('Streak',L.sequences.streak)}${seqBlock('Trial → paid',L.sequences.trialToPaid)}${seqBlock('Win-back',L.sequences.winBack)}<div style="font-size:12px;margin-top:8px;color:var(--sub)">${esc(L.pushNote)}</div><div class="st done" style="margin-top:8px;display:inline-block">${esc(L.status)}</div></div>`:'';
+    const I=A.influencerProgram;
+    const inf=I?`<div class="panel"><div class="ph">🤝 Micro-influencer program (T-44)</div><div style="font-size:12.5px"><b>Goal:</b> ${esc(I.goal)}</div><div style="font-size:12.5px;margin-top:8px"><b style="color:#ffcf7a">Outreach DM:</b><br>${esc(I.outreachDM)}</div><div style="font-size:12.5px;margin-top:8px"><b style="color:#ffcf7a">Challenge:</b> ${esc(I.challenge)}</div><div class="st done" style="margin-top:8px;display:inline-block">${esc(I.status)}</div></div>`:'';
+    const AF=A.affiliateStorefront;
+    const aff=AF?`<div class="panel"><div class="ph">🛍️ Affiliate storefront (T-30)</div><div style="font-size:12.5px">${esc(AF.concept)}</div><div style="margin-top:6px">${(AF.categories||[]).map(c=>`<div class="stream"><div class="snm">${esc(c.name)} <span class="ty">${esc(c.commission)}</span></div><div class="snote">${(c.items||[]).map(esc).join(' · ')}</div></div>`).join('')}</div><div style="font-size:12px;margin-top:8px;color:#ffcf7a">${esc(AF.honestNote)}</div><div class="st building" style="margin-top:8px;display:inline-block">${esc(AF.status)}</div></div>`:'';
+    const C=A.coachingMarketplace;
+    const co=C?`<div class="panel"><div class="ph">🎯 Coaching marketplace (T-31)</div><div style="font-size:12.5px">${esc(C.concept)}</div><div style="font-size:12.5px;margin-top:6px"><b>Take:</b> ${esc(C.takeRate)} · <b>Econ:</b> ${esc(C.unitEconomics)}</div><div style="font-size:12px;margin-top:8px;color:#ffcf7a">${esc(C.honestNote)}</div><div class="st done" style="margin-top:8px;display:inline-block">${esc(C.status)}</div></div>`:'';
+    el.innerHTML=`<div style="color:var(--sub);font-size:12.5px;margin:0 2px 10px">${esc(A.note)}</div><div class="fin"><div class="fincol">${aso}${aff}</div><div class="fincol">${life}</div><div class="fincol">${inf}${co}</div></div>`;
+  }
   function renderOrg(b){
     const el=document.getElementById('org'); if(!el) return;
     if(!b.roles.some(r=>r.team)){ el.innerHTML='<div class="panel"><div class="depts">'+b.roles.map(r=>`<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)}</div><div class="pd">${esc(r.does)}</div></div></div>`).join('')+'</div></div>'; return; }
@@ -226,7 +244,7 @@
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
     // goals + finance + org
-    renderGoals(b); renderFinance(b); renderBudget(b); renderOrg(b);
+    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderOrg(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed
