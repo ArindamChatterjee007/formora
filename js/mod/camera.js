@@ -180,13 +180,31 @@ const Camera = {
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     const v = document.getElementById("cam-video");
     if (v) { v.srcObject = this.stream; v.style.transform = this.facing === "user" ? "scaleX(-1)" : "none"; await v.play().catch(() => {}); }
+    this._startThumbs();
   },
   stop() {
+    this._stopThumbs();
     if (this.stream) { this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; }
   },
   async flip() {
     this.facing = this.facing === "user" ? "environment" : "user";
     try { await this.start(); } catch (e) { this.facing = this.facing === "user" ? "environment" : "user"; }
+  },
+  // live filter thumbnails: grab a downscaled camera frame every ~1.2s into a shared CSS var; each chip applies its own filter to it (Snapchat/IG-style)
+  _startThumbs() { this._stopThumbs(); setTimeout(() => this._grabThumb(), 250); this._thumbTimer = setInterval(() => this._grabThumb(), 1200); },
+  _stopThumbs() { if (this._thumbTimer) { clearInterval(this._thumbTimer); this._thumbTimer = null; } },
+  _grabThumb() {
+    const v = document.getElementById("cam-video"), strip = document.getElementById("cam-filters");
+    if (!v || !strip || !v.videoWidth) return;
+    const S = 100, c = this._thumbCanvas || (this._thumbCanvas = document.createElement("canvas"));
+    c.width = S; c.height = S;
+    const ctx = c.getContext("2d"), vw = v.videoWidth, vh = v.videoHeight, side = Math.min(vw, vh), sx = (vw - side) / 2, sy = (vh - side) / 2;
+    ctx.save();
+    if (this.facing === "user") { ctx.translate(S, 0); ctx.scale(-1, 1); }
+    try { ctx.drawImage(v, sx, sy, side, side, 0, 0, S, S); } catch (e) { ctx.restore(); return; }
+    ctx.restore();
+    let url; try { url = c.toDataURL("image/jpeg", 0.55); } catch (e) { return; }
+    strip.style.setProperty("--cam-thumb", "url(" + url + ")");
   },
   setFilter(i) {
     const n = this.maxFilters();
@@ -221,8 +239,8 @@ const Camera = {
         </div>
         <div class="cam-bottom">
           <div class="cam-filters" id="cam-filters">
-            ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})">${esc(f.name)}</button>`).join("")}
-            ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" style="background:linear-gradient(90deg,#ff9d4d,#ff3d7f);color:#fff;font-weight:700" onclick="Camera.unlockFilters()">🔒 ${this.FILTERS.length - this.maxFilters()}+ with Pro</button>` : ""}
+            ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})"><span class="cam-filter-thumb"${f.css ? ` style="filter:${f.css}"` : ""}></span><span class="cam-filter-name-s">${esc(f.name)}</span></button>`).join("")}
+            ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" onclick="Camera.unlockFilters()"><span class="cam-filter-thumb lock">🔒</span><span class="cam-filter-name-s">${this.FILTERS.length - this.maxFilters()}+ Pro</span></button>` : ""}
           </div>
           <div class="cam-hint" id="cam-hint">Swipe the photo to change filter · tap to shoot</div>
           <div class="cam-modes">
