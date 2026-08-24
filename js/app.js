@@ -493,6 +493,7 @@ const App = {
   },
   async doCreateAccount() {
     const patch = this._readDetails(); if (!patch) return;
+    try { const _ref = localStorage.getItem("fm_ref"); if (_ref) { patch.referredBy = _ref; window.Track && Track.event("referred_signup", { ref: _ref }); } } catch (e) {}
     this.onboardProfile = { patch, weightKg: patch.startWeightKg };
     const d = this.signupDraft || {};
     try {
@@ -2494,7 +2495,7 @@ const App = {
         <div class="ph-actions">
           <button class="btn" onclick="App.saveSocialProfile()">Save profile</button>
           <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
-          <button class="btn ghost" onclick="Social.shareApp()">Share Formora 🔗</button>
+          <button class="btn ghost" onclick="Social.inviteFriends()">Invite friends 🎁</button>
           <button class="btn ghost" onclick="Social.openSaved()">🔖 Saved</button>
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
