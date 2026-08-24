@@ -303,7 +303,7 @@ const App = {
         <div class="field"><label>Full name</label><input id="s-name" placeholder="Arindam"></div>
         <div class="field"><label>Email</label><input id="s-email" type="email" placeholder="you@email.com"></div>
         <div class="field"><label>Phone number <span class="inline-hint">(optional)</span></label><input id="s-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel"></div>
-        ${this.pwField("s-pass", "Password", "min 6 characters", "new-password")}
+        ${this.pwField("s-pass", "Password", "min 6 characters", "new-password", true)}
         ${this.pwField("s-pass2", "Confirm password", "repeat password", "new-password")}
         ${err}
         <button class="btn wide" onclick="App.doSignupStart()">Continue →</button>
@@ -361,7 +361,7 @@ const App = {
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
     } else if (this.authView === "reset") {
       body = `<div class="auth-sub">Choose a new password for your account.</div>
-        ${this.pwField("r-pass", "New password", "min 6 characters", "new-password")}
+        ${this.pwField("r-pass", "New password", "min 6 characters", "new-password", true)}
         ${this.pwField("r-pass2", "Confirm new password", "repeat password", "new-password")}
         ${err}
         <button class="btn wide" onclick="App.doResetPassword()">Update password &amp; log in</button>
@@ -841,12 +841,23 @@ const App = {
     return `<button class="send-ico ${extra || ""}" onclick="${onclick}" aria-label="Send" title="Send">${this.ic("send", { size: 18, sw: 2 })}</button>`;
   },
   // password field with a show/hide eye toggle (inline-styled — no new CSS)
-  pwField(id, label, ph, ac) {
-    return `<div class="field" style="position:relative">
+  pwField(id, label, ph, ac, meter) {
+    return `<div class="field">
         <label>${label}</label>
-        <input id="${id}" type="password" placeholder="${ph}" autocomplete="${ac || "current-password"}" style="width:100%;box-sizing:border-box;padding-right:42px">
-        <button type="button" onclick="App.togglePw('${id}',this)" aria-label="Show password" style="position:absolute;right:8px;bottom:6px;background:none;border:0;color:var(--muted);cursor:pointer;padding:6px;display:flex;line-height:0">${this.ic("eye", { size: 18 })}</button>
+        <div style="position:relative">
+          <input id="${id}" type="password" placeholder="${ph}" autocomplete="${ac || "current-password"}"${meter ? ` oninput="App.pwStrength('${id}')"` : ""} style="width:100%;box-sizing:border-box;padding-right:42px">
+          <button type="button" onclick="App.togglePw('${id}',this)" aria-label="Show password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);cursor:pointer;padding:6px;display:flex;line-height:0">${this.ic("eye", { size: 18 })}</button>
+        </div>${meter ? `<div id="${id}-str" style="min-height:2px"></div>` : ""}
       </div>`;
+  },
+  pwStrength(id) {
+    const inp = document.getElementById(id), box = document.getElementById(id + "-str"); if (!inp || !box) return;
+    const v = inp.value || ""; let s = 0;
+    if (v.length >= 6) s++; if (v.length >= 10) s++;
+    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) s++; if (/\d/.test(v)) s++; if (/[^A-Za-z0-9]/.test(v)) s++;
+    const map = [["", "transparent"], ["Weak", "#ff5a4d"], ["Fair", "#ff9d4d"], ["Good", "#f5b301"], ["Strong", "#22c55e"]];
+    const lvl = v ? Math.max(1, Math.min(4, s)) : 0, row = map[lvl], pct = lvl * 25;
+    box.innerHTML = `<div style="height:4px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px"><div style="height:100%;width:${pct}%;background:${row[1]};transition:width .2s"></div></div>${row[0] ? `<div style="font-size:11px;color:${row[1]};margin-top:3px;font-weight:600">${row[0]} password</div>` : ""}`;
   },
   togglePw(id, btn) {
     const inp = document.getElementById(id); if (!inp) return;
