@@ -56,6 +56,13 @@ const SupaAuth = {
     if (!r.ok) throw new Error(j.msg || j.error_description || j.error || "Invalid email or password.");
     return this._store(j);
   },
+  // exchange a Google ID token (from GIS / the SocialLogin plugin) for a Supabase session
+  async signInWithGoogle(idToken) {
+    const r = await fetch(this._base() + "/token?grant_type=id_token", { method: "POST", headers: this._hdr(), body: JSON.stringify({ provider: "google", id_token: idToken }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.msg || j.error_description || j.error || "Google sign-in failed.");
+    return this._store(j);
+  },
   async refresh() {
     if (!this.session || !this.session.refresh_token) return null;
     try {
