@@ -117,6 +117,74 @@
       { "period": "Year 3", "conservative": "$180k", "base": "$500k", "optimistic": "$1M+" }
     ]
   },
+  "budget": {
+    "updated": "2026-08-25",
+    "author": "Full AI team finance meeting — CFO, Financial Analyst, CEO, CMO, BI, VP Product",
+    "headline": "Bootstrapped solo build. Cash needed to launch + run is almost nothing (~$12-150/yr). The real investment is your TIME, not money — so you basically CAN'T lose meaningful money here; the only real risk is spending months without distribution and getting no traction.",
+    "costs": {
+      "oneTime": [
+        { "item": "Domain (e.g. getformora.com)", "cost": "$10-12/yr", "required": "recommended", "note": "The only near-must-have spend. Also unlocks the branded noreply@ email (T-56)." },
+        { "item": "Google Play Console", "cost": "$25 once", "required": "optional", "note": "Only if you publish the Android app to Play. The PWA install is already free." },
+        { "item": "Apple Developer Program", "cost": "$99/yr", "required": "optional", "note": "Only for the iOS App Store. iPhone already works free via 'Add to Home Screen'." }
+      ],
+      "recurring": [
+        { "item": "Web hosting — GitHub Pages", "now": "$0", "atScale": "$0", "note": "Free forever for a static site." },
+        { "item": "Database + login — Supabase", "now": "$0", "atScale": "$25/mo", "note": "Free tier covers ~50k users. Only pay when you outgrow it — a good problem to have." },
+        { "item": "Email OTP — EmailJS", "now": "$0", "atScale": "$9-15/mo", "note": "Free = 200 emails/mo. Upgrade (or switch to domain + Resend) when signups exceed that." },
+        { "item": "Analytics — PostHog", "now": "$0", "atScale": "$0", "note": "Free tier = 1M events/mo. Plenty." },
+        { "item": "Payment fee — Razorpay (India)", "now": "~2% + GST/sale", "atScale": "~2%", "note": "Charged only on money you actually collect." },
+        { "item": "Payment fee — Lemon Squeezy (global)", "now": "~5% + 50c/sale", "atScale": "~5%", "note": "Merchant-of-Record — they handle global tax for you." }
+      ]
+    },
+    "initialCapital": {
+      "bareMinimumToLaunch": "$12 — just a domain",
+      "comfortable": "$50-150 — domain + Play listing + a small email/tools buffer",
+      "monthlyBurnAtStart": "$1-2/mo (amortized domain) until you cross the free tiers",
+      "plainTruth": "You are NOT risking meaningful money. Worst realistic cash loss is about $150 total — that's the entire financial downside."
+    },
+    "founderPayY1": {
+      "scenario": "REALISTIC — assumes you consistently post reels + invite people + engage fitness communities. Blended ARPU is India-heavy (₹199/mo ≈ $2.4) so revenue-per-payer is modest. Take-home = revenue − payment fees − costs − a small reinvest. ₹ at $1≈₹83.",
+      "months": [
+        { "m": 1, "payers": 0, "mrrUSD": 0, "founderINR": 0, "phase": "seed friends, test payments" },
+        { "m": 2, "payers": 1, "mrrUSD": 4, "founderINR": 0, "phase": "reinvest everything" },
+        { "m": 3, "payers": 3, "mrrUSD": 12, "founderINR": 0, "phase": "reinvest everything" },
+        { "m": 4, "payers": 6, "mrrUSD": 24, "founderINR": 500 },
+        { "m": 5, "payers": 10, "mrrUSD": 40, "founderINR": 1500 },
+        { "m": 6, "payers": 16, "mrrUSD": 65, "founderINR": 3000 },
+        { "m": 7, "payers": 24, "mrrUSD": 95, "founderINR": 5000 },
+        { "m": 8, "payers": 34, "mrrUSD": 135, "founderINR": 7500 },
+        { "m": 9, "payers": 46, "mrrUSD": 185, "founderINR": 10000 },
+        { "m": 10, "payers": 60, "mrrUSD": 240, "founderINR": 13000 },
+        { "m": 11, "payers": 78, "mrrUSD": 310, "founderINR": 17000 },
+        { "m": 12, "payers": 100, "mrrUSD": 400, "founderINR": 22000 }
+      ],
+      "y1Totals": { "endMrrUSD": 400, "cumulativeRevenueUSD": "~1,600", "cumulativeFounderPayINR": "~80,000", "reinvestedINR": "~40,000" },
+      "bounds": {
+        "pessimistic": "If distribution is inconsistent (the most common outcome): MRR stays near $0 all year, founder pay ₹0 — a hobby, not a business.",
+        "optimistic": "If a reel/community hits: ~$1,000 MRR by M12, founder take-home ~₹45-60k/mo by year-end (~₹250k for the year)."
+      }
+    },
+    "moneyFlow": "Every ₹100 a user pays → ~₹95 lands after fees → early on ALL of it reinvests (content, the domain, maybe tiny ad tests); once you pass ~₹30k/mo revenue, ~60-70% becomes your salary and ~30-40% reinvests to grow. No investor, no debt — your pocket in, your pocket out.",
+    "marketPotential": {
+      "tam": "Global fitness apps ~$15B+; India fitness ~$2-3B, growing 20%+/yr.",
+      "reality": "Saturated — thousands of apps + giants (MyFitnessPal, Strava, Nike, Cult). A solo indie wins only a NICHE, never the mass market.",
+      "ourWedge": "Aesthetic/physique-first + a real social feed + India-first ₹ pricing + no 30% app-store tax. A defensible small niche.",
+      "reachableY1": "Hundreds of paying users = a realistic, good solo-organic outcome. Thousands = needs a breakout.",
+      "verdict": "Potential is REAL but capped by DISTRIBUTION effort, not by the product (the product is already strong). This is 'could become a real small business', not 'guaranteed big'."
+    },
+    "goNoGo": {
+      "decision": "GO — conditionally.",
+      "why": "Cash risk ≈ $0-150, the product is already built + secure + payment-ready, and there's genuine (if modest) upside. Expected value is positive precisely because the downside is tiny.",
+      "condition": "You MUST commit to consistent distribution — ~3-5 short reels/week + posting in fitness communities + inviting people. That ONE factor decides everything. If you won't do it, this becomes a time-sink → then DON'T; shelve or scrap it.",
+      "odds": [
+        { "outcome": "No meaningful traction (most likely if marketing is inconsistent)", "chance": "~50-55%" },
+        { "outcome": "Side income — ₹15-40k/mo by month 12-18", "chance": "~30-35%" },
+        { "outcome": "Real business — $1k+ MRR (top-17% of apps)", "chance": "~12-18%" },
+        { "outcome": "Breakout — $5k+ MRR", "chance": "~3-5%" }
+      ],
+      "guarantee": "NONE — and anyone who guarantees startup success is lying to you. What I CAN guarantee: (1) you won't lose meaningful money (downside ~$150); (2) the product is genuinely good and ready; (3) the ONLY variable that decides the outcome is whether YOU distribute consistently. The product is done — distribution is the whole game now."
+    }
+  },
   "roadmap": {
     "updated": "2026-08-24",
     "note": "Prioritised plan for everything still open. P0=now, P1=this sprint, P2=next, P3=later. (founder) = blocked on an action only Arindam can do.",
