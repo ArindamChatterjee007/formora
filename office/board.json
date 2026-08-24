@@ -137,6 +137,46 @@
       { "rank": 14, "item": "Publish Google consent screen / landing polish (T-23/T-24)", "priority": "P3", "owner": "devops+design", "when": "later" }
     ]
   },
+  "growthPlan": {
+    "updated": "2026-08-24",
+    "author": "Autonomous team sprint — CMO + Growth + BI + Product + Finance",
+    "shippedToday": [
+      "v125 — Open Graph + Twitter cards + SEO structured data + branded 1200x630 share image (every shared link now renders a rich preview)",
+      "v126 — Referral loop: personal ?ref invite links on all shares + Invite-friends modal + PostHog signup attribution",
+      "v127 — Landing conversion: referral-visitor welcome banner + 'free / no card / any device' trust line"
+    ],
+    "audit": {
+      "strengths": ["Live product, free to start (low friction)", "UPI payments LIVE = real revenue rail (India)", "PostHog funnel analytics live", "Content engine: social feed + Flex reels + real-song music + 127 camera filters + progress photos", "PWA installable free (no app-store fee)", "Auto local-currency pricing"],
+      "gaps": ["Pre-launch: ~0 real users — needs a deliberate first-50 push", "Email/OTP delivery not activated (founder: 2-min EmailJS signup)", "Lemon Squeezy card/PayPal rail not activated (founder KYC) — global cards can't pay yet", "No Play Store / App Store listing (no ASO)", "No SEO content pages for organic discovery", "Founder must seed the first reels + invites to start the loop"]
+    },
+    "marketingChannels": [
+      { "rank": 1, "channel": "Organic short-form (Reels/TikTok/YT Shorts)", "why": "Repurpose in-app Flex reels (watermarked) into a daily cadence — near-zero CAC, best fit for a solo founder", "owner": "founder+social", "cost": "$0" },
+      { "rank": 2, "channel": "Referral loop (SHIPPED)", "why": "App is social, so friends-on-feed is natural retention; every user can now invite via ?ref link", "owner": "growth", "cost": "$0" },
+      { "rank": 3, "channel": "Fitness communities", "why": "Value-first posts in r/fitness, r/bodybuilding, fitness Discords/Telegrams, FB groups — share progress + the app link", "owner": "founder", "cost": "$0" },
+      { "rank": 4, "channel": "ASO — Play Store listing", "why": "Publish the built Android APK + listing (screenshots, keywords); iOS stays PWA for now", "owner": "content+devops", "cost": "$25 one-time Play" },
+      { "rank": 5, "channel": "Micro-influencer seeding", "why": "Gift Pro to ~20 small fitness creators for honest UGC + a branded challenge", "owner": "influencer", "cost": "$0 (comped Pro)" },
+      { "rank": 6, "channel": "SEO content hub", "why": "Long-tail guides ('v-taper workout', 'lean-bulk meal plan') → organic installs; compounding", "owner": "content", "cost": "$0" },
+      { "rank": 7, "channel": "Lifecycle email/push", "why": "Onboarding + streak nudges + win-back once email is live — cheap retention/reactivation", "owner": "lifecycle", "cost": "$0 (EmailJS free tier)" }
+    ],
+    "revenueLevers": [
+      "Activate BOTH rails: UPI is live; activate Lemon Squeezy (card/PayPal) so non-India users can actually pay",
+      "Founder-led first-50 outreach → first paying customer (milestone M1)",
+      "Sharpen Pro upgrade triggers at peak intent: post-onboarding preview, camera filter lock (30→127), meal-plan gate, progress-photo Pro",
+      "Push annual plans ($49/yr Pro, $149/yr Elite) to lift LTV; auto-local-currency + UPI already cut India friction",
+      "New streams (later): affiliate storefront (supplements/gear, T-30), coaching marketplace take-rate (T-31), sponsored challenges"
+    ],
+    "attractFeatures": [
+      { "feature": "Shareable weekly progress / transformation card (image)", "impact": "HIGH (viral — before/after is the most-shared fitness content)", "effort": "MED", "note": "Turn progress photos + streak + weight delta into a branded shareable image; feeds the OG/referral loop" },
+      { "feature": "Public shareable profile pages", "impact": "HIGH (SEO + shareability)", "effort": "MED-HIGH", "note": "Each user gets a public URL with rich OG card = free discovery surface" },
+      { "feature": "Challenges + leaderboards + streaks", "impact": "HIGH (retention + competition)", "effort": "MED", "note": "Challenges tab exists — add leaderboards + streak stakes" },
+      { "feature": "Onboarding quiz -> shareable 'physique blueprint' result", "impact": "MED-HIGH (viral top-of-funnel)", "effort": "MED", "note": "Quiz already collects the data; make the result a shareable card" },
+      { "feature": "Keep the content engine strong (music/reels/filters)", "impact": "HIGH (already shipped v118-124)", "effort": "LOW (maintain)", "note": "This is the core UGC/growth substrate — keep it polished" }
+    ],
+    "next7Days": {
+      "founderBlocked": ["EmailJS 2-min signup -> paste 3 IDs (turns on email + OTP + lifecycle)", "Run the Rs.1 live UPI test to prove pay->unlock", "Activate Lemon Squeezy store (KYC/bank) for global card/PayPal", "Post 3-5 Flex reels to your own IG/TikTok with the app link", "DM your ?ref invite link to ~20 gym friends to seed the feed"],
+      "teamCanBuildNow": ["Shareable progress/transformation card", "Public profile pages (SEO)", "Challenge leaderboards", "Play Store ASO assets (screenshots + copy)", "SEO landing/guide pages"]
+    }
+  },
   "tasks": [
     { "id": "T-01", "title": "Stored-XSS fixed across feed (9 sinks) + CI guard", "role": "qa", "sprint": 0, "status": "done", "priority": "P0" },
     { "id": "T-02", "title": "CSP + PBKDF2 + secret-scan + perf-budget gates", "role": "eng", "sprint": 0, "status": "done", "priority": "P0" },
