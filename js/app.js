@@ -1378,6 +1378,47 @@ const App = {
     this.renderTab(active);
   },
   closeModal() { document.getElementById("modal").classList.add("hidden"); if (typeof Social !== "undefined" && Social._stopPreview) Social._stopPreview(); },
+  shareProgress() {
+    const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
+    const meName = p.name || (typeof Social !== "undefined" && Social.me ? Social.me().name : "") || "Me";
+    const streak = (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0;
+    const workouts = (typeof Engine !== "undefined" && Engine.totalWorkouts) ? Engine.totalWorkouts() : 0;
+    const st = (typeof Engine !== "undefined" && Engine.stats) ? Engine.stats() : {};
+    const score = Math.round(st.score || 0);
+    const wt = (typeof Store !== "undefined" && Store.latestWeight) ? (Store.latestWeight() || p.startWeightKg || 0) : 0;
+    const phys = p.physique || "my dream physique";
+    const url = (typeof Social !== "undefined" && Social._refUrl) ? Social._refUrl() : "https://arindamchatterjee007.github.io/formora/";
+    const C = document.createElement("canvas"); C.width = 1080; C.height = 1080;
+    const x = C.getContext("2d");
+    const rr = (bx, by, w, h, r) => { if (x.roundRect) { x.beginPath(); x.roundRect(bx, by, w, h, r); } else { x.beginPath(); x.moveTo(bx + r, by); x.arcTo(bx + w, by, bx + w, by + h, r); x.arcTo(bx + w, by + h, bx, by + h, r); x.arcTo(bx, by + h, bx, by, r); x.arcTo(bx, by, bx + w, by, r); x.closePath(); } };
+    let g = x.createLinearGradient(0, 0, 1080, 1080); g.addColorStop(0, "#13141c"); g.addColorStop(1, "#0a0b10"); x.fillStyle = g; x.fillRect(0, 0, 1080, 1080);
+    let rg = x.createRadialGradient(860, 240, 0, 860, 240, 560); rg.addColorStop(0, "rgba(255,61,127,.22)"); rg.addColorStop(1, "rgba(255,61,127,0)"); x.fillStyle = rg; x.fillRect(0, 0, 1080, 1080);
+    let bg = x.createLinearGradient(96, 96, 210, 210); bg.addColorStop(0, "#ff9d4d"); bg.addColorStop(.5, "#ff5a4d"); bg.addColorStop(1, "#ff3d7f");
+    x.fillStyle = bg; rr(96, 96, 108, 108, 26); x.fill();
+    x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "800 72px -apple-system,Arial,sans-serif"; x.fillText("F", 150, 174);
+    x.textAlign = "left"; x.fillStyle = "#fff"; x.font = "800 50px -apple-system,Arial,sans-serif"; x.fillText("FORMORA", 226, 150);
+    x.fillStyle = "#9aa4b2"; x.font = "600 23px -apple-system,Arial,sans-serif"; x.fillText("AI PHYSIQUE COACH", 228, 185);
+    x.fillStyle = "#fff"; x.font = "800 62px -apple-system,Arial,sans-serif"; x.fillText(String(meName).slice(0, 18), 96, 336);
+    x.fillStyle = "#ff9d4d"; x.font = "700 33px -apple-system,Arial,sans-serif"; x.fillText("Chasing " + String(phys).slice(0, 26), 98, 388);
+    const cardStat = (sx, val, lbl) => { x.fillStyle = "#191b25"; rr(sx, 448, 288, 210, 24); x.fill(); x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "800 74px -apple-system,Arial,sans-serif"; x.fillText(String(val), sx + 144, 556); x.fillStyle = "#9aa4b2"; x.font = "600 24px -apple-system,Arial,sans-serif"; x.fillText(lbl, sx + 144, 606); x.textAlign = "left"; };
+    cardStat(96, streak, "Day streak \ud83d\udd25"); cardStat(396, workouts, "Workouts \ud83d\udcaa"); cardStat(696, score, "Fit score");
+    x.fillStyle = "#c7cdd6"; x.font = "600 34px -apple-system,Arial,sans-serif"; x.textAlign = "left";
+    if (wt) x.fillText("Now " + wt + " kg" + (p.targetWeightKg ? "   \u2192   Goal " + p.targetWeightKg + " kg" : ""), 96, 762);
+    x.fillStyle = "#fff"; x.font = "800 46px -apple-system,Arial,sans-serif"; x.fillText("Building my dream physique \ud83d\udcaa", 96, 902);
+    x.fillStyle = "#9aa4b2"; x.font = "600 30px -apple-system,Arial,sans-serif"; x.fillText("Train with me on Formora \u2014 free", 96, 950);
+    x.fillStyle = "#ff6b9d"; x.font = "700 29px -apple-system,Arial,sans-serif"; x.fillText(String(url).replace("https://", ""), 96, 998);
+    window.Track && Track.event("progress_shared");
+    const txt = "My progress on Formora \ud83d\udcaa " + streak + "-day streak, " + workouts + " workouts. Train with me \u2014 free:";
+    const self = this;
+    C.toBlob(function (blob) {
+      if (!blob) { if (self.toast) self.toast("Couldn't build the card \u2014 try again."); return; }
+      const file = new File([blob], "formora-progress.png", { type: "image/png" });
+      try { if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], text: txt, url: url }).then(function () { if (typeof Social !== "undefined" && Social.haptic) Social.haptic(12); }).catch(function () {}); return; } } catch (e) {}
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "formora-progress.png"; a.click();
+      if (navigator.clipboard) navigator.clipboard.writeText(url).catch(function () {});
+      if (self.toast) self.toast("Progress card saved \u2014 your invite link is copied \ud83d\udd17");
+    }, "image/png");
+  },
   // Personalised preview + Pro upsell shown once, right after onboarding (T-16 funnel).
   showWelcome() {
     const p = Store.state.profile;
@@ -2018,6 +2059,7 @@ const App = {
           <div class="stat"><div class="v">${Engine.weeklyFrequency()}<span>/wk</span></div><div class="l">Sessions this week</div></div>
           <div class="stat"><div class="v">${Engine.totalWorkouts()}</div><div class="l">Total workouts</div></div>
         </div>
+        <button class="btn ghost wide" onclick="App.shareProgress()" style="margin-top:12px">📣 Share my progress card</button>
       </div>
       <div class="card">
         <h2>Strength &amp; weakness</h2>
