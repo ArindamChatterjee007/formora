@@ -346,6 +346,7 @@ const Social = {
   // ---- haptics + share-to-grow (viral loop) ----
   haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} },
   _share(text) {
+    window.Track && Track.event("shared");
     const url = "https://arindamchatterjee007.github.io/formora/";
     const data = { title: "Formora", text: (text || "Train with me on Formora") + " \ud83d\udcaa", url };
     if (navigator.share) return navigator.share(data).then(() => this.haptic(12)).catch(() => {});
@@ -730,6 +731,7 @@ const Social = {
     if (!text && !photos.length && !video) { alert("Write something, add a photo or a Flex to post."); return; }
     if (this.cloudActive()) {
       const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex", music: this.pendingMusic || null });
+      window.Track && Track.event("post_created", { has_photo: !!(photos && photos.length), has_video: !!video, has_music: !!this.pendingMusic });
       if (np) this.cloud.feed.unshift(np);
       this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null;
       if (typeof App !== "undefined" && App.toast) App.toast(video ? "Flex posted 💪" : "Posted to the feed 🎉");
