@@ -125,6 +125,9 @@
     <div class="section-h">💰 Financial cockpit</div>
     <div id="finance"></div>
 
+    <div class="section-h">🧮 Budget, founder pay &amp; the honest go/no-go</div>
+    <div id="budget"></div>
+
     <div class="section-h">Sprint board</div>
     <div class="board" id="board"></div>
 
@@ -176,6 +179,17 @@
     const proj=`<div class="panel"><div class="ph">Revenue projection · illustrative</div><table class="proj"><thead><tr><th>Period</th><th>Cons.</th><th>Base</th><th>Optim.</th></tr></thead><tbody>`+B.projection.map(p=>`<tr><td>${esc(p.period)}</td><td>${esc(p.conservative)}</td><td class="base">${esc(p.base)}</td><td>${esc(p.optimistic)}</td></tr>`).join('')+`</tbody></table></div>`;
     el.innerHTML=tiles+`<div class="fin"><div class="fincol">${streams}${tiers}</div><div class="fincol">${funnel}${ue}</div><div class="fincol">${proj}</div></div>`;
   }
+  function renderBudget(b){
+    const el=document.getElementById('budget'); if(!el) return; const B=b.budget; if(!B){ el.style.display='none'; return; }
+    const g=B.goNoGo;
+    const verdict=`<div class="panel" style="border-color:rgba(34,197,94,.5)"><div class="ph">Verdict — ${esc(g.decision)}</div><div style="color:var(--sub);font-size:13px;line-height:1.55">${esc(B.headline)}</div><div style="margin-top:8px;font-size:13px"><b>Why:</b> ${esc(g.why)}</div><div style="margin-top:6px;font-size:13px;color:#ffcf7a"><b>The one condition:</b> ${esc(g.condition)}</div></div>`;
+    const cap=`<div class="fintiles"><div class="fintile"><div class="l">To launch</div><div class="v grad">${esc(B.initialCapital.bareMinimumToLaunch)}</div><div class="s">comfortable: ${esc(B.initialCapital.comfortable)}</div></div><div class="fintile"><div class="l">Monthly burn (start)</div><div class="v">${esc(B.initialCapital.monthlyBurnAtStart)}</div><div class="s">${esc(B.initialCapital.plainTruth)}</div></div><div class="fintile"><div class="l">End of Year 1 · realistic</div><div class="v">${money(B.founderPayY1.y1Totals.endMrrUSD)}<small>/mo</small></div><div class="s">your pay ~₹${esc(B.founderPayY1.y1Totals.cumulativeFounderPayINR)} for the year</div></div></div>`;
+    const crow=arr=>arr.map(c=>`<tr><td>${esc(c.item)}</td><td>${esc(c.cost||c.now)}</td><td style="color:var(--sub)">${esc(c.note||'')}</td></tr>`).join('');
+    const costs=`<div class="panel"><div class="ph">What you actually pay for</div><table class="ue"><tbody><tr><td colspan="3" style="color:#ffcf7a">One-time</td></tr>${crow(B.costs.oneTime)}<tr><td colspan="3" style="color:#ffcf7a">Recurring · free now</td></tr>${crow(B.costs.recurring)}</tbody></table></div>`;
+    const pay=`<div class="panel"><div class="ph">Your salary, month by month</div><div style="color:var(--sub);font-size:11.5px;margin-bottom:6px">${esc(B.founderPayY1.scenario)}</div><table class="proj"><thead><tr><th>Mo</th><th>Payers</th><th>MRR</th><th>Take-home</th></tr></thead><tbody>`+B.founderPayY1.months.map(m=>`<tr><td>${m.m}</td><td>${m.payers}</td><td>${money(m.mrrUSD)}</td><td class="base">₹${Number(m.founderINR).toLocaleString()}</td></tr>`).join('')+`</tbody></table><div style="font-size:12px;margin-top:6px"><b>If it stalls:</b> ${esc(B.founderPayY1.bounds.pessimistic)}</div><div style="font-size:12px;margin-top:4px"><b>If it hits:</b> ${esc(B.founderPayY1.bounds.optimistic)}</div></div>`;
+    const odds=`<div class="panel"><div class="ph">Honest odds</div>`+g.odds.map(o=>`<div class="stream"><div class="snm">${esc(o.outcome)}</div><span class="st building">${esc(o.chance)}</span></div>`).join('')+`<div style="font-size:12px;margin-top:8px;color:var(--sub)"><b style="color:#fff">Market:</b> ${esc(B.marketPotential.verdict)}</div><div style="font-size:12px;margin-top:6px;color:#ffcf7a"><b>Guarantee:</b> ${esc(g.guarantee)}</div></div>`;
+    el.innerHTML=verdict+cap+`<div class="fin"><div class="fincol">${costs}</div><div class="fincol">${pay}</div><div class="fincol">${odds}</div></div>`;
+  }
   function renderOrg(b){
     const el=document.getElementById('org'); if(!el) return;
     if(!b.roles.some(r=>r.team)){ el.innerHTML='<div class="panel"><div class="depts">'+b.roles.map(r=>`<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)}</div><div class="pd">${esc(r.does)}</div></div></div>`).join('')+'</div></div>'; return; }
@@ -212,7 +226,7 @@
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
     // goals + finance + org
-    renderGoals(b); renderFinance(b); renderOrg(b);
+    renderGoals(b); renderFinance(b); renderBudget(b); renderOrg(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed
