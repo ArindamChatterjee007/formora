@@ -320,65 +320,101 @@ const Social = {
     const g = { Workout: "#ff5a3c,#ff2d55", Hype: "#b14bff,#ff3d7f", Chill: "#2dd4bf,#3b82f6", "Lo-fi": "#6366f1,#a855f7", Focus: "#10b981,#22c55e", Cinematic: "#f59e0b,#334155" }[t.genre] || "#ff9d4d,#ff3d7f";
     return "linear-gradient(135deg," + g + ")";
   },
+  _trackById(id) { return ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id) || (this._searchResults || []).find((x) => x.id === id); },
+  _coverEl(t, lg) {
+    const cls = "music-cover" + (lg ? " lg" : "");
+    if (t.cover) return `<img class="${cls}" src="${esc(t.cover)}" alt="" loading="lazy">`;
+    return `<span class="${cls}" style="background:${this._musicCover(t)}">♪</span>`;
+  },
+  _musicRow(t, pm, playingId) {
+    const on = pm && pm.id === t.id, p = playingId === t.id;
+    const tt = (t.title + " " + (t.genre || "") + " " + t.artist).toLowerCase();
+    return `<div class="music-row ${on ? "sel" : ""} ${p ? "playing" : ""}" data-tt="${esc(tt)}" data-cat="${esc(t.genre || "")}" data-trend="${t.trending ? "1" : "0"}" onclick="Social.selectMusic('${t.id}')">
+        ${this._coverEl(t)}
+        <div class="music-meta"><div class="music-t">${esc(t.title)}${t.trending ? ` <span class="music-fire">🔥</span>` : ""}</div><div class="music-a">${esc(t.genre || "Song")} · ${esc(t.artist)}</div></div>
+        <button class="music-play ${p ? "on" : ""}" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${p ? "⏸" : "▶"}</button>
+        ${on ? `<span class="music-check">✓</span>` : ""}
+      </div>`;
+  },
   pickMusic() {
     const M = (window.MUSIC && window.MUSIC.tracks) || [];
     const card = document.getElementById("modal-card"); if (!card) return;
     const pm = this.pendingMusic;
+    const q = (this._musicQuery || "").trim();
+    const searching = q.length >= 2;
     const cat = this._musicCat || "Trending";
     const cats = ["Trending", "Workout", "Hype", "Chill", "Lo-fi", "Focus", "Cinematic"];
-    const chips = cats.map((c) => `<button class="music-chip ${c === cat ? "on" : ""}" onclick="Social.setMusicCat('${c}')">${c === "Trending" ? "🔥 " : ""}${esc(c)}</button>`).join("");
+    const chips = searching ? "" : `<div class="music-chips">${cats.map((c) => `<button class="music-chip ${c === cat ? "on" : ""}" onclick="Social.setMusicCat('${c}')">${c === "Trending" ? "🔥 " : ""}${esc(c)}</button>`).join("")}</div>`;
     const playingId = this._preview && this._preview.id;
-    const rows = M.map((t) => {
-      const tt = (t.title + " " + t.genre + " " + t.artist).toLowerCase();
-      const on = pm && pm.id === t.id;
-      const p = playingId === t.id;
-      return `<div class="music-row ${on ? "sel" : ""} ${p ? "playing" : ""}" data-tt="${esc(tt)}" data-cat="${esc(t.genre)}" data-trend="${t.trending ? "1" : "0"}" onclick="Social.selectMusic('${t.id}')">
-        <span class="music-cover" style="background:${this._musicCover(t)}">${p ? "♫" : "♪"}</span>
-        <div class="music-meta"><div class="music-t">${esc(t.title)}${t.trending ? ` <span class="music-fire">🔥</span>` : ""}</div><div class="music-a">${esc(t.genre)} · ${esc(t.artist)}</div></div>
-        <button class="music-play ${p ? "on" : ""}" onclick="event.stopPropagation();Social.previewMusic('${t.id}')" aria-label="Preview">${p ? "⏸" : "▶"}</button>
-        ${on ? `<span class="music-check">✓</span>` : ""}
-      </div>`;
-    }).join("");
-    const np = playingId ? M.find((x) => x.id === playingId) : null;
+    let listInner;
+    if (searching) {
+      if (this._searching) listInner = `<div class="sub" style="text-align:center;padding:18px">Searching millions of songs…</div>`;
+      else { const res = this._searchResults || []; listInner = res.length ? res.map((t) => this._musicRow(t, pm, playingId)).join("") : `<div class="sub" style="text-align:center;padding:18px">No songs found for “${esc(q)}”.</div>`; }
+    } else {
+      listInner = M.map((t) => this._musicRow(t, pm, playingId)).join("") || `<div class="sub">No tracks available.</div>`;
+    }
+    const np = playingId ? this._trackById(playingId) : null;
     const nowBar = np ? `<div class="music-now">
-        <span class="music-cover lg" style="background:${this._musicCover(np)}">♫</span>
-        <div class="music-meta"><div class="music-t">${esc(np.title)}</div><div class="music-a">Now playing · ${esc(np.genre)} · ${esc(np.artist)}</div></div>
+        ${this._coverEl(np, true)}
+        <div class="music-meta"><div class="music-t">${esc(np.title)}</div><div class="music-a">Now playing · ${esc(np.genre || "Song")} · ${esc(np.artist)}</div></div>
         <button class="music-play on" onclick="Social.previewMusic('${np.id}')" aria-label="Pause">⏸</button>
       </div><div class="music-prog"><span id="mp-fill"></span></div>` : "";
     card.innerHTML = `<div class="modal-head"><h2>Add music 🎵</h2><button class="icon-btn" onclick="Social._stopPreview();App.closeModal()">✕</button></div>
-      <input id="music-search" class="music-search" type="search" placeholder="Search songs, moods, genres…" value="${esc(this._musicQuery || "")}" oninput="Social.filterMusic(this.value)" autocomplete="off">
-      <div class="music-chips">${chips}</div>
+      <input id="music-search" class="music-search" type="search" placeholder="Search any song — Hindi, Spanish, English…" value="${esc(this._musicQuery || "")}" oninput="Social.filterMusic(this.value)" autocomplete="off">
+      ${chips}
       ${nowBar}
-      <div class="music-list" id="music-list">${rows || `<div class="sub">No tracks available.</div>`}</div>
+      <div class="music-list" id="music-list">${listInner}</div>
       <div class="music-empty sub" id="music-empty" style="display:none;text-align:center;padding:12px 0">No songs match — try another search.</div>
-      <div class="music-credit">${esc((window.MUSIC && window.MUSIC.credit) || "")}</div>
+      <div class="music-credit">${searching ? "30-sec previews · iTunes catalog · " : ""}${esc((window.MUSIC && window.MUSIC.credit) || "")}</div>
       <div class="music-actions">${pm ? `<button class="btn ghost wide" onclick="Social.removeMusic()">Remove</button>` : ""}<button class="btn wide" onclick="Social.musicDone()">${pm ? "Use this sound" : "Done"}</button></div>`;
     document.getElementById("modal").classList.remove("hidden");
-    this._applyMusicFilter();
+    if (!searching) this._applyMusicFilter();
+    if (this._focusSearch) { const si = document.getElementById("music-search"); if (si) { si.focus(); try { si.setSelectionRange(si.value.length, si.value.length); } catch (e) {} } this._focusSearch = false; }
   },
-  setMusicCat(c) { this._musicCat = c; this._musicQuery = ""; this.pickMusic(); },
-  filterMusic(q) { this._musicQuery = q; this._applyMusicFilter(); },
+  setMusicCat(c) { this._musicCat = c; this._musicQuery = ""; this._searchResults = null; this.pickMusic(); },
+  filterMusic(q) {
+    this._musicQuery = q;
+    clearTimeout(this._searchTimer);
+    if (q.trim().length >= 2) {
+      this._searching = true;
+      const list = document.getElementById("music-list"); if (list) list.innerHTML = `<div class="sub" style="text-align:center;padding:18px">Searching millions of songs…</div>`;
+      const chipsEl = document.querySelector(".music-chips"); if (chipsEl) chipsEl.remove();
+      const empty = document.getElementById("music-empty"); if (empty) empty.style.display = "none";
+      this._searchTimer = setTimeout(() => this._searchSongs(q.trim()), 350);
+    } else {
+      this._searching = false; this._searchResults = null; this._focusSearch = true; this.pickMusic();
+    }
+  },
+  _searchSongs(q) {
+    if ((this._musicQuery || "").trim() !== q) return;
+    fetch("https://itunes.apple.com/search?media=music&entity=song&limit=24&term=" + encodeURIComponent(q))
+      .then((r) => r.json())
+      .then((d) => {
+        if ((this._musicQuery || "").trim() !== q) return;
+        this._searchResults = (d.results || []).filter((r) => r.previewUrl).map((r) => ({ id: "it" + r.trackId, title: r.trackName, artist: r.artistName, src: r.previewUrl, cover: (r.artworkUrl100 || "").replace("100x100bb", "200x200bb"), genre: r.primaryGenreName || "Song", source: "itunes" }));
+        this._searching = false; this._focusSearch = true; this.pickMusic();
+      })
+      .catch(() => { this._searching = false; this._searchResults = []; this._focusSearch = true; this.pickMusic(); });
+  },
   _applyMusicFilter() {
-    const ql = (this._musicQuery || "").trim().toLowerCase();
+    if ((this._musicQuery || "").trim().length >= 2) return;
     const cat = this._musicCat || "Trending";
     const list = document.getElementById("music-list"); if (!list) return;
     let shown = 0;
     list.querySelectorAll(".music-row").forEach((r) => {
-      let show;
-      if (ql) show = (r.getAttribute("data-tt") || "").indexOf(ql) !== -1;
-      else show = cat === "Trending" ? r.getAttribute("data-trend") === "1" : r.getAttribute("data-cat") === cat;
+      const show = cat === "Trending" ? r.getAttribute("data-trend") === "1" : r.getAttribute("data-cat") === cat;
       r.style.display = show ? "" : "none";
       if (show) shown++;
     });
     const empty = document.getElementById("music-empty"); if (empty) empty.style.display = shown ? "none" : "block";
   },
   selectMusic(id) {
-    const t = ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id); if (!t) return;
-    this.pendingMusic = { id: t.id, title: t.title, artist: t.artist, src: t.src };
+    const t = this._trackById(id); if (!t) return;
+    this.pendingMusic = { id: t.id, title: t.title, artist: t.artist, src: t.src, cover: t.cover || "", source: t.source || "formora" };
     this.previewMusic(id, true);
   },
   previewMusic(id, force) {
-    const t = ((window.MUSIC && window.MUSIC.tracks) || []).find((x) => x.id === id); if (!t) return;
+    const t = this._trackById(id); if (!t) return;
     if (this._preview && this._preview.id === id && !force) { this._stopPreview(); this.pickMusic(); return; }
     this._stopPreview();
     const a = new Audio(t.src); this._preview = { id, a };
