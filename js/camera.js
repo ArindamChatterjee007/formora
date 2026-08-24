@@ -8,6 +8,19 @@ const Camera = {
   // big curated filter set (CSS filter strings, baked on capture) — Snapchat-level variety
   FILTERS: [
     { id: "normal", name: "Normal", css: "" },
+    // ---- Premium pack (curated, portrait/fitness-flattering; shown first) ----
+    { id: "aura", name: "Aura", css: "contrast(1.08) saturate(1.3) brightness(1.05)" },
+    { id: "marble", name: "Marble", css: "contrast(1.06) saturate(1.08) brightness(1.04)" },
+    { id: "lumen", name: "Lumen", css: "contrast(1.1) saturate(1.45) brightness(1.06)" },
+    { id: "bronzecut", name: "Bronze", css: "contrast(1.12) saturate(1.35) sepia(.12) brightness(1.02)" },
+    { id: "cocoa", name: "Cocoa", css: "contrast(1.18) saturate(1.2) sepia(.14) brightness(.99)" },
+    { id: "cashmere", name: "Cashmere", css: "contrast(.95) brightness(1.05) saturate(1.1) sepia(.1)" },
+    { id: "linen", name: "Linen", css: "contrast(.93) brightness(1.08) sepia(.08) saturate(.95)" },
+    { id: "terra", name: "Terra", css: "sepia(.24) contrast(.9) brightness(1.08) saturate(.85)" },
+    { id: "blushfade", name: "Blush", css: "contrast(.9) brightness(1.1) saturate(.9) sepia(.18) hue-rotate(-6deg)" },
+    { id: "frostwhite", name: "Frost", css: "contrast(1.05) brightness(1.08) saturate(1.05) hue-rotate(6deg)" },
+    { id: "slumber", name: "Slumber", css: "brightness(1.06) saturate(.7) sepia(.1) contrast(.95)" },
+    { id: "onyx", name: "Onyx", css: "grayscale(1) contrast(1.2) brightness(1.02)" },
     { id: "gym", name: "Gym", css: "contrast(1.16) saturate(1.35) brightness(1.03)" },
     { id: "vivid", name: "Vivid", css: "saturate(1.6) contrast(1.15)" },
     { id: "pop", name: "Pop", css: "saturate(1.9) contrast(1.25) brightness(1.02)" },
