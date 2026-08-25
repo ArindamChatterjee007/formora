@@ -2039,7 +2039,8 @@ const App = {
   finishSession() {
     const { exercises, volume } = this._buildEntry();
     if (!exercises.length) { alert("Log at least one set before finishing."); return; }
-    const date = this.session.editing ? this.session.origDate : todayISO();
+    const isEdit = !!this.session.editing;
+    const date = isEdit ? this.session.origDate : todayISO();
     Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
     Store.logWorkout({ date, split: this.session.split, exercises, volume });
     this.session = null;
@@ -2047,6 +2048,22 @@ const App = {
     Store.save();
     this.renderChips();
     this.renderToday();
+    if (!isEdit) { this.celebrate(); this.toast(`Workout saved 💪 ${exercises.length} exercise${exercises.length > 1 ? "s" : ""} logged`); }
+  },
+
+  // tasteful confetti burst for win-moments (workout saved). Appended to <body> like _heartBurst, self-removing.
+  celebrate() {
+    const c = document.createElement("div");
+    c.className = "confetti";
+    const colors = ["var(--accent)", "var(--accent2)", "#12b981", "#f5c451", "#ffffff"];
+    let html = "";
+    for (let i = 0; i < 16; i++) {
+      html += `<i style="left:${Math.round(Math.random() * 100)}%;background:${colors[i % colors.length]};animation-delay:${(Math.random() * 0.25).toFixed(2)}s;animation-duration:${(0.9 + Math.random() * 0.6).toFixed(2)}s"></i>`;
+    }
+    c.innerHTML = html;
+    document.body.appendChild(c);
+    try { navigator.vibrate && navigator.vibrate([16, 40, 16]); } catch (_) {}
+    setTimeout(() => c.remove(), 2000);
   },
 
   /* ---------------- TEXT (NATURAL-LANGUAGE) LOGGING ---------------- */
