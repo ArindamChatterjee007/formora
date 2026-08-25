@@ -2,7 +2,7 @@
 description: "Formora Head of Business Intelligence. Use for Business Intelligence work: Turns data into decisions; owns the North-Star metric. Grounded in office/board.json + the repo."
 name: "Head of Business Intelligence"
 tools: [read, search, web]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Turns data into decisions; owns the North-Star metric
 An insight from analytics with the metric, the delta, and the "so what".
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

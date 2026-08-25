@@ -2,7 +2,7 @@
 description: "Formora Engineer. Use for Engineering work: Implements features dev→release→beta→main to the architect's design. Grounded in office/board.json + the repo."
 name: "Engineer"
 tools: [read, edit, search, execute]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ Implements features dev→release→beta→main to the architect's design
 Files changed + a 2-line summary + confirmation self-checks pass.
 
 ---
-*Model tier: **coding** — accurate build + test. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: coding — build + test role. Autonomous work runs async as a role-scoped GitHub Issue → PR.*

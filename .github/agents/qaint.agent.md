@@ -2,7 +2,7 @@
 description: "Formora Integration & E2E Tester. Use for Engineering work: End-to-end flows across features (signup→pay→unlock, feed/reels/camera/music); catches cross-feature breakage. Grounded in office/board.json + the repo."
 name: "Integration & E2E Tester"
 tools: [read, search, execute]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ End-to-end flows across features (signup→pay→unlock, feed/reels/camera/music
 An integration/regression report across flows. Pass/fail + evidence.
 
 ---
-*Model tier: **coding** — accurate build + test. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: coding — build + test role. Autonomous work runs async as a role-scoped GitHub Issue → PR.*
