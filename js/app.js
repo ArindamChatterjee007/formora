@@ -2280,10 +2280,12 @@ const App = {
       <div class="card"><h2>Coach's read</h2>
         <ul class="guide">${Engine.guidance().map((m) => `<li>${m}</li>`).join("")}</ul>
       </div>`;
-    Charts.ring(document.getElementById("goal-ring"), gp.overall, "to goal");
-    Charts.weightLine(document.getElementById("weight-chart"), Store.state.weightLog, Store.state.profile.targetWeightKg);
-    Charts.bars(document.getElementById("balance"), Engine.muscleBalance());
-    if (isPro) Charts.columns(document.getElementById("vol-chart"), vt);
+    if (typeof ChartsLoader !== "undefined") ChartsLoader.ensure().then(() => {
+      Charts.ring(document.getElementById("goal-ring"), gp.overall, "to goal");
+      Charts.weightLine(document.getElementById("weight-chart"), Store.state.weightLog, Store.state.profile.targetWeightKg);
+      Charts.bars(document.getElementById("balance"), Engine.muscleBalance());
+      if (isPro) Charts.columns(document.getElementById("vol-chart"), vt);
+    });
   },
 
   saveWeight() {
