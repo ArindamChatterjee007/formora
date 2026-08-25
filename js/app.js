@@ -859,40 +859,43 @@ const App = {
     if (this._slideBound) return; this._slideBound = true;
     const shell = document.getElementById("app-shell") || document.body;
     let el = null, id = null, x0 = 0, max = 0, cur = 0, thumb = null, fill = null;
-    const start = (e) => {
-      const t = e.target.closest && e.target.closest(".slidebtn");
-      if (!t || t.classList.contains("done")) return;
-      el = t; id = t.getAttribute("data-sl");
-      thumb = t.querySelector(".sb-thumb"); fill = t.querySelector(".sb-fill");
-      max = t.clientWidth - thumb.offsetWidth - 10; cur = 0; x0 = e.clientX;
-      el.classList.add("sliding");
-      try { t.setPointerCapture(e.pointerId); } catch (_) {}
-    };
+    const cx = (e) => e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
     const move = (e) => {
       if (!el) return;
-      cur = Math.max(0, Math.min(max, e.clientX - x0));
+      cur = Math.max(0, Math.min(max, cx(e) - x0));
       thumb.style.transform = "translateX(" + cur + "px)";
       fill.style.width = (thumb.offsetWidth + 10 + cur) + "px";
       if (e.cancelable) e.preventDefault();
     };
     const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
       if (!el) return;
       const t = el;
-      if (cur >= max * 0.82) {
+      if (cur >= max * 0.8) {
         thumb.style.transform = "translateX(" + max + "px)"; fill.style.width = "100%";
         t.classList.add("done"); t.classList.remove("sliding");
         try { navigator.vibrate && navigator.vibrate(18); } catch (_) {}
         const fn = this._slides[id];
-        setTimeout(() => { if (typeof fn === "function") fn(); }, 200);
+        setTimeout(() => { if (typeof fn === "function") fn(); }, 180);
       } else {
         thumb.style.transform = ""; fill.style.width = ""; t.classList.remove("sliding");
       }
       el = null; id = null; cur = 0;
     };
+    const start = (e) => {
+      const t = e.target.closest && e.target.closest(".slidebtn");
+      if (!t || t.classList.contains("done")) return;
+      el = t; id = t.getAttribute("data-sl");
+      thumb = t.querySelector(".sb-thumb"); fill = t.querySelector(".sb-fill");
+      max = t.clientWidth - thumb.offsetWidth - 10; cur = 0; x0 = cx(e);
+      t.classList.add("sliding");
+      window.addEventListener("pointermove", move, { passive: false });
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+    };
     shell.addEventListener("pointerdown", start);
-    shell.addEventListener("pointermove", move, { passive: false });
-    shell.addEventListener("pointerup", end);
-    shell.addEventListener("pointercancel", end);
     shell.addEventListener("keydown", (e) => {
       const t = e.target.closest && e.target.closest(".slidebtn");
       if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); const fn = this._slides[t.getAttribute("data-sl")]; if (typeof fn === "function") fn(); }
