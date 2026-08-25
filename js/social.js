@@ -575,7 +575,7 @@ const Social = {
         <div class="composer-actions">
           <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
           <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
-          <button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">🎵 Music</button>
+          <button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">${App.ic("music", { size: 16 })} Music</button>
           <button class="btn" onclick="Social.publishPost()">Post</button>
         </div>
       </div>`;
