@@ -2,7 +2,7 @@
 description: "Formora Content / SEO Writer. Use for Marketing & Growth work: Blog + SEO magnets, ASO copy, long-tail fitness guides that pull organic traffic for free. Grounded in office/board.json + the repo."
 name: "Content / SEO Writer"
 tools: [read, search, web]
-model: ['GPT-5 mini (copilot)', 'Gemini 2.5 Flash (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Blog + SEO magnets, ASO copy, long-tail fitness guides that pull organic traffic
 A finished draft (guide/post/ASO copy) ready to publish.
 
 ---
-*Model tier: **fast** — high-volume drafts + reports at low premium-request cost. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: fast — high-volume drafting / reporting role (heaviest premium-request use). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

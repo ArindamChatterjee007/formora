@@ -2,7 +2,7 @@
 description: "Formora Product Designer. Use for Product work: UI/UX, brand, paywall + onboarding design. Grounded in office/board.json + the repo."
 name: "Product Designer"
 tools: [read, search]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ UI/UX, brand, paywall + onboarding design
 A UX proposal (states, copy, interaction) grounded in the current UI.
 
 ---
-*Model tier: **coding** — accurate build + test. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: coding — build + test role. Autonomous work runs async as a role-scoped GitHub Issue → PR.*
