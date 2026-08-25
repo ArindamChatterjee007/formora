@@ -831,6 +831,7 @@ const App = {
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     eyeOff: '<path d="M9.9 5.1A9.6 9.6 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-3.4 4.1"/><path d="M6.5 6.6A15.5 15.5 0 0 0 2 12s3.6 7 10 7a9.5 9.5 0 0 0 4-.9"/><path d="M14.1 14.1A3 3 0 1 1 9.9 9.9"/><path d="m2 2 20 20"/>',
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    chevronR: '<path d="M9 6l6 6-6 6"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -840,6 +841,62 @@ const App = {
   // reusable app-branded send button (gradient paper-plane) — comments, reels & DMs
   sendIcon(onclick, extra) {
     return `<button class="send-ico ${extra || ""}" onclick="${onclick}" aria-label="Send" title="Send">${this.ic("send", { size: 18, sw: 2 })}</button>`;
+  },
+  // slide-to-confirm control (iOS "slide to answer" feel) for commit moments. `action` is a live function.
+  _slides: {},
+  _slideN: 0,
+  slideBtn(action, label, opts) {
+    opts = opts || {};
+    const id = "sl" + (++this._slideN);
+    this._slides[id] = action;
+    return `<div class="slidebtn ${opts.cls || ""}" data-sl="${id}" role="button" tabindex="0" aria-label="${esc(opts.aria || label)}">
+        <span class="sb-fill"></span>
+        <span class="sb-track"><span class="sb-label">${esc(label)}</span></span>
+        <span class="sb-thumb">${this.ic("chevronR", { size: 22, sw: 2.4 })}</span>
+      </div>`;
+  },
+  bindSlides() {
+    if (this._slideBound) return; this._slideBound = true;
+    const shell = document.getElementById("app-shell") || document.body;
+    let el = null, id = null, x0 = 0, max = 0, cur = 0, thumb = null, fill = null;
+    const start = (e) => {
+      const t = e.target.closest && e.target.closest(".slidebtn");
+      if (!t || t.classList.contains("done")) return;
+      el = t; id = t.getAttribute("data-sl");
+      thumb = t.querySelector(".sb-thumb"); fill = t.querySelector(".sb-fill");
+      max = t.clientWidth - thumb.offsetWidth - 10; cur = 0; x0 = e.clientX;
+      el.classList.add("sliding");
+      try { t.setPointerCapture(e.pointerId); } catch (_) {}
+    };
+    const move = (e) => {
+      if (!el) return;
+      cur = Math.max(0, Math.min(max, e.clientX - x0));
+      thumb.style.transform = "translateX(" + cur + "px)";
+      fill.style.width = (thumb.offsetWidth + 10 + cur) + "px";
+      if (e.cancelable) e.preventDefault();
+    };
+    const end = () => {
+      if (!el) return;
+      const t = el;
+      if (cur >= max * 0.82) {
+        thumb.style.transform = "translateX(" + max + "px)"; fill.style.width = "100%";
+        t.classList.add("done"); t.classList.remove("sliding");
+        try { navigator.vibrate && navigator.vibrate(18); } catch (_) {}
+        const fn = this._slides[id];
+        setTimeout(() => { if (typeof fn === "function") fn(); }, 200);
+      } else {
+        thumb.style.transform = ""; fill.style.width = ""; t.classList.remove("sliding");
+      }
+      el = null; id = null; cur = 0;
+    };
+    shell.addEventListener("pointerdown", start);
+    shell.addEventListener("pointermove", move, { passive: false });
+    shell.addEventListener("pointerup", end);
+    shell.addEventListener("pointercancel", end);
+    shell.addEventListener("keydown", (e) => {
+      const t = e.target.closest && e.target.closest(".slidebtn");
+      if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); const fn = this._slides[t.getAttribute("data-sl")]; if (typeof fn === "function") fn(); }
+    });
   },
   // password field with a show/hide eye toggle (inline-styled — no new CSS)
   pwField(id, label, ph, ac, meter) {
@@ -1156,6 +1213,7 @@ const App = {
 
   /* ---------------- TODAY ---------------- */
   renderToday() {
+    this._slides = {}; this.bindSlides();
     const el = document.getElementById("view-today");
     // resume an in-progress workout saved earlier today; drop a stale one
     const _draft = Store.state.draftSession;
@@ -1207,9 +1265,9 @@ const App = {
     }
 
     const rec = Engine.recommendSplit();
-    html += `<div class="choice">
-        <button class="btn-big go" onclick="App.startSession('${rec}')">${this.ic("dumbbell", { size: 18 })} Going to the gym<small>Suggested: ${SPLITS[rec].label}</small></button>
-        <button class="btn-big rest" onclick="App.markRest()">${this.ic("moon", { size: 18 })} Rest today<small>Log a recovery day</small></button>
+    html += `<div class="start-wrap">
+        ${this.slideBtn(() => App.startSession(rec), "Slide to start \u00b7 " + SPLITS[rec].label)}
+        <button class="btn-big rest" onclick="App.markRest()" style="margin-top:12px">${this.ic("moon", { size: 18 })} Rest today<small>Log a recovery day</small></button>
       </div>
       <div class="pick-day">
         <span class="pick-label">or pick your day:</span>
@@ -1783,7 +1841,7 @@ const App = {
         <button class="btn ghost wide add-ex-btn" onclick="App.addExercisePicker()">${this.ic("grid", { size: 16 })} Add another exercise — browse with photos</button>
         <button class="btn ghost wide add-ex-btn" style="margin-top:8px" onclick="App.openTextLog()">${this.ic("edit", { size: 16 })} Add by typing what you did</button>
       </div>
-      <button class="btn wide" onclick="App.finishSession()">${this.session.editing ? "Save changes" : "Finish &amp; save workout"}</button>
+      ${this.session.editing ? `<button class="btn wide" onclick="App.finishSession()">Save changes</button>` : this.slideBtn(() => App.finishSession(), "Slide to finish workout")}
       ${this.session.editing ? "" : `<button class="btn ghost wide" style="margin-top:10px" onclick="App.saveProgress()">${this.ic("clock", { size: 16 })} Save &amp; continue later</button>`}
       <button class="btn ghost wide" style="margin-top:10px" onclick="App.cancelSession()">Cancel</button>
     </div>`;
