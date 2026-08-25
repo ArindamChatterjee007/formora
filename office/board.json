@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v150",
+    "liveVersion": "v152",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -431,7 +431,7 @@
   "readiness": {
     "date": "2026-08-25",
     "verdict": "READY TO LAUNCH",
-    "liveVersion": "v150",
+    "liveVersion": "v152",
     "headline": "The product is built, secure, tested and shippable. What's left is the founder's (payment KYC, affiliate signups) + distribution. Ship it.",
     "finalQA": "Live signup → all 6 tabs + AI meal plan + grocery list + workout session + progress + pricing exercised → ZERO console/page errors. Forgot-password E2E (password actually changes), auth UX, live payments, and RLS security all verified this session.",
     "signoffs": [
@@ -448,7 +448,23 @@
     ],
     "founderRemaining": ["Lemon Squeezy store KYC for card/PayPal payouts (T-14)", "₹1 live UPI test", "Join an affiliate program for real T-30 links", "Distribution: post reels + invite the first users (T-19)", "Optional later: buy a domain (T-56), native app rebuild (T-22), T-61 full spacing pass (with visual review)"]
   },
+  "uxReview": {
+    "date": "2026-08-26",
+    "verdict": "PREMIUM — GO (not basic)",
+    "trigger": "Founder: 'call everyone from the AI office, every team incl. marketing, judge whether the UI/UX is good or bad, fix wherever it doesn't look good — premium UI/UX'.",
+    "signoffs": [
+      { "role": "Design (CDO)", "verdict": "PREMIUM", "note": "Strong brand system (dark + orange gradient, one SVG icon language, card system) + rich micro-interactions (confetti win-moment, slide-to-confirm, count-up stats, direction-aware view transitions). Reads premium, not basic." },
+      { "role": "Product (VP)", "verdict": "GO", "note": "Overview is now a calm dashboard — 'just start' (clean slide-to-start), with the split suggestion + coach's read moved to Today (after you commit). Correct mental model, matches the founder's ask." },
+      { "role": "Engineering (CTO)", "verdict": "GO (with caveat)", "note": "Clean renders, ZERO JS errors; the slide control is hardened (window-level drag, reliable first-drag). CAVEAT: JS/CSS budgets are at the ceiling (JS ~1.5KB / CSS ~0.3KB free) — a code-split is REQUIRED before the next sizeable UI feature." },
+      { "role": "QA", "verdict": "GO", "note": "All screens render; overview slides fire (verified nav), Today slide→finish→confetti+toast verified, labels no longer truncate. Zero errors." },
+      { "role": "CMO / Growth / Marketing", "verdict": "GO", "note": "In-app is screenshot-worthy for reels (premium cards, confetti, slide). The broken mobile install banner (now fixed) was hurting the install CTA. Landing first-impression is clean + on-brand." },
+      { "role": "CEO", "verdict": "GO", "note": "Looks and feels premium. Ship. Remaining polish is incremental." }
+    ],
+    "fixed": ["Overview no longer pushes a split ('Ready when you are' + Slide-to-start); suggestion moved to Today (v152)", "Slide-to-confirm on the 3 primary CTAs: start workout, plan meals, unlock Pro (v152)", "Slide label centering — was truncating in narrow cards (v152)", "Mobile download banner text wrapping fixed — 'Get the app' + nowrap (v152)"],
+    "remaining": ["JS/CSS code-split to reclaim budget (blocks further UI polish) — CTO P1", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
+  },
   "activity": [
+    { "ts": "2026-08-26", "role": "design", "text": "🎨 WHOLE-OFFICE UI/UX REVIEW + PREMIUM FIXES (v152, founder: 'call everyone incl. marketing, judge good/bad, fix what doesn't look premium'). Reviewed the key screens live at mobile 390px, role by role (full verdicts in board.uxReview). VERDICT: PREMIUM — not basic (strong brand system + rich micro-interactions). FIXED this pass: (1) OVERVIEW no longer pushes a split — 'Today's training' now reads 'Ready when you are — your session, your call.' with a clean SLIDE-TO-START; the split suggestion + coach's read moved to Today (after you commit), exactly as the founder wanted; (2) SLIDE-TO-CONFIRM on all 3 primary CTAs (start workout / plan meals / unlock Pro); (3) fixed the slide LABEL centering (was truncating in narrow cards); (4) fixed the MOBILE DOWNLOAD BANNER (text wrapped to 'Get/th/Fo/app' → 'Get the app' + nowrap). Verified live: overview slide fires nav, labels not truncated, zero errors. CTO FLAG: JS/CSS budgets at the ceiling — a code-split is required before more UI. liveVersion v152." },
     { "ts": "2026-08-26", "role": "design", "text": "🎚️ SLIDE-TO-CONFIRM CONTROLS (T-67, v149-v150) — founder: 'instead of a direct button, use a sliding button like picking up a call — that looks premium'. Built a reusable iOS-style slide-to-confirm (App.slideBtn + bindSlides): drag the white thumb across → accent fill tracks the finger → release past 80% fires the action + haptic; keyboard Enter fallback. Applied to the two COMMIT moments: 'Slide to start · <split>' + 'Slide to finish workout' (pairs with the confetti). NOT on nav/pay (friction). Hardened with WINDOW-level drag listeners so the FIRST drag is reliable (a delegated-only version intermittently missed it). TESTED live end-to-end on v150: start→startSession; finish→workout saved + confetti + toast + streak→1d. Also ran the T-61 spacing AUDIT first (honest): the app uses a deliberate 2px rhythm + content spacing already reads clean at mobile → a blind full spacing-refactor = invisible churn + regression risk, so we did the higher-impact slide UX instead; T-61 full pass stays a per-screen tidy with the founder. liveVersion v150." },
     { "ts": "2026-08-25", "role": "design", "text": "🎨 SPRINT-7 PREMIUM TAIL SHIPPED (founder away, 'complete all five now, I should see everything done'): T-58 PAYWALL REDESIGN (v147) — the money screen now has annual 'Save 48%/38%' pills (drive LTV), de-emphasized 'Everything in' rows so net-new value pops, an elevated featured Pro card (gradient wash + glow), and a single SOLID Pro CTA with Elite as a ghost. T-64 DELIGHT (v148) — the previously-SILENT workout-finish now fires a tasteful confetti celebration + a success toast (the app's biggest win-moment); skeleton loaders honestly SKIPPED (feed is synchronous + app already rich in micro-interactions). T-57 CLOSED done-by-design (chrome=icons, human accents=emoji = the intended one visual language). T-62 AUDIT pass done (findings→fixes landed in T-58/T-64). T-54 QA RE-RUN CLEAN post-v147/v148: all 6 tabs + Coach sub-views + pricing render with ZERO JS errors, verified live. liveVersion v148. Every one of the five tasks the founder listed is DONE + tested. Remaining Sprint-7 item: only T-61 full spacing refactor (to be done WITH the founder — needs per-screen visual review)." },
     { "ts": "2026-08-25", "role": "cfo", "text": "💳 LEMON SQUEEZY KYC SUBMITTED (T-14) — founder completed the business-details step: website (the live Formora app URL) + a 2-3 sentence product description (AI physique-coaching web app; AI workout + meal plans + grocery + progress + social feed; discovered via Google/Instagram/referrals; recurring monthly/annual Pro $7.99 / Elite $19.99 subscription). Both answers were grounded to match the live pricing page so the reviewer sees consistency. LS returned 'Account onboarded — we will review the information you submitted.' Now under LS/Stripe review. NEXT (eng, unblocked on approval): create the LS webhook in the store dashboard, set LS_WEBHOOK_SECRET in Supabase, and the already-deployed billing-webhook flips global card/PayPal to real auto-unlocking payouts — no code change. India UPI already takes real money. This clears the CFO's one GO-conditional." },
