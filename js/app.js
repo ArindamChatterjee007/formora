@@ -697,7 +697,7 @@ const App = {
     const cloudOn = Social.cloudActive();
     const reels = cloudOn ? Social.cloud.feed.filter((p) => p.video && Social._canSeePost(p)) : [];
     if (!reels.length) {
-      el.innerHTML = `<div class="flex-empty"><div class="flex-empty-ic">🎬</div><h2>No Flex videos yet</h2><p class="sub">Record a Flex from the Home feed and it'll show up here to scroll — like Reels, but yours.</p><button class="btn" onclick="App.selectTab('home');Social.pickReel()">Record a Flex 💪</button></div>`;
+      el.innerHTML = this.emptyState("film", "No Flex videos yet", "Record a Flex from the Home feed and it'll show here to scroll — like Reels, but yours.", `<button class="btn" onclick="App.selectTab('home');Social.pickReel()">Record a Flex</button>`);
       if (this._reelObs) { this._reelObs.disconnect(); this._reelObs = null; }
       return;
     }
@@ -864,6 +864,15 @@ const App = {
     const show = inp.type === "password";
     inp.type = show ? "text" : "password";
     if (btn) { btn.innerHTML = this.ic(show ? "eyeOff" : "eye", { size: 18 }); btn.setAttribute("aria-label", show ? "Hide password" : "Show password"); }
+  },
+  // premium empty state: gradient icon badge + title + subtext + optional CTA (inline-styled, no new CSS)
+  emptyState(icon, title, sub, cta) {
+    return `<div style="text-align:center;padding:40px 20px 32px">
+      <div style="width:62px;height:62px;margin:0 auto 15px;border-radius:19px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,157,77,.16),rgba(255,61,127,.14));color:var(--accent)">${this.ic(icon, { size: 28 })}</div>
+      <div style="font-weight:800;font-size:16.5px;margin-bottom:5px">${esc(title)}</div>
+      <div class="sub" style="max-width:290px;margin:0 auto;line-height:1.5">${esc(sub)}</div>
+      ${cta ? `<div style="margin-top:16px">${cta}</div>` : ""}
+    </div>`;
   },
 
   // ---- Flex comments: in-app bottom sheet (no navigation away) ----
@@ -2866,7 +2875,7 @@ const App = {
   },
   renderNotifPanel() {
     const list = Social.cloud.notifs || [];
-    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : `<div class="sub" style="padding:28px;text-align:center">No activity yet. Likes, comments and new connections show up here 🔔</div>`;
+    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : this.emptyState("bell", "No activity yet", "Likes, comments and new connections will show up here.");
     const el = document.getElementById("notif-list");
     if (el) el.innerHTML = body;
   },
