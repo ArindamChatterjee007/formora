@@ -591,6 +591,10 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .ptier .btn{ margin-top:auto; }
 .pricing .pt-foot{ text-align:center; color:var(--muted); font-size:12px; margin-top:14px; }
 @media(max-width:640px){ .ptiers{ grid-template-columns:1fr; } }
+/* Win-moment confetti (T-64) */
+.confetti{ position:fixed; inset:0; pointer-events:none; z-index:9998; overflow:hidden; }
+.confetti i{ position:absolute; top:-6vh; width:9px; height:14px; border-radius:2px; opacity:0; animation:confettiFall linear forwards; }
+@keyframes confettiFall{ 0%{opacity:0; transform:translateY(-12vh) rotate(0)} 10%{opacity:1} 100%{opacity:.85; transform:translateY(110vh) rotate(600deg)} }
 /* Pro training programme (T-38) */
 .program-cta .hc-badge{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .program{ display:flex; flex-direction:column; gap:12px; }
