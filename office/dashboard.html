@@ -146,6 +146,9 @@
     <div class="section-h">Sprint board</div>
     <div class="board" id="board"></div>
 
+    <div class="section-h">🤖 AI Agents — 27 role-agents on Copilot Premium (multi-model)</div>
+    <div id="agents"></div>
+
     <div class="section-h">🏢 The company — every seat is a Copilot agent</div>
     <div id="org"></div>
 
@@ -231,6 +234,23 @@
       return `<div class="deptc"><h4>${esc(tm)}<span class="cnt">${m.length}</span></h4>`+m.map(r=>`<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)}${r.level==='lead'?'<span class="lead">LEAD</span>':''}</div><div class="pd">${esc(r.does)}</div></div></div>`).join('')+`</div>`; }).join('')+'</div>';
     el.innerHTML=csuite+depts;
   }
+  function renderAgents(b){
+    const el=document.getElementById('agents'); if(!el||!b.agents){ if(el) el.style.display='none'; return; }
+    const A=b.agents, R=A.roster||[];
+    const tc={reasoning:'#c084fc',coding:'#38bdf8',fast:'#34d399'};
+    const counts=R.reduce((a,x)=>{a[x.tier]=(a[x.tier]||0)+1;return a},{});
+    const legend=Object.keys(A.tiers||{}).map(t=>`<span class="st" style="background:${tc[t]}22;color:${tc[t]};border:1px solid ${tc[t]}66;margin:0 6px 4px 0;display:inline-block">${t} ×${counts[t]||0} — ${esc(A.tiers[t])}</span>`).join('');
+    const head=`<div class="panel" style="margin-bottom:12px"><div style="font-size:12.5px;color:var(--sub);line-height:1.55">${esc(A.engine)}</div><div style="margin-top:10px;font-size:11px">${legend}</div></div>`;
+    const order=['Executive','Finance','Business Intelligence','Sales & Partnerships','Marketing & Growth','Product','Engineering'];
+    const teams=Array.from(new Set(R.map(x=>roleOf(b,x.key).team||'Other'))).sort((a,c)=>(order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(c)<0?99:order.indexOf(c)));
+    const depts='<div class="depts">'+teams.map(tm=>{
+      const mem=R.filter(x=>(roleOf(b,x.key).team||'Other')===tm);
+      return `<div class="deptc"><h4>${esc(tm)}<span class="cnt">${mem.length}</span></h4>`+mem.map(x=>{ const r=roleOf(b,x.key); const c=tc[x.tier]||'#888';
+        const st=x.status==='working'?'● working':x.status==='blocked'?'⛔ blocked':'idle';
+        return `<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)} <span style="color:${c};font-size:10px;border:1px solid ${c}66;border-radius:6px;padding:1px 5px">${x.tier}</span></div><div class="pd">${x.task?esc(x.task):esc(r.does)}</div><div style="font-size:10.5px;color:var(--sub);margin-top:2px">${st}${x.grounds?' · grounds: '+x.grounds.map(esc).join(', '):''}</div></div></div>`;
+      }).join('')+`</div>`; }).join('')+'</div>';
+    el.innerHTML=head+depts;
+  }
   function render(b){
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
@@ -256,7 +276,7 @@
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
     // goals + finance + org
-    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderOrg(b);
+    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderAgents(b); renderOrg(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed

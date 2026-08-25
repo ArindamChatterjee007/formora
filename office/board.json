@@ -38,6 +38,43 @@
     { "key": "qaux",    "title": "UX / Functional QA", "emoji": "🕵️", "team": "Engineering", "level": "ic", "reports": "qalead", "does": "Hunts small UX/functional bugs — overlaps, dead taps, double-sound, device layout — before the founder sees them" },
     { "key": "devops",  "title": "DevOps / SRE",                   "emoji": "🚀", "team": "Engineering",            "level": "ic",   "reports": "cto",     "does": "CI/CD, promotions, deploys, verifies live" }
   ],
+  "agents": {
+    "engine": "GitHub Copilot Premium (multi-model gateway) — each role-agent runs on its own best-fit MODEL, chosen in the VS Code model picker / its .agent.md. Autonomous overnight work = role-scoped GitHub Issues worked ASYNC by the GitHub Copilot coding agent → PRs. An LLM API (Anthropic/OpenAI/GitHub Models) can be swapped in later for true 24/7 unsupervised loops.",
+    "tiers": {
+      "reasoning": "Opus / GPT-reasoning class — deep judgment (strategy, finance, architecture). Higher premium-request cost.",
+      "coding": "Sonnet / coding-class — accurate build + test.",
+      "fast": "mini / flash / haiku-class — high-volume drafts/reports, low premium-request cost."
+    },
+    "roster": [
+      { "key": "ceo",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["board", "budget", "growthPlan"] },
+      { "key": "coo",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["board", "activity"] },
+      { "key": "cfo",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["budget", "business"] },
+      { "key": "finance",    "tier": "reasoning", "status": "idle", "task": "", "grounds": ["budget"] },
+      { "key": "bi",         "tier": "reasoning", "status": "idle", "task": "", "grounds": ["PostHog", "kpis"] },
+      { "key": "analyst",    "tier": "fast",      "status": "idle", "task": "", "grounds": ["PostHog", "funnel"] },
+      { "key": "vpsales",    "tier": "reasoning", "status": "idle", "task": "", "grounds": ["business", "roadmap"] },
+      { "key": "sales",      "tier": "fast",      "status": "idle", "task": "", "grounds": ["playbooks"] },
+      { "key": "bizdev",     "tier": "fast",      "status": "idle", "task": "", "grounds": ["assets"] },
+      { "key": "cmo",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["growthPlan", "playbooks"] },
+      { "key": "growth",     "tier": "fast",      "status": "idle", "task": "", "grounds": ["growthPlan"] },
+      { "key": "social",     "tier": "fast",      "status": "idle", "task": "", "grounds": ["playbooks"] },
+      { "key": "content",    "tier": "fast",      "status": "idle", "task": "", "grounds": ["guides", "assets.aso"] },
+      { "key": "paid",       "tier": "fast",      "status": "idle", "task": "", "grounds": ["budget", "kpis"] },
+      { "key": "influencer", "tier": "fast",      "status": "idle", "task": "", "grounds": ["assets.influencerProgram"] },
+      { "key": "lifecycle",  "tier": "fast",      "status": "idle", "task": "", "grounds": ["assets.lifecycleMessaging"] },
+      { "key": "pm",         "tier": "reasoning", "status": "idle", "task": "", "grounds": ["board", "roadmap"] },
+      { "key": "req",        "tier": "coding",    "status": "idle", "task": "", "grounds": ["board"] },
+      { "key": "design",     "tier": "coding",    "status": "idle", "task": "", "grounds": ["repo", "uxReview"] },
+      { "key": "cto",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["repo", "ARCHITECTURE"] },
+      { "key": "architect",  "tier": "reasoning", "status": "idle", "task": "", "grounds": ["repo"] },
+      { "key": "eng",        "tier": "coding",    "status": "idle", "task": "", "grounds": ["repo"] },
+      { "key": "qalead",     "tier": "reasoning", "status": "idle", "task": "", "grounds": ["repo", "tests"] },
+      { "key": "qa",         "tier": "coding",    "status": "idle", "task": "", "grounds": ["repo"] },
+      { "key": "qaint",      "tier": "coding",    "status": "idle", "task": "", "grounds": ["repo"] },
+      { "key": "qaux",       "tier": "coding",    "status": "idle", "task": "", "grounds": ["live app"] },
+      { "key": "devops",     "tier": "coding",    "status": "idle", "task": "", "grounds": ["CI", "pipeline"] }
+    ]
+  },
   "columns": [
     { "key": "backlog",     "title": "Backlog" },
     { "key": "todo",        "title": "To Do" },
