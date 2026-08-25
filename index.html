@@ -20,7 +20,7 @@
   <meta property="og:title" content="Formora — Build your dream physique" />
   <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
-  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=153" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=154" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Formora — Build your dream physique" />
@@ -28,12 +28,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
   <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
-  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=153" />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=154" />
   <!-- Structured data for search engines -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
-  <link rel="manifest" href="manifest.webmanifest?v=153" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=153" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=153" />
+  <link rel="manifest" href="manifest.webmanifest?v=154" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=154" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=154" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -42,7 +42,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 153;
+      var V = 154;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=153" />
+  <link rel="stylesheet" href="css/styles.css?v=154" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -100,6 +100,27 @@
     @keyframes laFade { to{opacity:.9} }
     @keyframes laLoad { 0%{transform:translateX(-120%)} 100%{transform:translateX(320%)} }
     @media (prefers-reduced-motion: reduce){ #launch .la-inner,#launch .la-mark,#launch .la-tag{animation-duration:.01ms} #launch .la-bar i{animation:none;width:100%} }
+
+    /* ===== mode-switch transition (slide-to-confirm -> enter a mode) ===== */
+    .mode-switch { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center;
+      background: radial-gradient(130% 120% at 50% 40%, #2a1016 0%, #14090d 45%, #0e0f13 100%); animation: msIn .26s ease both; }
+    .mode-switch.out { animation: msOut .34s ease forwards; }
+    .mode-switch .ms-inner { text-align: center; animation: msPop .5s cubic-bezier(.2,.85,.25,1.1) both; }
+    .mode-switch .ms-ring { width: 96px; height: 96px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, rgba(255,157,77,.22), rgba(255,61,127,.16)); box-shadow: 0 14px 44px rgba(255,90,77,.42); }
+    .mode-switch .ms-ring::after { content: ""; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 32%, rgba(255,255,255,.4), transparent 68%); transform: translateX(-120%); animation: msSweep .7s .12s ease forwards; }
+    .mode-switch .ms-ring svg { color: #fff; filter: drop-shadow(0 4px 14px rgba(255,90,77,.6)); position: relative; z-index: 1; }
+    .mode-switch .ms-label { margin-top: 18px; font-family: Outfit, system-ui, sans-serif; font-weight: 800; font-size: 25px; letter-spacing: .5px;
+      background: linear-gradient(135deg,#ff9d4d,#ff3d7f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .mode-switch .ms-sub { color: #ff9d7a; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-top: 7px; opacity: 0; animation: laFade .5s ease .3s forwards; }
+    .mode-switch .ms-bar { width: 120px; height: 3px; border-radius: 999px; margin: 20px auto 0; background: rgba(255,255,255,.14); overflow: hidden; }
+    .mode-switch .ms-bar i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg,#ff9d4d,#ff3d7f); animation: msBar .6s .05s cubic-bezier(.4,0,.2,1) forwards; }
+    @keyframes msIn { from{opacity:0} to{opacity:1} }
+    @keyframes msOut { from{opacity:1} to{opacity:0} }
+    @keyframes msPop { 0%{opacity:0;transform:scale(.82) translateY(12px)} 60%{opacity:1;transform:scale(1.04)} 100%{transform:scale(1) translateY(0)} }
+    @keyframes msSweep { to{transform:translateX(120%)} }
+    @keyframes msBar { to{width:100%} }
+    @media (prefers-reduced-motion: reduce){ .mode-switch .ms-inner{animation-duration:.01ms} .mode-switch .ms-ring::after,.mode-switch .ms-bar i{animation:none} }
 
     /* About card in Profile */
     .about-card { text-align: center; }
@@ -222,18 +243,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=153"></script>
-  <script src="js/data.js?v=153"></script>
-  <script src="js/exercises.js?v=153"></script>
-  <script src="js/storage.js?v=153"></script>
-  <script src="js/engine.js?v=153"></script>
-  <script src="js/charts.js?v=153"></script>
-  <script src="js/nutrition.js?v=153"></script>
-  <script src="js/auth.js?v=153"></script>
-  <script src="js/social.js?v=153"></script>
-  <script src="js/cloud.js?v=153"></script>
-  <script src="js/entitlements.js?v=153"></script>
-  <script src="js/supaauth.js?v=153"></script>
+  <script src="js/config.js?v=154"></script>
+  <script src="js/data.js?v=154"></script>
+  <script src="js/exercises.js?v=154"></script>
+  <script src="js/storage.js?v=154"></script>
+  <script src="js/engine.js?v=154"></script>
+  <script src="js/charts.js?v=154"></script>
+  <script src="js/nutrition.js?v=154"></script>
+  <script src="js/auth.js?v=154"></script>
+  <script src="js/social.js?v=154"></script>
+  <script src="js/cloud.js?v=154"></script>
+  <script src="js/entitlements.js?v=154"></script>
+  <script src="js/supaauth.js?v=154"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -244,7 +265,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=153";
+          s.src = "js/mod/camera.js?v=154";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -256,7 +277,7 @@
       }
     };
   </script>
-  <script src="js/mailer.js?v=153"></script>
-  <script src="js/app.js?v=153"></script>
+  <script src="js/mailer.js?v=154"></script>
+  <script src="js/app.js?v=154"></script>
 </body>
 </html>
