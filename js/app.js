@@ -1031,7 +1031,7 @@ const App = {
     const wrap = document.getElementById("wrap");
     if (!wrap) return;
     let x0 = null, y0 = null, t0 = 0, dir = 0, view = null, w = 0;
-    const blocked = (el) => el && el.closest && el.closest(".carousel, .chat-thread, .composer-photos, input, textarea, select, .social-subnav, .coach-subnav, .vp-tabs");
+    const blocked = (el) => el && el.closest && el.closest(".carousel, .chat-thread, .composer-photos, input, textarea, select, .social-subnav, .coach-subnav, .vp-tabs, .slidebtn");
     const clear = (v) => { if (v) { v.style.transition = ""; v.style.transform = ""; v.style.opacity = ""; } };
     wrap.addEventListener("touchstart", (e) => {
       if (e.touches.length !== 1 || blocked(e.target)) { x0 = null; return; }
