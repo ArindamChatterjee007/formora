@@ -848,7 +848,7 @@ const App = {
   slideBtn(action, label, opts) {
     opts = opts || {};
     const id = "sl" + (++this._slideN);
-    this._slides[id] = action;
+    this._slides[id] = { fn: action, tr: opts.tr || null };
     return `<div class="slidebtn ${opts.cls || ""}" data-sl="${id}" role="button" tabindex="0" aria-label="${esc(opts.aria || label)}">
         <span class="sb-fill"></span>
         <span class="sb-track"><span class="sb-label">${esc(label)}</span></span>
@@ -877,8 +877,8 @@ const App = {
         thumb.style.transform = "translateX(" + max + "px)"; fill.style.width = "100%";
         t.classList.add("done"); t.classList.remove("sliding");
         try { navigator.vibrate && navigator.vibrate(18); } catch (_) {}
-        const fn = this._slides[id];
-        setTimeout(() => { if (typeof fn === "function") fn(); }, 180);
+        const s = this._slides[id];
+        setTimeout(() => { if (s && s.tr) this._modeTransition(s.tr, s.fn); else if (s && typeof s.fn === "function") s.fn(); }, 180);
       } else {
         thumb.style.transform = ""; fill.style.width = ""; t.classList.remove("sliding");
       }
@@ -898,8 +898,20 @@ const App = {
     shell.addEventListener("pointerdown", start);
     shell.addEventListener("keydown", (e) => {
       const t = e.target.closest && e.target.closest(".slidebtn");
-      if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); const fn = this._slides[t.getAttribute("data-sl")]; if (typeof fn === "function") fn(); }
+      if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); const s = this._slides[t.getAttribute("data-sl")]; if (s && s.tr) this._modeTransition(s.tr, s.fn); else if (s && typeof s.fn === "function") s.fn(); }
     });
+  },
+  // premium "switching into <mode>" transition when a slide-to-confirm commits (echoes the launch animation)
+  _modeTransition(tr, cb) {
+    if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) { if (typeof cb === "function") cb(); return; }
+    const o = document.createElement("div");
+    o.className = "mode-switch";
+    o.innerHTML = `<div class="ms-inner"><div class="ms-ring">${this.ic(tr.icon || "dumbbell", { size: 46 })}</div><div class="ms-label">${esc(tr.label || "")}</div>${tr.sub ? `<div class="ms-sub">${esc(tr.sub)}</div>` : ""}<div class="ms-bar"><i></i></div></div>`;
+    document.body.appendChild(o);
+    try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
+    setTimeout(() => { try { if (typeof cb === "function") cb(); } catch (_) {} }, 500);
+    setTimeout(() => o.classList.add("out"), 780);
+    setTimeout(() => { if (o.parentNode) o.remove(); }, 1120);
   },
   // password field with a show/hide eye toggle (inline-styled — no new CSS)
   pwField(id, label, ph, ac, meter) {
@@ -1118,7 +1130,7 @@ const App = {
     const programCard = `<div class="card program-cta">
         <div class="hc-head"><h2>Your training program</h2><span class="hc-badge">${isPro ? "Pro" : "Pro \u2728"}</span></div>
         <div class="hc-line">A periodised 4-week plan for your <b>${esc(phys.name)}</b> goal \u2014 ${ep.freq} days/week, auto-progressed each week.</div>
-        <div class="hc-actions">${this.slideBtn(() => App.openProgram(), isPro ? "Slide to view program" : "Slide to unlock Pro")}</div>
+        <div class="hc-actions">${this.slideBtn(() => App.openProgram(), isPro ? "Slide to view program" : "Slide to unlock Pro", { tr: { label: isPro ? "Your Program" : "Formora Pro", icon: "target", sub: isPro ? "TRAIN" : "UNLOCK" } })}</div>
       </div>`;
 
     el.innerHTML = `
@@ -1152,7 +1164,7 @@ const App = {
           <div class="hc-head"><h2>Today's training</h2><span class="hc-badge">${trainBadge}</span></div>
           <div class="hc-line">${trainStatus}</div>
           <div class="hc-actions">
-            ${done || isRest ? `<button class="btn wide" onclick="App.goTab('today')">Open Today</button>` : this.slideBtn(() => App.goTab('today'), "Slide to start workout")}
+            ${done || isRest ? `<button class="btn wide" onclick="App.goTab('today')">Open Today</button>` : this.slideBtn(() => App.goTab('today'), "Slide to start workout", { tr: { label: "Workout", icon: "dumbbell", sub: "TRAIN" } })}
           </div>
         </div>
 
@@ -1163,7 +1175,7 @@ const App = {
           <div class="bar"><div class="bar-f pro" data-w="${proPct}" style="width:0"></div></div>
           <div class="bar-l"><span>Protein</span><span>${eatenP} / ${s.proteinG}g</span></div>
           <div class="hc-actions">
-            ${this.slideBtn(() => App.goTab('nutrition'), "Slide to plan meals")}
+            ${this.slideBtn(() => App.goTab('nutrition'), "Slide to plan meals", { tr: { label: "Meal Plan", icon: "apple", sub: "FUEL" } })}
           </div>
         </div>
       </div>
@@ -1270,7 +1282,7 @@ const App = {
 
     const rec = Engine.recommendSplit();
     html += `<div class="start-wrap">
-        ${this.slideBtn(() => App.startSession(rec), "Slide to start \u00b7 " + SPLITS[rec].label)}
+        ${this.slideBtn(() => App.startSession(rec), "Slide to start \u00b7 " + SPLITS[rec].label, { tr: { label: SPLITS[rec].label, icon: "dumbbell", sub: "TRAIN" } })}
         <button class="btn-big rest" onclick="App.markRest()" style="margin-top:12px">${this.ic("moon", { size: 18 })} Rest today<small>Log a recovery day</small></button>
       </div>
       <div class="pick-day">
