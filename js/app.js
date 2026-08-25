@@ -874,11 +874,13 @@ const App = {
       if (!el) return;
       const t = el;
       if (cur >= max * 0.8) {
-        thumb.style.transform = "translateX(" + max + "px)"; fill.style.width = "100%";
+        const th = thumb, fl = fill;
+        th.style.transform = "translateX(" + max + "px)"; fl.style.width = "100%";
         t.classList.add("done"); t.classList.remove("sliding");
         try { navigator.vibrate && navigator.vibrate(18); } catch (_) {}
         const s = this._slides[id];
         setTimeout(() => { if (s && s.tr) this._modeTransition(s.tr, s.fn); else if (s && typeof s.fn === "function") s.fn(); }, 180);
+        setTimeout(() => { t.classList.remove("done"); th.style.transform = ""; fl.style.width = ""; }, 700);
       } else {
         thumb.style.transform = ""; fill.style.width = ""; t.classList.remove("sliding");
       }
