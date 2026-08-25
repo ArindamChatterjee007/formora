@@ -583,7 +583,7 @@ const Social = {
       const visible = this._rankFeed(this.cloud.feed.filter((p) => this._canSeePost(p)));
       const posts = visible.map((p) => this.postCard(this._cloudPost(p))).join("");
       return this.storiesRow() + composer + (visible.length ? posts
-        : `<div class="card"><div class="sub" style="text-align:center;padding:22px 6px">No posts yet — share your first update above and your crew will see it 💪</div></div>`);
+        : `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}</div>`);
     }
     return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
   },
