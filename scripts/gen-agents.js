@@ -22,17 +22,19 @@ const roles = board.roles || [];
 const roster = (board.agents && board.agents.roster) || [];
 const roleOf = k => roles.find(r => r.key === k) || { key: k, title: k, emoji: '\u2022', team: 'Other', does: '', level: 'ic' };
 
-// tier -> model fallback array. First model available in the user's Copilot
-// Premium plan is used; the last entry is a safe, widely-available fallback.
+// Founder directive (2026-08-26): every agent runs on Claude Opus 4.8 for maximum
+// quality. Fallback (older Opus -> Sonnet) applies only if 4.8 isn't in the plan.
+// To protect premium-request quota later, give a tier a cheaper model here + regen.
+const OPUS = ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)'];
 const MODEL = {
-  reasoning: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)'],
-  coding:    ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)'],
-  fast:      ['GPT-5 mini (copilot)', 'Gemini 2.5 Flash (copilot)', 'Claude Sonnet 4.5 (copilot)']
+  reasoning: OPUS,
+  coding:    OPUS,
+  fast:      OPUS
 };
 const TIER_WHY = {
-  reasoning: 'deep judgment (strategy / finance / architecture)',
-  coding:    'accurate build + test',
-  fast:      'high-volume drafts + reports at low premium-request cost'
+  reasoning: 'deep-judgment role (strategy / finance / architecture)',
+  coding:    'build + test role',
+  fast:      'high-volume drafting / reporting role (heaviest premium-request use)'
 };
 
 // role key / team -> tool aliases
@@ -140,7 +142,7 @@ ${role.does || 'Advance the office toward the North Star.'}
 ${OUTPUT[role.key] || 'A concise, grounded recommendation with the reasoning.'}
 
 ---
-*Model tier: **${tier}** \u2014 ${TIER_WHY[tier]}. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue \u2192 PR.*
+*Model: **${MODEL[tier][0].replace(' (copilot)', '')}** via GitHub Copilot Premium. Role nature: ${tier} \u2014 ${TIER_WHY[tier]}. Autonomous work runs async as a role-scoped GitHub Issue \u2192 PR.*
 `;
 }
 

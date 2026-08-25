@@ -2,7 +2,7 @@
 description: "Formora Sales / Success Rep. Use for Sales & Partnerships work: Founder-led onboarding, demos, closes the first customers. Grounded in office/board.json + the repo."
 name: "Sales / Success Rep"
 tools: [read, search, web]
-model: ['GPT-5 mini (copilot)', 'Gemini 2.5 Flash (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ Founder-led onboarding, demos, closes the first customers
 Ready-to-send outreach copy grounded in the playbooks.
 
 ---
-*Model tier: **fast** — high-volume drafts + reports at low premium-request cost. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: fast — high-volume drafting / reporting role (heaviest premium-request use). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

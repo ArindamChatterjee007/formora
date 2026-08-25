@@ -13,17 +13,17 @@ Instead of one AI role-playing everyone, every seat in the company is a **separa
 
 ## The backend — what model each agent uses
 
-The engine is **GitHub Copilot Premium (multi-model)**. It is *not* one model — it's a gateway, and each agent is pinned (with fallback) to the tier that fits its job:
+The engine is **GitHub Copilot Premium**, and — per your call — **every one of the 27 agents runs on Claude Opus 4.8**, the top model, for maximum quality. The tier column below no longer changes the model; it describes the **role's nature** and how heavily it's used (which is what drives premium-request cost):
 
-| Tier | Model (fallback order) | Who uses it | Why |
-|------|------------------------|-------------|-----|
-| 🧠 **reasoning** | Claude Opus 4.1 → GPT-5 → Sonnet 4.5 | ceo, coo, cfo, finance, bi, vpsales, cmo, pm, cto, architect, qalead (11) | Deep judgment — strategy, finance, architecture. Highest premium-request cost, used sparingly. |
-| 💻 **coding** | Claude Sonnet 4.5 → GPT-5 | req, design, eng, qa, qaint, qaux, devops (7) | Accurate build + test. |
-| ⚡ **fast** | GPT-5 mini → Gemini 2.5 Flash → Sonnet 4.5 | analyst, sales, bizdev, growth, social, content, paid, influencer, lifecycle (9) | High-volume drafts and reports at low premium-request cost. |
+| Tier (role nature) | Model | Who | Note |
+|------|-------|-----|------|
+| 🧠 **reasoning** | **Claude Opus 4.8** | ceo, coo, cfo, finance, bi, vpsales, cmo, pm, cto, architect, qalead (11) | Deep judgment — strategy, finance, architecture. |
+| 💻 **coding** | **Claude Opus 4.8** | req, design, eng, qa, qaint, qaux, devops (7) | Build + test. |
+| ⚡ **fast** | **Claude Opus 4.8** | analyst, sales, bizdev, growth, social, content, paid, influencer, lifecycle (9) | High-volume drafting / reporting — **heaviest premium-request use**. |
 
-Model is set per agent in each `.agent.md` frontmatter as a **fallback array** — the first model available in your plan wins, so the setup survives plan/model changes. Change a tier's models in one place (`scripts/gen-agents.js` → `MODEL`) and regenerate.
+Model is set per agent in each `.agent.md` frontmatter as a **fallback array** (`['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']`) — if 4.8 isn't offered in your plan it degrades to the next-best. Change it in one place (`scripts/gen-agents.js` → `OPUS`) and regenerate.
 
-> **Quota note:** reasoning agents burn premium requests fastest. The tiering is deliberate — most day-to-day volume (marketing drafts, reports, funnel reads) runs on the fast tier so the reasoning budget is reserved for real decisions.
+> **Quota reality:** Opus is the most expensive tier in GitHub Copilot **premium-request** terms. Running all 27 on it — especially the 9 fast-tier marketing/report agents that produce high volume — will use your monthly premium-request allowance much faster than a mixed setup. If you hit the cap, give the `fast` tier a cheaper model in `scripts/gen-agents.js` and regenerate — a one-line change.
 
 ## Two ways the office does work
 

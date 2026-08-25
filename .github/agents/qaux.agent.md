@@ -2,7 +2,7 @@
 description: "Formora UX / Functional QA. Use for Engineering work: Hunts small UX/functional bugs — overlaps, dead taps, double-sound, device layout — before the founder sees them. Grounded in office/board.json + the repo."
 name: "UX / Functional QA"
 tools: [read, search, execute]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ Hunts small UX/functional bugs — overlaps, dead taps, double-sound, device lay
 A UX-QA report from the live app — friction points + severity.
 
 ---
-*Model tier: **coding** — accurate build + test. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: coding — build + test role. Autonomous work runs async as a role-scoped GitHub Issue → PR.*

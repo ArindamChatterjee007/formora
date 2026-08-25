@@ -2,7 +2,7 @@
 description: "Formora Requirements Engineer. Use for Product work: Turns asks into specs + acceptance criteria. Grounded in office/board.json + the repo."
 name: "Requirements Engineer"
 tools: [read, search]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ Turns asks into specs + acceptance criteria
 **Spec:** problem · in/out scope · testable acceptance criteria · deps · effort (S/M/L). Under ~20 lines.
 
 ---
-*Model tier: **coding** — accurate build + test. Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: coding — build + test role. Autonomous work runs async as a role-scoped GitHub Issue → PR.*

@@ -39,11 +39,11 @@
     { "key": "devops",  "title": "DevOps / SRE",                   "emoji": "🚀", "team": "Engineering",            "level": "ic",   "reports": "cto",     "does": "CI/CD, promotions, deploys, verifies live" }
   ],
   "agents": {
-    "engine": "GitHub Copilot Premium (multi-model gateway) — each role-agent runs on its own best-fit MODEL, chosen in the VS Code model picker / its .agent.md. Autonomous overnight work = role-scoped GitHub Issues worked ASYNC by the GitHub Copilot coding agent → PRs. An LLM API (Anthropic/OpenAI/GitHub Models) can be swapped in later for true 24/7 unsupervised loops.",
+    "engine": "GitHub Copilot Premium — every role-agent runs on Claude Opus 4.8 (founder directive: maximum quality for all 27 roles), set per agent in its .agent.md. Autonomous overnight work = role-scoped GitHub Issues worked ASYNC by the GitHub Copilot coding agent → PRs. Note: Opus is the highest premium-request tier, so high-volume agents use the monthly allowance faster — dial a role down in scripts/gen-agents.js if you hit the cap. An LLM API (Anthropic/OpenAI/GitHub Models) can be swapped in later for true 24/7 unsupervised loops.",
     "tiers": {
-      "reasoning": "Opus / GPT-reasoning class — deep judgment (strategy, finance, architecture). Higher premium-request cost.",
-      "coding": "Sonnet / coding-class — accurate build + test.",
-      "fast": "mini / flash / haiku-class — high-volume drafts/reports, low premium-request cost."
+      "reasoning": "Claude Opus 4.8 — deep-judgment roles (strategy, finance, architecture).",
+      "coding": "Claude Opus 4.8 — build + test roles.",
+      "fast": "Claude Opus 4.8 — high-volume drafting/report roles (heaviest premium-request use)."
     },
     "roster": [
       { "key": "ceo",        "tier": "reasoning", "status": "idle", "task": "", "grounds": ["board", "budget", "growthPlan"] },

@@ -2,7 +2,7 @@
 description: "Formora VP Product. Use for Product work: Plans sprints, prioritizes, decides what 'today's work' is. Grounded in office/board.json + the repo."
 name: "VP Product"
 tools: [read, search]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Plans sprints, prioritizes, decides what 'today's work' is
 A prioritized backlog slice with acceptance-ready framing.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

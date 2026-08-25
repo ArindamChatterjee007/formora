@@ -2,7 +2,7 @@
 description: "Formora CEO / Founder. Use for Executive work: Vision, strategy, final calls — represents you, the founder. Grounded in office/board.json + the repo."
 name: "CEO / Founder"
 tools: [read, search, web]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -28,4 +28,4 @@ Vision, strategy, final calls — represents you, the founder
 A decision + the trade-offs, tied to the North Star and current sprint.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

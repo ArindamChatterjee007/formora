@@ -2,7 +2,7 @@
 description: "Formora QA Lead. Use for Engineering work: Owns quality; runs the test plan, triages every bug, signs off releases. Grounded in office/board.json + the repo."
 name: "QA Lead"
 tools: [read, search, execute]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Owns quality; runs the test plan, triages every bug, signs off releases
 A test plan / quality verdict with the risk areas called out.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

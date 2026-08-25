@@ -2,7 +2,7 @@
 description: "Formora VP Sales. Use for Sales & Partnerships work: Owns paid conversion, B2B / white-label, coaching marketplace. Grounded in office/board.json + the repo."
 name: "VP Sales"
 tools: [read, search, web]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Owns paid conversion, B2B / white-label, coaching marketplace
 A pipeline plan — segments, motions, and the next 3 experiments.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
