@@ -2,7 +2,7 @@
 description: "Formora COO / Chief of Staff. Use for Executive work: Runs operations, coordinates every team, keeps the board honest. Grounded in office/board.json + the repo."
 name: "COO / Chief of Staff"
 tools: [read, search, web]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -27,4 +27,4 @@ Runs operations, coordinates every team, keeps the board honest
 A prioritized next-actions list for the office, with owners.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*

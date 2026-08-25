@@ -2,7 +2,7 @@
 description: "Formora Principal Architect. Use for Engineering work: Owns system design + technical direction; signs off each feature's ARCHITECTURE before build (music engine, camera, data model, code-splitting). Grounded in office/board.json + the repo."
 name: "Principal Architect"
 tools: [read, search]
-model: ['Claude Opus 4.1 (copilot)', 'GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']
+model: ['Claude Opus 4.8 (copilot)', 'Claude Opus 4.1 (copilot)', 'Claude Sonnet 4.5 (copilot)']
 user-invocable: true
 ---
 
@@ -26,4 +26,4 @@ Owns system design + technical direction; signs off each feature's ARCHITECTURE 
 An approach with the trade-offs and the smallest safe change.
 
 ---
-*Model tier: **reasoning** — deep judgment (strategy / finance / architecture). Engine: GitHub Copilot Premium (multi-model). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
+*Model: **Claude Opus 4.8** via GitHub Copilot Premium. Role nature: reasoning — deep-judgment role (strategy / finance / architecture). Autonomous work runs async as a role-scoped GitHub Issue → PR.*
