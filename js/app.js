@@ -1095,6 +1095,7 @@ const App = {
   renderHome() {
     const el = document.getElementById("view-home");
     if (!el) return;
+    this._slides = {}; this.bindSlides();
     const p = Store.state.profile;
     const s = Engine.stats();
     const today = todayISO();
@@ -1110,14 +1111,14 @@ const App = {
     const rec = Engine.recommendSplit();
     const trainStatus = done
       ? `Session done ✅ · ${done.exercises.length} exercises`
-      : isRest ? "Rest day 😴 — recovery mode" : `Suggested: ${SPLITS[rec].label}`;
+      : isRest ? "Rest day 😴 — recovery mode" : "Ready when you are — your session, your call.";
     const trainBadge = done ? "Done" : isRest ? "Rest" : "Planned";
     const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
     const ep = Engine.experiencePlan();
     const programCard = `<div class="card program-cta">
         <div class="hc-head"><h2>Your training program</h2><span class="hc-badge">${isPro ? "Pro" : "Pro \u2728"}</span></div>
         <div class="hc-line">A periodised 4-week plan for your <b>${esc(phys.name)}</b> goal \u2014 ${ep.freq} days/week, auto-progressed each week.</div>
-        <div class="hc-actions"><button class="btn" onclick="App.openProgram()">${isPro ? "View my program \u2192" : "Unlock with Pro \u2192"}</button></div>
+        <div class="hc-actions">${this.slideBtn(() => App.openProgram(), isPro ? "Slide to view program" : "Slide to unlock Pro")}</div>
       </div>`;
 
     el.innerHTML = `
@@ -1151,7 +1152,7 @@ const App = {
           <div class="hc-head"><h2>Today's training</h2><span class="hc-badge">${trainBadge}</span></div>
           <div class="hc-line">${trainStatus}</div>
           <div class="hc-actions">
-            <button class="btn" onclick="App.goTab('today')">${done || isRest ? "Open Today" : "Start workout →"}</button>
+            ${done || isRest ? `<button class="btn wide" onclick="App.goTab('today')">Open Today</button>` : this.slideBtn(() => App.goTab('today'), "Slide to start workout")}
           </div>
         </div>
 
@@ -1162,7 +1163,7 @@ const App = {
           <div class="bar"><div class="bar-f pro" data-w="${proPct}" style="width:0"></div></div>
           <div class="bar-l"><span>Protein</span><span>${eatenP} / ${s.proteinG}g</span></div>
           <div class="hc-actions">
-            <button class="btn" onclick="App.goTab('nutrition')">Plan / log meals →</button>
+            ${this.slideBtn(() => App.goTab('nutrition'), "Slide to plan meals")}
           </div>
         </div>
       </div>

@@ -239,10 +239,10 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .pick-day { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .pick-label { font-size: 13px; color: var(--muted); }
 /* Slide-to-confirm (commit actions — start / finish workout) */
-.slidebtn{ position:relative; height:56px; border-radius:999px; background:var(--card2); border:1px solid var(--line); overflow:hidden; user-select:none; touch-action:pan-y; margin-top:16px; cursor:grab; }
+.slidebtn{ position:relative; width:100%; box-sizing:border-box; height:56px; border-radius:999px; background:var(--card2); border:1px solid var(--line); overflow:hidden; user-select:none; touch-action:pan-y; margin-top:16px; cursor:grab; }
 .slidebtn.sliding{ cursor:grabbing; }
 .sb-fill{ position:absolute; left:0; top:0; bottom:0; width:51px; background:linear-gradient(135deg,var(--accent),var(--accent2)); transition:width .16s ease; }
-.sb-track{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+.sb-track{ position:absolute; left:56px; right:12px; top:0; bottom:0; display:grid; place-items:center; pointer-events:none; }
 .sb-label{ font-weight:800; font-size:13.5px; color:#fff; padding:0 16px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; box-sizing:border-box; }
 .sb-thumb{ position:absolute; left:5px; top:5px; width:46px; height:46px; border-radius:50%; background:#fff; color:var(--accent); display:grid; place-items:center; box-shadow:0 4px 12px rgba(0,0,0,.4); transition:transform .16s ease; }
 .slidebtn.sliding .sb-fill, .slidebtn.sliding .sb-thumb{ transition:none; }
