@@ -117,6 +117,19 @@
   .person{ display:flex; gap:9px; padding:8px 0; border-bottom:1px solid var(--line) } .person:last-child{ border-bottom:none }
   .person .pe{ font-size:17px; width:22px; text-align:center; flex:none } .person .pn{ font-weight:700; font-size:13px } .person .pn .lead{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(140deg,var(--g1),var(--g3)); padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:middle } .person .pd{ color:var(--sub); font-size:11px; margin-top:2px; line-height:1.3 }
   @media(max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} .kpis{grid-template-columns:repeat(2,1fr)} .grid2{grid-template-columns:1fr} .goals{grid-template-columns:repeat(2,1fr)} .fin{grid-template-columns:1fr} .fintiles{grid-template-columns:1fr} .depts{grid-template-columns:1fr} }
+  /* ===== tabbed navigation ===== */
+  .tabs{ position:sticky; top:0; z-index:60; display:flex; gap:7px; overflow-x:auto; padding:11px 30px; margin:0 -30px 22px; background:rgba(11,12,16,.8); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:1px solid var(--line); scrollbar-width:none }
+  .tabs::-webkit-scrollbar{ display:none }
+  .tab{ font-family:inherit; font-size:14px; font-weight:700; color:var(--sub); background:transparent; border:1px solid transparent; border-radius:999px; padding:9px 16px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; transition:background .18s,color .18s,box-shadow .18s; flex:none }
+  .tab:hover{ color:var(--ink); background:rgba(255,255,255,.05) }
+  .tab.active{ color:#fff; background:linear-gradient(140deg,var(--g1),var(--g2) 55%,var(--g3)); box-shadow:0 10px 24px -10px rgba(255,90,77,.7) }
+  .tab .cnt{ font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; background:rgba(255,255,255,.14); padding:1px 7px; border-radius:999px; min-width:20px; text-align:center }
+  .tab.active .cnt{ background:rgba(255,255,255,.25) }
+  .tabpane{ display:none }
+  .tabpane.active{ display:block; animation:paneIn .34s ease both }
+  @keyframes paneIn{ from{opacity:0; transform:translateY(9px)} to{opacity:1; transform:none} }
+  .tabpane > .section-h:first-child{ margin-top:4px }
+  @media(max-width:640px){ body{padding:16px 16px 50px} header{margin-bottom:14px} .tabs{margin:0 -16px 18px; padding:10px 16px} .tab{font-size:13px; padding:8px 13px} .goals{grid-template-columns:1fr} .tiers{grid-template-columns:1fr} h1{font-size:21px} h1 span{font-size:13px} }
 </style>
 </head>
 <body>
@@ -127,41 +140,60 @@
       <h1>Formora <span class="grad" style="font-size:26px;-webkit-text-fill-color:transparent">AI Agent Office</span><span id="sub"></span></h1>
       <div class="hlinks" id="hlinks"></div>
     </header>
-    <div id="deepwork"></div>
-    <div class="kpis" id="kpis"></div>
-    <div class="sprintbar" id="sprintbar"></div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="overview">📊 Overview</button>
+      <button class="tab" data-tab="finance">💰 Finance</button>
+      <button class="tab" data-tab="marketing">📣 Marketing</button>
+      <button class="tab" data-tab="board">🗂️ Board <span class="cnt"></span></button>
+      <button class="tab" data-tab="agents">🤖 AI Agents <span class="cnt"></span></button>
+      <button class="tab" data-tab="company">🏢 Company</button>
+    </nav>
 
-    <div class="section-h">🎯 Distance to goal — the road to $10k MRR</div>
-    <div id="goals"></div>
+    <section class="tabpane active" data-pane="overview">
+      <div id="deepwork"></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="sprintbar" id="sprintbar"></div>
+      <div class="section-h">🎯 Distance to goal — the road to $10k MRR</div>
+      <div id="goals"></div>
+    </section>
 
-    <div class="section-h">💰 Financial cockpit</div>
-    <div id="finance"></div>
+    <section class="tabpane" data-pane="finance">
+      <div class="section-h">💰 Financial cockpit</div>
+      <div id="finance"></div>
+      <div class="section-h">🧮 Budget, founder pay &amp; the honest go/no-go</div>
+      <div id="budget"></div>
+    </section>
 
-    <div class="section-h">🧮 Budget, founder pay &amp; the honest go/no-go</div>
-    <div id="budget"></div>
+    <section class="tabpane" data-pane="marketing">
+      <div class="section-h">📣 Marketing &amp; business assets — copy-paste ready</div>
+      <div id="assets"></div>
+    </section>
 
-    <div class="section-h">📣 Marketing &amp; business assets — copy-paste ready</div>
-    <div id="assets"></div>
-
-    <div class="section-h">Sprint board</div>
-    <div class="board" id="board"></div>
-
-    <div class="section-h">🤖 AI Agents — 27 role-agents on Copilot Premium (multi-model)</div>
-    <div id="agents"></div>
-
-    <div class="section-h">🏢 The company — every seat is a Copilot agent</div>
-    <div id="org"></div>
-
-    <div class="grid2">
-      <div>
-        <div class="section-h">Revenue milestones</div>
-        <div class="panel" id="milestones"></div>
+    <section class="tabpane" data-pane="board">
+      <div class="section-h">Sprint board</div>
+      <div class="board" id="board"></div>
+      <div class="grid2">
+        <div>
+          <div class="section-h">Revenue milestones</div>
+          <div class="panel" id="milestones"></div>
+        </div>
+        <div>
+          <div class="section-h">Activity</div>
+          <div class="panel feed" id="feed"></div>
+        </div>
       </div>
-      <div>
-        <div class="section-h">Activity</div>
-        <div class="panel feed" id="feed"></div>
-      </div>
-    </div>
+    </section>
+
+    <section class="tabpane" data-pane="agents">
+      <div class="section-h">🤖 AI Agents — 27 role-agents · all on Claude Opus 4.8</div>
+      <div id="agents"></div>
+    </section>
+
+    <section class="tabpane" data-pane="company">
+      <div class="section-h">🏢 The company — every seat is a Copilot agent</div>
+      <div id="org"></div>
+    </section>
+
     <div class="foot" id="foot"></div>
   </div>
 <script>
@@ -251,6 +283,31 @@
       }).join('')+`</div>`; }).join('')+'</div>';
     el.innerHTML=head+depts;
   }
+  let _tabsInit=false;
+  function initTabs(){
+    const tabs=[...document.querySelectorAll('.tab')], panes=[...document.querySelectorAll('.tabpane')];
+    function show(name){
+      if(!document.querySelector('.tab[data-tab="'+name+'"]')) name='overview';
+      tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+      panes.forEach(p=>p.classList.toggle('active', p.dataset.pane===name));
+      try{ localStorage.setItem('fm_office_tab', name); }catch(e){}
+      if(location.hash.slice(1)!==name){ try{ history.replaceState(null,'','#'+name); }catch(e){} }
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    if(!_tabsInit){
+      tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.tab)));
+      window.addEventListener('hashchange',()=>show(location.hash.slice(1)||'overview'));
+      _tabsInit=true;
+    }
+    let initial=location.hash.slice(1);
+    if(!initial){ try{ initial=localStorage.getItem('fm_office_tab'); }catch(e){} }
+    show(initial||'overview');
+  }
+  function setTabCounts(b){
+    const set=(n,v)=>{ const el=document.querySelector('.tab[data-tab="'+n+'"] .cnt'); if(el) el.textContent=v; };
+    set('board', b.tasks.length);
+    set('agents', (b.agents&&b.agents.roster&&b.agents.roster.length)||'');
+  }
   function render(b){
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
@@ -276,7 +333,7 @@
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
     // goals + finance + org
-    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderAgents(b); renderOrg(b);
+    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderAgents(b); renderOrg(b); initTabs(); setTabCounts(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed
