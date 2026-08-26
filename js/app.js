@@ -1135,7 +1135,9 @@ const App = {
     const programCard = `<div class="card program-cta">
         <div class="hc-head"><h2>Your training program</h2><span class="hc-badge">${isPro ? "Pro" : "Pro \u2728"}</span></div>
         <div class="hc-line">A periodised 4-week plan for your <b>${esc(phys.name)}</b> goal \u2014 ${ep.freq} days/week, auto-progressed each week.</div>
-        <div class="hc-actions">${this.slideBtn(() => App.openProgram(), isPro ? "Slide to view program" : "Slide to unlock Pro", { tr: { label: isPro ? "Your Program" : "Formora Pro", icon: "target", sub: isPro ? "TRAIN" : "UNLOCK" } })}</div>
+        <div class="hc-actions">${isPro
+          ? this.slideBtn(() => App.openProgram(), "Slide to view program", { tr: { label: "Your Program", icon: "target", sub: "TRAIN" } })
+          : `<button class="btn wide" onclick="App.openPricing()">${this.ic("target", { size: 16 })} Go Pro \u2014 unlock your program</button>`}</div>
       </div>`;
 
     el.innerHTML = `
