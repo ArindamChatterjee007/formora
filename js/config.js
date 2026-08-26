@@ -106,7 +106,15 @@ window.LEMONSQUEEZY = {
    the paywall shows only the global (Lemon Squeezy) card/PayPal option. ---- */
 window.RAZORPAY = {
   enabled: true, // UPI live (India). Test keys until KYC approves → swap to live keys, no code change.
-  inr: { pro: 699, elite: 1699 }, // ₹ shown on the India rail (the edge function is authoritative)
+  inr: { pro: 399, elite: 799 }, // ₹ shown on the India rail (the edge function is authoritative)
+};
+
+/* ---- Regional pricing (PPP): people in each market see a price built for their
+   purchasing power, not an FX-converted US price. India is priced well below the
+   ~₹663/mo an FX conversion of $7.99 would show. Other regions fall back to USD
+   (Lemon Squeezy). Marketing owns refining these per willingness-to-pay research. ---- */
+window.REGIONAL = {
+  IN: { sym: "\u20b9", cur: "INR", pro: { mo: 399, yr: 2999 }, elite: { mo: 799, yr: 5999 } },
 };
 
 /* ---- ₹1 launch offer (T-77). SAFETY: set true ONLY when the razorpay-create-order edge fn
@@ -150,7 +158,11 @@ window.Currency = {
     catch (_) { return (this._sym[this.cur] || this.cur + " ") + local; }
   },
   price(usd) { return this._fmt(usd); },
-  yearly(s) { const m = String(s).match(/([\d.]+)/); const per = /\/yr/.test(s) ? "/yr" : (/\/mo/.test(s) ? "/mo" : ""); return m ? this._fmt(m[1]) + per : String(s); }
+  yearly(s) { const m = String(s).match(/([\d.]+)/); const per = /\/yr/.test(s) ? "/yr" : (/\/mo/.test(s) ? "/mo" : ""); return m ? this._fmt(m[1]) + per : String(s); },
+  // Region key for pricing (India gets its own PPP table; everyone else → USD/global).
+  region() { return this.cur === "INR" ? "IN" : "US"; },
+  // Native regional price for a tier, e.g. { sym:"₹", cur:"INR", mo:399, yr:2999 } for India, else null.
+  regionPrice(tierId) { const r = window.REGIONAL && window.REGIONAL[this.region()]; return (r && r[tierId]) ? { sym: r.sym, cur: r.cur, mo: r[tierId].mo, yr: r[tierId].yr } : null; }
 };
 
 /* ---- Moderation: suspended accounts (uid = email lowercased, non-alphanumerics → "_").

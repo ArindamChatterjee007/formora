@@ -137,7 +137,7 @@ const Social = {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified, heightCm: u.heightCm || 0, weightKg: u.weightKg || 0, bmi: u.bmi || 0, score: u.score || 0, workouts: u.workouts || 0, gender: u.gender || "", seen: u.seen || 0 };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), tier: u.tier || "free", colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified, heightCm: u.heightCm || 0, weightKg: u.weightKg || 0, bmi: u.bmi || 0, score: u.score || 0, workouts: u.workouts || 0, gender: u.gender || "", seen: u.seen || 0 };
   },
   // small ✓ shown next to a verified member's name (email confirmed or Google sign-in)
   vbadge(u) { return (u && u.verified) ? ` <span class="vbadge" title="Verified — email confirmed">✓</span>` : ""; },
@@ -1135,9 +1135,9 @@ const Social = {
     </div>` : "";
     card.innerHTML = `
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
-      <div class="view-profile">
+      <div class="view-profile" data-tier="${this._tierOf(u)}">
         <div class="vp-hero">${this.avatarP(u, 88)}
-          <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
+          <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)}${this.tierBadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
             <div class="vp-handle">@${esc(u.handle)}</div>
             ${!isMe ? `<div class="vp-online ${this.isOnline(uid) ? "on" : ""}">${this.isOnline(uid) ? '<span class="online-dot"></span> Active now' : (this.lastSeenText(uid) || (u.physique ? "Training for " + esc(u.physique) : ""))}</div>` : (u.physique ? `<div class="vp-phys">Training for ${esc(u.physique)}</div>` : "")}
           </div>
@@ -1157,6 +1157,14 @@ const Social = {
     document.getElementById("modal").classList.remove("hidden");
   },
   vpTab(uid, tab) { this._vpTab = tab; this.viewProfile(uid); },
+  // Membership tier of a user (real paid tier when known; demo personas map their level → tier
+  // so tier themes are visible across profiles). Returns "elite" | "pro" | "free".
+  _tierOf(u) { return (u && u.tier) || (u && { Elite: "elite", Pro: "pro" }[u.level]) || "free"; },
+  tierBadge(u) {
+    const t = this._tierOf(u);
+    if (t !== "elite" && t !== "pro") return "";
+    return ` <span class="tier-badge ${t === "elite" ? "tb-elite" : "tb-pro"}">${t === "elite" ? "★" : "◆"} ${t === "elite" ? "Elite" : "Pro"}</span>`;
+  },
   crewAdd(id) { this.addCrew(id); this.render(); },
   requestConnect(id) {
     if (this.inCrew(id)) { this.render(); return; }
