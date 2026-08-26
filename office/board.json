@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v158",
+    "liveVersion": "v159",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -278,7 +278,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v158 · ₹1 LAUNCH OFFER LIVE (Pro & Elite ₹1)" },
+    { "label": "Live version", "value": "v159 · payment→unlock fixed + upgrade animation" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -688,6 +688,7 @@
     "remaining": ["DONE (v155): JS code-split — charts.js lazy-loaded to js/mod/ (loads only on Progress, genuine payload win), reclaimed ~4.2KB (179B->4245B free)", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
   },
   "activity": [
+    { "ts": "2026-08-26", "role": "eng", "text": "🐛→✅ PAYMENT-UNLOCK BUG (founder paid ₹1 for Elite — money taken, nothing unlocked, no animation — rightly furious). DIAGNOSED with live DB access: payment + webhook WORKED (billing_events payment.captured + entitlement written) BUT under the EMAIL-SLUG uid while the app reads by the auth UUID under RLS (ent_read: auth.uid()::text = uid) → mismatch → app saw 'free' → paywall stayed. FIXES: (1) granted the founder's Elite under their real UUID (immediate); (2) added an `ent_read_slug` RLS policy so a logged-in user reads their entitlement under EITHER the UUID or their email-slug; (3) client now sends the LIVE auth UUID (SupaAuth.uid()) at checkout so future entitlements land under the UUID; (4) after payment the app POLLS for the entitlement (webhook lags a few sec), RE-RENDERS, and plays a premium 'Welcome to Elite/Pro — UNLOCKED' mode-switch animation + confetti (the switching-to-tier moment the founder expected — was missing entirely). Shipped v159. The ₹1 is honoured (Elite granted); refund on request." },
     { "ts": "2026-08-26", "role": "devops", "text": "🚀 ₹1 LAUNCH OFFER IS LIVE (v158). Founder logged into Supabase → I deployed the razorpay-create-order edge fn (version 6, ACTIVE) via the Management API and VERIFIED it now charges amount=100 (₹1) for Pro+Elite on rzp_live. With the charge confirmed ₹1, flipped LAUNCH_OFFER=true — the India paywall now shows ₹699/₹1699 struck through → ₹1. Display and charge match (no overcharge). Also fixed the recurring-login pain: installed the Supabase CLI for persistent, no-browser deploys going forward. Final human check: one real ₹1 UPI payment to confirm the unlock end-to-end." },
     { "ts": "2026-08-26", "role": "coo", "text": "🎧 NEW HIRE APPROVED — the founder signed off on the office's first self-proposed hire (raised in meeting M-001): a Customer Support & Success Lead (key `support`, Product team, Claude Opus 4.8). Onboarded as agent #28 — added to roles + roster, generated `.github/agents/support.agent.md`, cleared the open-role banner. Their brief: own support replies, bug intake, refunds and early retention the moment the first paying customer lands. The propose→approve loop now works end to end: an agent spotted a gap in the daily meeting → proposed the hire → founder approved → the new agent exists and is invocable." },
     { "ts": "2026-08-26", "role": "devops", "text": "🌙 NIGHT SHIFT (founder asleep: 'make the dashboard tabbed + beautiful + user-friendly, and kick off overnight office work'). (1) DASHBOARD REDESIGNED — the office dashboard is now a TABBED app (Overview / Finance / Marketing / Board / AI Agents / Company): a sticky pill nav, ONE section visible at a time (no more endless scrolling — the founder's exact complaint), count badges (Board 68 · Agents 27), tab-state persists via localStorage + URL hash, fully mobile-responsive (tabs scroll horizontally). Verified live end-to-end (desktop + 390px phone): tab switching works, all panes render, 27 agents show, zero errors. Also fixed a stale 'Live version' KPI (v117 → v156). (2) ALL 27 AGENTS + the orchestrator now run on CLAUDE OPUS 4.8 (founder directive: top model for every role) — verified live. (3) HONEST CALL on the async coding-agent → auto-PR flow: I did NOT let agents merge code into the LIVE production app UNATTENDED overnight — auto-merging unreviewed PRs to prod while you sleep is a hard-to-reverse risk. The role-agents are ready and the queue is teed up; we run it together when you're back, with you reviewing PRs. Tonight's real office output = the shipped, tested, live dashboard redesign + the Opus 4.8 rollout." },
