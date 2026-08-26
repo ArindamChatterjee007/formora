@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v163",
+    "liveVersion": "v164",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -511,6 +511,83 @@
         { "owner": "content", "action": "T-90 — reels + paywall CTA built around the filter-preview enticement ('unlock to keep this look')." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-008",
+      "date": "2026-08-27",
+      "title": "Launch pricing (deep research) + honest tiers + marketing plan — full office",
+      "chair": "cfo",
+      "attendees": ["ceo","coo","cfo","finance","cmo","growth","analyst","content","bizdev","vpsales","pm","eng","design"],
+      "agenda": [
+        "We're PRE-LAUNCH, unknown brand, NO physical coach. Research how much to charge INITIALLY — real market data, not wishes.",
+        "Rework the tiers honestly (no coach we don't have) + plan a future Elite+ with the coach, and reward early Elite members.",
+        "Everyone: how do we get people to actually come and pay? Then break it into a sprint."
+      ],
+      "review": [
+        {
+          "item": "How much should we charge at launch? (real market research)",
+          "status": "pass",
+          "thread": [
+            { "role": "cfo", "type": "question", "text": "Founder: we're pre-launch, unknown, no coach. What's the RIGHT price to actually get people to pay — what the market bears, not what we wish?" },
+            { "role": "analyst", "type": "answer", "text": "Pulled LIVE competitor pricing: Strava $79.99/yr (~$6.67/mo, monthly ~$12); MyFitnessPal Premium $79.99/yr, Premium+ $99.99/yr, monthly anchored at $24.99; Fitbod ~$80/yr. India: FITTR / HealthifyMe / Cult.fit monetize HUMAN COACHING (₹thousands) — the digital app is cheap/free. Indians pay for coaches, not apps." },
+            { "role": "cmo", "type": "challenge", "text": "So our old $7.99 Pro / $19.99 Elite — too high for an unknown app with no coach?" },
+            { "role": "analyst", "type": "answer", "text": "Elite $19.99 with no coach = zero buyers. Pro $7.99 is defensible but a NEW app should UNDERCUT incumbents to win trials. India ₹799 Elite is steep for digital-only." },
+            { "role": "cfo", "type": "fix", "text": "Decision: price BELOW incumbents to win trials — Pro $5.99/₹299 ($39.99/₹1,999 yr), Elite $9.99/₹599 ($69.99/₹3,999 yr), ~44% off annual. Anchor monthly, push annual (the MFP/Strava pattern). Keep the ₹1 first-month as the trial hook." },
+            { "role": "finance", "type": "verify", "text": "At 2-5% freemium conversion this needs VOLUME + founding-annual locking revenue. Rough model: 1,000 free → ~30 paid → ~₹9-18k MRR. Realistic seed. PASS to launch pricing; revisit after the first cohort (T-80)." }
+          ]
+        },
+        {
+          "item": "Elite has no coach — what do we actually sell?",
+          "status": "pass",
+          "thread": [
+            { "role": "ceo", "type": "question", "text": "Founder: no physical coach yet — don't promise it. But Elite still needs a reason, and reward early Elite members when the coach DOES arrive." },
+            { "role": "cmo", "type": "answer", "text": "Removed the human-coach lines from Elite. Current Elite = everything in Pro + exclusive cinematic filters + priority support + early access — all honest and deliverable today." },
+            { "role": "pm", "type": "challenge", "text": "That's thin vs Pro. Why pay double right now?" },
+            { "role": "eng", "type": "fix", "text": "Two things: (1) T-87 ships an AI progress-photo review = a real Elite-only feature; (2) the FOUNDING promise — early Elite members get '1 month Elite+ & a coach check-in FREE when we launch coaching'. Reward early believers with the future tier (the founder's idea), clearly labelled as future." },
+            { "role": "ceo", "type": "verify", "text": "Ladder: Free → Pro $5.99 (workhorse) → Elite $9.99 (founding supporter + future coach) → later Elite+ $29 (real human coach, post-profit). Honest today, aspirational tomorrow. PASS." }
+          ]
+        },
+        {
+          "item": "How do we get people to come and pay? (marketing)",
+          "status": "open",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "~$0 budget, no brand, no reviews. How do the first 100 users actually arrive?" },
+            { "role": "growth", "type": "answer", "text": "Founder-led zero-budget funnel: (1) India fitness communities (Reddit/FB/WhatsApp — founder already posted in one); (2) Shorts/Reels using the Flex reels + the NEW filter-preview hook ('unlock to keep this look'); (3) the built-in referral loop; (4) the live SEO guides → free app." },
+            { "role": "content", "type": "answer", "text": "Trust for a no-review app = the founder's OWN transformation as the hero story + seed 20-50 users personally, collect before/afters, put them on the landing." },
+            { "role": "analyst", "type": "challenge", "text": "None of this is measured yet — how do we know what converts?" },
+            { "role": "bizdev", "type": "fix", "text": "T-69 PostHog funnel (landing→signup→paywall→pay) + T-88 marketing audit. Pick ONE channel (India community + Reels), go deep, measure, then scale. Founding urgency ('launch price locked forever, first 1,000') drives the first conversions." },
+            { "role": "ceo", "type": "verify", "text": "OPEN until the funnel is live + 20 seeded users give real conversion data." }
+          ]
+        },
+        {
+          "item": "What do we build? (sprint breakdown)",
+          "status": "open",
+          "thread": [
+            { "role": "pm", "type": "answer", "text": "T-91 edge-fn price update (post-offer, coupled); T-92 Founding-Member offer (locked price + badge + urgency, config flag); T-93 Elite+ 'coming soon' tier so the ladder is visible; T-94 landing pricing/positioning + testimonials; T-95 marketing launch kit; T-96 seed-users channel. Plus T-87 (AI progress-review) already on the board for Elite's spine." },
+            { "role": "eng", "type": "verify", "text": "Config pricing is DONE this session (v164). The edge-fn PRICE_PAISE change waits until the ₹1 offer ends (display+charge coupled, per our rule). OPEN until the sprint lands." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "cfo", "point": "This is the pricing research the founder asked for repeatedly — grounded in LIVE competitor data, not a guess. We priced to win trials as an unknown app, kept it honest (no coach we don't have), and gave early believers a real founding reward." },
+        { "role": "ceo", "point": "Whole office in one room on pricing + marketing + the build. Every decision has evidence and an owner." }
+      ],
+      "decisions": [
+        "LAUNCH PRICING (researched, below incumbents to win trials): Pro $5.99/mo ($39.99/yr) · ₹299/mo (₹1,999/yr); Elite $9.99/mo ($69.99/yr) · ₹599/mo (₹3,999/yr). ₹1 first-month trial stays. (Elite halved from $19.99 — unsellable with no coach.) SHIPPED in config (v164).",
+        "Elite reworded HONEST (no human coach): exclusive filters + priority + early access + FOUNDING perks. The human coach becomes a FUTURE 'Elite+' (~₹1,499/$29) post-profit.",
+        "FOUNDING-MEMBER strategy: early adopters lock the launch price FOREVER + get 1 month Elite+ & a coach check-in free when coaching launches. Urgency: 'first 1,000 / launch window'.",
+        "Marketing: founder-led, ~$0, ONE channel deep (India communities + Reels with the filter-preview hook) + seed 20-50 users for testimonials + measure via PostHog; scale what converts."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "SHIPPED v164 — new launch prices + honest Elite copy in config." },
+        { "owner": "devops", "action": "T-91 — when the ₹1 offer ends, set edge-fn PRICE_PAISE to the new prices (₹299/₹599) IN LOCKSTEP with the display." },
+        { "owner": "eng", "action": "T-92 — Founding-Member offer: price locked forever + founding badge + urgency, behind a config flag." },
+        { "owner": "pm", "action": "T-93 — add an Elite+ 'coming soon' tier (human coach, post-profit) so the value ladder is visible." },
+        { "owner": "design", "action": "T-94 — landing-page pricing/positioning update + a testimonials section for the first seeded users." },
+        { "owner": "content", "action": "T-95 — marketing launch kit: reels script (filter hook + founder transformation), India-community post templates, referral copy." },
+        { "owner": "bizdev", "action": "T-96 — pick ONE channel, seed 20-50 users, collect before/after testimonials, measure conversion." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -539,7 +616,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v163 · premium filter tiers + live preview enticement + premium-value audit" },
+    { "label": "Live version", "value": "v164 · researched launch pricing + honest tiers + marketing plan" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -924,7 +1001,13 @@
     { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Elite currently promises a HUMAN coach we don't have. Build an on-device AI progress-photo review (physique read + focus areas + encouragement from a photo) gated to Elite, so Elite has a genuine spine that isn't a hollow human-coach promise. Reword the Elite paywall to what we actually deliver until/if a real coach exists." },
     { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
     { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Design a small set of premium camera frames/overlays (subtle borders, date/streak stamps, tasteful watermarks) that are Elite-only, adding tangible Elite value beyond filters. Wire into the camera editor gated by Entitlements.isElite()." },
-    { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Now that free users can PREVIEW premium filters live, build the marketing hook: a Flex reel showing a photo transform with Cinema/Editorial + 'unlock to keep this look', and a paywall line that references the exact filter they were previewing. Acceptance: reel script + the CTA copy in board.assets." }
+    { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Now that free users can PREVIEW premium filters live, build the marketing hook: a Flex reel showing a photo transform with Cinema/Editorial + 'unlock to keep this look', and a paywall line that references the exact filter they were previewing. Acceptance: reel script + the CTA copy in board.assets." },
+    { "id": "T-91", "title": "Edge-fn price update to the new launch prices (post-offer, coupled)", "role": "devops", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. When the ₹1 launch offer ends, set razorpay-create-order PRICE_PAISE to the new real prices (Pro ₹299=29900, Elite ₹599=59900) in the SAME change that flips LAUNCH_OFFER=false, so the displayed price and the charge never diverge (same coupling rule as the ₹1 launch). Verify a real charge matches." },
+    { "id": "T-92", "title": "Founding-Member launch offer — price locked forever + badge + urgency", "role": "eng", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. Early adopters lock the launch annual price FOREVER + get a 'Founding Member' badge; add urgency (first N members / launch window). Behind a config flag (window.FOUNDING). Ties into the founding perk: 1 month Elite+ & a coach check-in free when coaching launches." },
+    { "id": "T-93", "title": "Elite+ 'coming soon' tier (human coach, post-profit) in the ladder", "role": "pm", "sprint": 8, "status": "todo", "priority": "P2", "note": "M-008. Add a 4th tier Elite+ (~₹1,499/$29) as 'coming soon' so the value ladder is visible: Free → Pro → Elite → Elite+. Elite+ = a real human coach (progress-photo reviews + monthly check-in) once we have a coach + profit. Don't sell it yet; show it as the aspirational top." },
+    { "id": "T-94", "title": "Landing-page pricing/positioning update + testimonials section", "role": "design", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. Update the landing to the new prices + positioning ('free to start, premium when you're ready') and add a testimonials section seeded with the first users' before/afters + the founder's own transformation (trust for a no-review app)." },
+    { "id": "T-95", "title": "Marketing launch kit — reels script + community templates + referral copy", "role": "content", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. A ready-to-use kit: a Shorts/Reels script (filter-preview hook + founder transformation), India-community post templates (Reddit/FB/WhatsApp), and referral copy — so the founder can execute the one-channel-deep plan immediately. Acceptance: the kit in board.assets." },
+    { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "todo", "priority": "P0", "note": "M-008. Pick ONE channel (India fitness community + Reels), personally onboard the first 20-50 users, collect before/after testimonials, and measure the funnel (PostHog T-69: landing→signup→paywall→pay). This is the real M1 work — proves what converts before any spend." }
   ],
   "readiness": {
     "date": "2026-08-25",
@@ -962,6 +1045,7 @@
     "remaining": ["DONE (v155): JS code-split — charts.js lazy-loaded to js/mod/ (loads only on Progress, genuine payload win), reclaimed ~4.2KB (179B->4245B free)", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
   },
   "activity": [
+    { "ts": "2026-08-27", "role": "cfo", "text": "💰 LAUNCH PRICING RESEARCH + HONEST TIER REWORK + MARKETING PLAN (v164, founder: 'we're pre-launch with NO physical coach — do DEEP research on how much to charge INITIALLY, make better offers, rework the tiers, everyone plan the marketing together; later when profitable add Elite+ with the free coach check-in for early Elite members. I've asked for this research MULTIPLE times — DO it'). ACTUALLY DID the research (real live competitor data, not assigned-again): Strava $79.99/yr (~$6.67/mo; monthly ~$12), MyFitnessPal Premium $79.99/yr & Premium+ $99.99/yr (monthly anchored at $24.99 to push annual), Fitbod ~$80/yr; India's FITTR/HealthifyMe/Cult.fit monetize HUMAN COACHING (₹thousands) — the digital app is cheap/free, Indians pay for coaches not apps. ANALYSIS: pre-launch + unknown brand + no coach → can't command incumbent prices; global annual sweet-spot $60-100 (monthly anchored high); India digital-only willingness-to-pay ₹200-500/mo; freemium converts 2-5% → need volume + a founding hook. DECISIONS (M-008, full-office threaded): (1) LAUNCH PRICING below incumbents to win trials — Pro $5.99/mo $39.99/yr (₹299/₹1,999), Elite $9.99/mo $69.99/yr (₹599/₹3,999), ~44% annual save, ₹1 first-month trial stays (was Pro $7.99/₹399, Elite $19.99/₹799 — Elite HALVED: $19.99 with no coach = zero buyers). (2) ELITE REWORKED HONEST — removed the human-coach claims we can't keep; Elite now = exclusive filters + priority + early access + FOUNDING perks; the human coach moves to a FUTURE 'Elite+' (~₹1,499/$29) post-profit. (3) FOUNDING-MEMBER strategy (the founder's idea): early adopters lock the launch price FOREVER + get 1 month Elite+ & a coach check-in FREE when coaching launches — rewards early believers, and it's honest (clearly a future perk, not a current feature). (4) MARKETING: founder-led ~$0, ONE channel deep (India fitness communities + Shorts/Reels using the NEW filter-preview 'unlock to keep this look' hook) + seed 20-50 users for before/after testimonials (trust for a no-review app) + measure via PostHog, scale what converts. IMPLEMENTED THIS SESSION (v164): config.js prices (Pro $5.99/₹299, Elite $9.99/₹599 + annuals) + honest Elite copy (no coach). Sprint tasks T-91..T-96. liveVersion v164." },
     { "ts": "2026-08-27", "role": "cmo", "text": "🎬 PREMIUM FILTER TIERS + PREVIEW ENTICEMENT + PREMIUM-VALUE AUDIT (v163, founder: 'apart from free, what EXTRA do Pro/Elite actually give that people will PAY for? The 127 filters — free vs pro vs elite isn't defined, and free users can't PREVIEW the premium ones. Show them \"this looks amazing with Pro but you don't get it on Free\". Develop it. And why isn't marketing reviewing the whole app for this?'). BUILT (real dev): the camera's filters were 'first 30 free + one locked button', with ELITE GETTING NOTHING EXTRA and NO preview. Now 132 filters in 3 REAL tiers — Free 30, Pro +89, Elite +13 EXCLUSIVE cinematic (Cinema, Editorial, Platinum, Noir Lux, Gold Hour). EVERYONE can PREVIEW any filter LIVE on their own face; locked ones show a ◆ Pro (violet) / ★ Elite (gold) badge; selecting one shows a 'preview only — Unlock to capture' banner; tapping the shutter on a locked filter opens the upgrade — so free users SEE the premium quality and feel the pull (exactly the founder's ask). Verified on localhost: 132 filters, 89 Pro + 13 Elite badges, capture gate blocks free→pro/elite and pro→elite, elite unlocks all, banner shows only on locked selection. Pricing copy retiered (Free '30+ filters (preview all)', Pro '90+ Pro cinema filters', Elite 'Exclusive Elite cinematic filters'). MEETING M-007 (THREADED, marketing-led — the founder's ask that marketing audit the WHOLE app for premium value) found real gaps: (a) filters undefined / no-preview → FIXED; (b) ELITE PROMISES A HUMAN COACH WE DON'T HAVE ('progress-photo reviews with your coach' + 'monthly human-coach check-in') = a promise we can't keep → reword to deliverable value + build a real Elite spine (AI progress-review, T-87); (c) EVERY paywall claim must be VERIFIED-gated + delivered (T-86) — no claim we can't demonstrate; (d) marketing now owns a recurring full-app premium-value audit (T-88), not just channels. Sprint tasks T-86..T-90 added. liveVersion v163." },
     { "ts": "2026-08-27", "role": "qalead", "text": "🔎 SLIDE-TEXT BUG FIXED + ELITE GOLD REWORKED + REAL THREADED REVIEWS (v162, founder: 'the \"Slide to…\" text isn't readable, the gold is dull, and the office meetings are one-liners — I need real cross-questioning, review-of-review, verify, catch mistakes, then correct'). (1) BUG (our fault, owned): the v161 Elite dark-ink contrast rule wrongly included .sb-label, which sits on the slide's DARK track (not the gold fill) → 'Slide to start workout / plan meals / view program' went dark-on-dark = INVISIBLE. The M-005 'contrast verified' was a rubber-stamp that sampled ONE filled button and generalised. FIX: removed .sb-label from the elite override (label stays white + a text-shadow so it's legible on the dark track AND where the gold fill passes under mid-drag). Verified live at 402px: all four slide labels compute rgb(255,255,255). (2) ELITE GOLD REWORK (founder: 'dull/muddy'): old #e7b23f was a mustard tone + a heavy gold bg-glow washed the screen olive. New = metallic bronze→gold (accent #d99f2b→#f7cf6b), bg-glow opacity ~halved so gold reads as a crisp ACCENT on a clean dark base, + a bronze→gold sheen on the profile cover. Founder approved the 'B' direction; Pro violet unchanged. (3) OFFICE PROCESS FIX — meetings were ONE 'point' per role (a summary, not a debate, nobody catching anyone's miss). NEW THREADED format: each finding is a chain — reviewer QUESTIONS → owner ANSWERS/owns → CROSS-QUESTION → FIX → re-VERIFY, with PASS/FAIL, stored in board.meetings[].review[] and rendered on the dashboard Meetings tab. M-006 demonstrates it: QA cross-questioned the 'contrast verified' claim and CAUGHT the invisible slide text the flat review missed; eng owned the mistake; the fix was re-verified PASS. STANDING RULE: no 'GO' without a per-item thread + re-verification, and contrast is checked per-element on its ACTUAL background. liveVersion v162." },
     { "ts": "2026-08-27", "role": "design", "text": "🎨 WHOLE-APP TIER THEME + PROFILE REDESIGN — FULL REVIEW LIFECYCLE (v161, founder: 'the launch theme wasn't per-tier, the whole app didn't re-theme, Log out overlapped the Rookie badge, the cover looked blank, others' profiles weren't tier-themed — and run a real engineer→manager→QA→UX review-with-fixes cycle'). BUILT, then the office reviewed it ONE BY ONE (meeting M-005): each role raised a REAL issue and every issue was fixed before shipping. (1) WHOLE-APP TIER THEME — the ENTIRE app now re-themes by overriding --accent/--accent2 (which drive every button, gradient, ring, nav across styles.css) per tier: Free orange→pink, Pro violet→magenta, Elite champagne gold. Root cause of 'theme didn't change' in v160: it used a --tier-accent var that almost nothing consumed; the app themes off --accent. (2) PER-TIER LAUNCH SPLASH — gold/violet wordmark + loading bar + background tint + logo hue-shift, themed from the cached tier on the FIRST frame (before boot). (3) PROFILE REDESIGN — cover photo + upload, Log out moved to an icon on the cover (fixes the logout↔Rookie overlap the founder caught), tier + level moved to their own chips row. (4) OTHERS' PROFILES THEMED BY THEIR TIER — opening an Elite member shows gold + ★ Elite, a Pro member shows violet + ◆ Pro; scoped to the modal ([data-tier] attribute selector) so your OWN app keeps your theme. REVIEW FIXES (comment→fix): Design 'gold fails contrast' → filled accents get dark ink on Elite; PM 'card parity' → Pro members get a violet membership card; QAUX 'paid-look leak' → logout clears the cached tier + resets to free; QA 'cover eats storage' → save() sheds the cover first on quota. Verified live in-browser at 390px: --accent per tier (orange/violet/gold), gold-button dark ink, no logout↔level overlap, cover controls, cross-profile theming (Free viewer sees Elite gold / Pro violet), gold launch splash 'You're Elite ✨'. Code-split mailer.js→js/mod/ for budget. liveVersion v161." },
