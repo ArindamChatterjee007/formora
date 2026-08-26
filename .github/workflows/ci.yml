@@ -51,8 +51,8 @@ jobs:
       - name: Security guard - no unescaped URL sinks in the social feed
         run: |
           set -euo pipefail
-          if grep -nP 'src="\$\{(?!esc\()' js/social.js; then
-            echo "::error file=js/social.js::Unescaped src=\"\${...}\" found - wrap user-controlled URLs in esc() to prevent stored XSS"
+          if grep -nP 'src="\$\{(?!esc\()' js/mod/social.js; then
+            echo "::error file=js/mod/social.js::Unescaped src=\"\${...}\" found - wrap user-controlled URLs in esc() to prevent stored XSS"
             exit 1
           fi
           if grep -rnP 'href="\$\{(?!esc\()' js; then

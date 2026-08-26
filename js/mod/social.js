@@ -220,6 +220,9 @@ const Social = {
   // friends-only posts are hidden from non-connected viewers (UI-level privacy)
   _isBanned(uid) { return !!(uid && window.BANNED_UIDS && window.BANNED_UIDS.includes(uid)); },
   _canSeePost(p) {
+    if (!p) return false;
+    if (this.isHidden(p.id)) return false;
+    if (p.author && this.isBlocked(p.author) && !this._isMine(p)) return false;
     if (this._isBanned(p.author)) return false;
     if (typeof Cloud === "undefined" || p.author === Cloud.me) return true;
     const a = this.cloudUser(p.author);
@@ -585,7 +588,7 @@ const Social = {
       return this.storiesRow() + composer + (visible.length ? posts
         : `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}</div>`);
     }
-    return composer + this.suggestStrip() + this.feed().map((p) => this.postCard(p)).join("");
+    return composer + this.suggestStrip() + this.feed().filter((p) => this._canSeePost(p)).map((p) => this.postCard(p)).join("");
   },
   _cloudPost(p) {
     const likes = p.likes || {};
@@ -651,7 +654,7 @@ const Social = {
             <div class="post-who"><div class="pw-name">${esc(a.name)}${this.vbadge(a)} ${a.level ? `<span class="lvl">${esc(a.level)}</span>` : ""}</div>
               <div class="pw-sub">@${esc(a.handle)} · ${this.timeAgo(p.ts)}</div></div>
           </div>
-          ${(p.author === "me" || (typeof Cloud !== "undefined" && Cloud.me && p.author === Cloud.me)) ? `<button class="icon-btn" title="Delete" onclick="Social.removePost('${p.id}')">✕</button>` : ""}
+          <button class="icon-btn post-more" title="More options" aria-label="More options" onclick="Social.postMenu('${p.id}')">${App.ic("more", { size: 20 })}</button>
         </div>
         ${reshared}
         ${p.text ? `<div class="post-text">${esc(p.text)}</div>` : ""}
@@ -904,6 +907,81 @@ const Social = {
       return;
     }
     this.deletePost(id); this.render();
+  },
+  // ---- post overflow menu (standard social actions) + personal feed curation ----
+  _postById(id) {
+    if (this.cloudActive() && this.cloud.feed) { const c = this.cloud.feed.find((x) => x.id === id); if (c) return c; }
+    return (this.state.posts || []).find((x) => x.id === id) || ((this.cloud.feed || []).find((x) => x.id === id));
+  },
+  _isMine(p) { return !!(p && (p.author === "me" || (typeof Cloud !== "undefined" && Cloud.me && p.author === Cloud.me))); },
+  _list(k) { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch (e) { return []; } },
+  _addTo(k, v) { const a = this._list(k); if (!a.includes(v)) { a.unshift(v); localStorage.setItem(k, JSON.stringify(a)); } return a; },
+  isHidden(id) { return this._list("fm_hidden").includes(id); },
+  isBlocked(uid) { return this._list("fm_blocked").includes(uid); },
+  postMenu(id) {
+    const p = this._postById(id); if (!p) return;
+    const mine = this._isMine(p);
+    const a = this.persona(p.author) || {};
+    const acts = [{ icon: "bookmark", label: this.isSaved(id) ? "Remove from saved" : "Save post", on: this.isSaved(id), fn: () => this.toggleSave(id) }];
+    if (mine) {
+      acts.push({ icon: "edit", label: "Edit caption", fn: () => this.editPost(id) });
+      acts.push({ icon: "copy", label: "Copy link", fn: () => this.copyPostLink(id) });
+      acts.push({ sep: true });
+      acts.push({ icon: "trash", label: "Delete post", danger: true, fn: () => this.removePost(id) });
+    } else {
+      acts.push({ icon: "minusCircle", label: "Not interested", fn: () => this.notInterested(id) });
+      acts.push({ icon: "eyeOff", label: "Hide this post", fn: () => this.hidePost(id) });
+      acts.push({ icon: "users", label: (this.isFollowing(p.author) ? "Unfollow @" : "Follow @") + (a.handle || "user"), fn: () => this.toggleFollow(p.author) });
+      acts.push({ icon: "copy", label: "Copy link", fn: () => this.copyPostLink(id) });
+      acts.push({ sep: true });
+      acts.push({ icon: "flag", label: "Report post", danger: true, fn: () => this.reportPost(id) });
+      acts.push({ icon: "ban", label: "Block @" + (a.handle || "user"), danger: true, fn: () => this.blockUser(p.author) });
+    }
+    App.openSheet(mine ? "Your post" : (a.name || "Post"), acts);
+  },
+  hidePost(id) { this._addTo("fm_hidden", id); this.haptic(12); if (App.toast) App.toast("Post hidden"); this.render(); },
+  notInterested(id) {
+    const p = this._postById(id); this._addTo("fm_hidden", id);
+    if (p && p.author) this._addTo("fm_notint", p.author);
+    this.haptic(12); if (App.toast) App.toast("Thanks — you'll see less like this"); this.render();
+  },
+  blockUser(uid) {
+    if (!uid) return;
+    if (!confirm("Block this person? You won't see their posts, and they won't see yours.")) return;
+    this._addTo("fm_blocked", uid); this.haptic(16); if (App.toast) App.toast("Blocked"); this.render();
+  },
+  reportPost(id) {
+    const reasons = ["Spam or scam", "Nudity or sexual content", "Harassment or hate", "Violence or threats", "False information", "Something else"];
+    App.openSheet("Why are you reporting this?", reasons.map((r) => ({ icon: "flag", label: r, fn: () => this._doReport(id, r) })));
+  },
+  _doReport(id, reason) {
+    this._addTo("fm_reported", id); this._addTo("fm_hidden", id);
+    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.reportPost) { try { Cloud.reportPost(id, reason); } catch (e) {} }
+    this.haptic(14); if (App.toast) App.toast("Reported — we've hidden it from your feed"); this.render();
+  },
+  copyPostLink(id) {
+    const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
+    const url = base + "?post=" + encodeURIComponent(id);
+    const ok = () => { if (App.toast) App.toast("Link copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => this._share(url));
+    else this._share(url);
+  },
+  _postData(p) { return { text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, gradient: p.gradient || null, tag: p.tag || "Flex", resharedFrom: p.resharedFrom || null, reshareOf: p.reshareOf || null, music: p.music || null }; },
+  editPost(id) {
+    const p = this._postById(id); if (!p) return;
+    const card = document.getElementById("modal-card"); if (!card) return;
+    card.innerHTML = `<div class="modal-head"><h2>Edit caption</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <textarea id="edit-cap" class="food-text" rows="4" style="width:100%;box-sizing:border-box" placeholder="Write a caption…">${esc(p.text || "")}</textarea>
+      <button class="btn wide" style="margin-top:12px" onclick="Social.saveEditPost('${id}')">Save changes</button>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  saveEditPost(id) {
+    const p = this._postById(id); const el = document.getElementById("edit-cap");
+    if (!p || !el) return;
+    p.text = (el.value || "").trim();
+    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.editPost) { Cloud.editPost(id, this._postData(p)); }
+    else { try { this.save && this.save(); } catch (e) {} }
+    App.closeModal(); this.haptic(12); if (App.toast) App.toast("Caption updated"); this.render();
   },
   likePost(id) {
     this.haptic(12);
