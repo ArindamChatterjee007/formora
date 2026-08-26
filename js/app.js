@@ -164,6 +164,7 @@ const App = {
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
     this.renderChips();
+    this.applyTierTheme();
     if (window.Track) { Track.identify((typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : u.id, { name: u.name || "" }); Track.event("app_opened"); }
     this.selectTab("home");
     if (this._showWelcome) { this._showWelcome = false; try { this.showWelcome(); } catch (e) {} }
@@ -1676,12 +1677,14 @@ const App = {
     const P = (window.PRICING && window.PRICING.tiers) || [];
     const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
     const offerOn = (t) => !!(window.LAUNCH_OFFER && t.id !== "free" && window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
+    // Regional (PPP) price for a tier, e.g. India → { sym:"₹", mo:399, yr:2999 }; null elsewhere (→ USD/FX).
+    const reg = (t) => (t.id !== "free" && typeof Currency !== "undefined" && Currency.regionPrice) ? Currency.regionPrice(t.id) : null;
     const tiers = P.map((t) => `
       <div class="ptier ${t.id === "pro" ? "featured" : ""}">
         ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
         <div class="pt-name">${esc(t.name)}</div>
-        <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">₹${(RAZORPAY.inr && RAZORPAY.inr[t.id]) || ""}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price)))}<small>${offerOn(t) ? " launch offer" : esc(t.period || "")}</small></div>
-        ${t.yearly && !offerOn(t) ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}${(() => { const my = parseFloat(t.price), yr = parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
+        <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">${reg(t) ? esc(reg(t).sym + reg(t).mo) : "₹" + ((RAZORPAY.inr && RAZORPAY.inr[t.id]) || "")}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : (reg(t) ? esc(reg(t).sym + reg(t).mo) : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))))}<small>${offerOn(t) ? " launch offer" : (reg(t) ? "/mo" : esc(t.period || ""))}</small></div>
+        ${t.yearly && !offerOn(t) ? `<div class="pt-year">or ${reg(t) ? esc(reg(t).sym + reg(t).yr) + "/yr" : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)))}${(() => { const my = reg(t) ? reg(t).mo : parseFloat(t.price), yr = reg(t) ? reg(t).yr : parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li${/^Everything in /.test(f) ? ' class="pt-inc"' : ""}>${esc(f)}</li>`).join("")}</ul>
         ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn ${t.id === "pro" ? "" : "ghost "}wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
       </div>`).join("");
@@ -1692,6 +1695,76 @@ const App = {
        <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div>${typeof Currency !== "undefined" && Currency.isLocal() ? `<div class="pt-foot" style="opacity:.65;margin-top:6px">Prices shown in your local currency (${esc(Currency.cur)}). International cards are billed in USD.</div>` : ""}</div>`;
     document.getElementById("modal").classList.remove("hidden");
     if (typeof Currency !== "undefined" && !Currency.ready) { Currency.init().then(() => { if (!document.getElementById("modal").classList.contains("hidden")) this.openPricing(); }); }
+  },
+  // ---- Help & Support (real ticketing). Writes to Supabase support_tickets so the support
+  // team sees every request; a mailto is offered as a fallback. Open to every member. ----
+  openSupport() {
+    window.Track && Track.event("support_opened");
+    const tier = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
+    const faqs = [
+      ["I paid but Pro / Elite isn't unlocked", "Pull to refresh, or log out and back in — your membership syncs within a minute of payment. Still stuck? Message us below with the time you paid and we'll fix it fast."],
+      ["How do I cancel or change my plan?", "Message us any time and we'll cancel or switch your plan — no questions asked."],
+      ["How is my data handled?", "Your biometrics stay on your device; only your public profile stats sync. Details are in Profile → About."],
+      ["I found a bug or have an idea", "Tell us below — every message reaches the team and we read all of them."],
+    ];
+    document.getElementById("modal-card").innerHTML =
+      `<div class="modal-head"><h2>Help &amp; support</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+       <div class="support">
+         <div class="sp-lead">We're a real team and we reply — usually within a day. You're on the <b>${esc(tier === "elite" ? "Elite" : tier === "pro" ? "Pro" : "Free")}</b> plan.</div>
+         <div class="sp-faq">${faqs.map((f, i) => `<details class="sp-item"${i === 0 ? " open" : ""}><summary>${esc(f[0])}</summary><div class="sp-ans">${esc(f[1])}</div></details>`).join("")}</div>
+         <div class="sp-form">
+           <div class="field"><label>Subject</label><input id="sp-subj" maxlength="80" placeholder="What do you need help with?"></div>
+           <div class="field"><label>Message</label><textarea id="sp-msg" maxlength="1000" rows="4" placeholder="Tell us what's happening…"></textarea></div>
+           <button class="btn wide" onclick="App.submitTicket()">Send to support</button>
+           <div class="sp-alt">Prefer email? <a href="mailto:support@formora.app?subject=Formora%20support">support@formora.app</a></div>
+         </div>
+       </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  async submitTicket() {
+    const subj = ((document.getElementById("sp-subj") || {}).value || "").trim();
+    const msg = ((document.getElementById("sp-msg") || {}).value || "").trim();
+    if (!msg) { this.toast("Please add a message"); return; }
+    const u = (typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {};
+    const tier = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
+    const ticket = { uid: (typeof Cloud !== "undefined" && Cloud.me) || "", email: u.email || "", subject: subj.slice(0, 80) || "(no subject)", message: msg.slice(0, 1000), tier };
+    let ok = false;
+    try { if (typeof Cloud !== "undefined" && Cloud.active()) ok = await Cloud._write("/support_tickets", ticket, { Prefer: "return=minimal" }); } catch (e) {}
+    this.closeModal();
+    this.toast(ok ? "Sent ✓ We'll get back to you soon" : "Couldn't reach support — please email support@formora.app");
+  },
+  // Pro → Elite upgrade. During the ₹1 launch offer Elite is ₹1; afterwards the edge function
+  // charges only the prorated difference for the days left in the member's current Pro plan.
+  _proQuote() {
+    const rp = (typeof Currency !== "undefined" && Currency.regionPrice) ? { pro: Currency.regionPrice("pro"), elite: Currency.regionPrice("elite") } : null;
+    if (!rp || !rp.pro || !rp.elite) return null;
+    const pe = (typeof Entitlements !== "undefined" && Entitlements._e && Entitlements._e.current_period_end) ? new Date(Entitlements._e.current_period_end) : null;
+    const daysLeft = pe && !isNaN(pe.getTime()) ? Math.max(0, Math.ceil((pe.getTime() - Date.now()) / 864e5)) : 30;
+    const frac = Math.min(1, daysLeft / 30);
+    const delta = Math.max(1, Math.round((rp.elite.mo - rp.pro.mo) * frac));
+    return { sym: rp.elite.sym, delta, daysLeft, mo: rp.elite.mo };
+  },
+  upgradeToElite() {
+    window.Track && Track.event("upgrade_elite_opened");
+    const offer = !!(window.LAUNCH_OFFER && window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
+    const q = this._proQuote();
+    let est = "";
+    if (offer) est = `<div class="up-est"><div class="up-amt">₹1</div><div class="up-note">launch offer — upgrade to Elite for ₹1 right now ✨</div></div>`;
+    else if (q) est = `<div class="up-est"><div class="up-amt">${esc(q.sym + q.delta)}</div><div class="up-note">to upgrade today · prorated for the ${q.daysLeft} day${q.daysLeft === 1 ? "" : "s"} left in your Pro plan. Elite then renews at ${esc(q.sym + q.mo)}/mo.</div></div>`;
+    document.getElementById("modal-card").innerHTML =
+      `<div class="modal-head"><h2>Upgrade to Elite</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+       <div class="upgrade-elite">
+         <div class="ue-badge"><span class="tier-badge tb-elite">★ Elite</span></div>
+         <div class="ue-title">Everything in Pro, plus the complete Formora experience.</div>
+         ${est}
+         <button class="btn wide" onclick="App._buyElite()">Upgrade now</button>
+         <button class="btn ghost wide" style="margin-top:6px" onclick="App.openPricing()">Compare plans</button>
+       </div>`;
+    document.getElementById("modal").classList.remove("hidden");
+  },
+  _buyElite() {
+    const upi = !!(window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
+    this.choosePlan("elite", upi ? "upi" : undefined);
   },
   _loadRzp() {
     return new Promise(function (resolve, reject) {
@@ -1713,10 +1786,12 @@ const App = {
       const emailR = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
       if (!base || !meR) { this.toast("Please log in first"); return; }
       this.toast("Opening UPI checkout…");
+      // Pro→Elite mid-cycle → ask the server to charge only the prorated difference.
+      const upgrade = !!(typeof Entitlements !== "undefined" && tier === "elite" && Entitlements.isPro() && !Entitlements.isElite());
       try {
         const r = await fetch(base + "/functions/v1/razorpay-create-order", {
           method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "" },
-          body: JSON.stringify({ tier, uid: meR, email: emailR }),
+          body: JSON.stringify({ tier, uid: meR, email: emailR, upgrade }),
         });
         const o = await r.json();
         if (!o || !o.order_id) { this.toast("UPI isn't ready yet — use Card / PayPal"); return; }
@@ -2788,7 +2863,7 @@ const App = {
             <input type="file" accept="image/*" onchange="App.uploadAvatar(event)" hidden>
           </label>
           <div class="ph-id">
-            <div class="ph-name">${esc(p.name || "User")} <span class="lvl">${esc(Social.me().level)}</span></div>
+            <div class="ph-name">${esc(p.name || "User")}${(typeof Entitlements !== "undefined" && Entitlements.isPro()) ? Social.tierBadge({ tier: Entitlements.isElite() ? "elite" : "pro" }) : ""} <span class="lvl">${esc(Social.me().level)}</span></div>
             <div class="ph-handle">@${esc(p.username || (u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
           </div>
           <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
@@ -2824,13 +2899,28 @@ const App = {
         </div>
         <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
       </div>
-      <div class="card upgrade-card" onclick="App.openPricing()">
+      ${(() => {
+        const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
+        if (!isPro) {
+          return `<div class="card upgrade-card" onclick="App.openPricing()">
         <div class="uc-glow"></div>
         <div class="uc-badge">✨ Formora Pro</div>
         <div class="uc-title">Unlock AI plans, all filters &amp; advanced analytics</div>
         <div class="uc-price">From <b>$7.99</b>/mo · 5-day free trial</div>
         <button class="btn wide uc-btn" onclick="event.stopPropagation();App.openPricing()">See plans →</button>
-      </div>
+      </div>`;
+        }
+        const elite = Entitlements.isElite();
+        const pe = (Entitlements._e && Entitlements._e.current_period_end) ? new Date(Entitlements._e.current_period_end) : null;
+        const renew = pe && !isNaN(pe.getTime()) ? pe.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+        return `<div class="card member-card" data-tier="${elite ? "elite" : "pro"}">
+        <div class="mc-row"><span class="tier-badge ${elite ? "tb-elite" : "tb-pro"}">${elite ? "★ Elite" : "◆ Pro"}</span><span class="mc-status">Active${renew ? " · renews " + esc(renew) : ""}</span></div>
+        <div class="mc-title">You're a Formora ${elite ? "Elite" : "Pro"} member 🎉</div>
+        <div class="mc-sub">${elite ? "Every feature unlocked — the complete Formora experience." : "AI plans, every filter &amp; advanced analytics are yours."}</div>
+        ${elite ? "" : `<button class="btn wide" onclick="App.upgradeToElite()">Upgrade to Elite →</button>`}
+        <button class="btn ghost wide" style="margin-top:6px" onclick="App.openSupport()">Help &amp; support</button>
+      </div>`;
+      })()}
       ${myPosts.length ? `<div class="card"><div class="card-head"><h2>Your posts</h2><span class="tag">${myPosts.length}</span></div>${myPosts.map((x) => Social.postCard(cloudOn ? Social._cloudPost(x) : x)).join("")}</div>` : ""}
       <div class="card">
         <h2>Your fitness dashboard</h2>
@@ -2907,6 +2997,7 @@ const App = {
         <div class="about-brand"><svg viewBox="0 0 44 44" width="26" height="26" fill="none" aria-hidden="true"><defs><linearGradient id="alg" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#alg)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg><span>Formora</span></div>
         <div class="about-ver">Version ${window.APP_VERSION || "1.0.0"}</div>
         <div class="about-sub">Your aesthetic physique coach — train · track · connect.</div>
+        <button class="btn ghost sm" style="margin:10px auto 2px" onclick="App.openSupport()">${this.ic("info", { size: 15 })} Help &amp; support</button>
         <div class="about-legal"><a href="legal.html#terms" target="_blank" rel="noopener">Terms</a> · <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a> · <a href="legal.html#disclaimer" target="_blank" rel="noopener">Health disclaimer</a></div>
       </div>`;
   },
@@ -2933,11 +3024,26 @@ const App = {
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => t.classList.remove("show"), 2200);
   },
+  // Premium tier theme: reflects the member's paid tier (free/pro/elite) on <html data-tier>,
+  // caches it for the launch screen, and publishes it to their public profile so others see it.
+  applyTierTheme() {
+    const t = (typeof Entitlements !== "undefined") ? (Entitlements.isElite() ? "elite" : Entitlements.isPro() ? "pro" : "free") : "free";
+    try { document.documentElement.setAttribute("data-tier", t); localStorage.setItem("fm_tier", t); } catch (e) {}
+    const lt = document.getElementById("la-tier"); if (lt) lt.textContent = t !== "free" ? "You're " + (t === "elite" ? "Elite" : "Pro") + " \u2728" : "";
+    try {
+      if (typeof Store !== "undefined" && Store.state.profile.tier !== t) {
+        Store.state.profile.tier = t; Store.save();
+        if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.registerMe && Cloud.me) Cloud.registerMe(Store.state.profile);
+      }
+    } catch (e) {}
+    return t;
+  },
   // connect the shared backend when configured (no-op otherwise)
   initCloud(u) {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     Cloud.init(u, Store.state.profile);
-    if (typeof Entitlements !== "undefined") Entitlements.load();
+    // Load the paid tier, then re-render so Pro/Elite unlock immediately (no stale "unlock Pro").
+    if (typeof Entitlements !== "undefined") Entitlements.load().then(() => { try { this.applyTierTheme(); if (this.curTab) this.selectTab(this.curTab); } catch (e) {} });
     let last = "";
     Cloud.start((s) => {
       Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
