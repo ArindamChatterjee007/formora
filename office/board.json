@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v165",
+    "liveVersion": "v166",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -661,6 +661,72 @@
         { "owner": "cfo", "action": "Track the 'launch price locked forever' billing obligation for when renewals start." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-010",
+      "date": "2026-08-28",
+      "title": "Build review — Elite AI Progress Review (T-87), Elite's real spine (v166)",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","cmo","analyst","design"],
+      "agenda": [
+        "Elite has been thin — a promise, not a feature. Review the new Elite-only AI Progress Review: is it real, honest, and does it actually help?",
+        "Loop mandate: find the mistakes before the founder does — reproduce, fix, re-verify."
+      ],
+      "review": [
+        {
+          "item": "Does the review give a REAL, grounded read — or generic filler?",
+          "status": "pass",
+          "thread": [
+            { "role": "qalead", "type": "question", "text": "An 'AI review' is easy to fake with vague encouragement. Is every line grounded in the member's own data?" },
+            { "role": "eng", "type": "answer", "text": "Every number comes from the engine: training consistency = weeklyFrequency vs the experience-plan target; body composition = est. bodyfat vs the physique's target range; trajectory = goalProgress % + kg/week measured from the actual photo timestamps + weights. Plus a real on-device luminance check on the first vs latest photo." },
+            { "role": "qa", "type": "challenge", "text": "Prove it re-renders correct values, not hardcoded." },
+            { "role": "eng", "type": "verify", "text": "Tested live with seeded data: score 38, 'trained 4× vs 3× target', 'bodyfat ~20.9% vs 10–14%, 6.9% above', '38% from 82 to 75kg (4kg to go), lost 3kg (-0.7kg/week)'. Changed the photo brightness → the check flipped from 'lit consistently' to 'latest is brighter — lighting can fake progress'. All values track the inputs. PASS." }
+          ]
+        },
+        {
+          "item": "The score and trajectory rendered '[object Object]'",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "First live run: the progress ring showed '[object Object]' and 'You're [object Object]% of the way'. What broke?" },
+            { "role": "eng", "type": "fix", "text": "I assumed Engine.goalProgress() returned a 0–100 number (its comment literally says '(0–100)') — it returns an OBJECT { overall, bfScore, ... }. Took .overall. Owned it: I trusted a comment instead of the return shape." },
+            { "role": "qalead", "type": "verify", "text": "Re-ran: ring shows 38, trajectory shows 38%. Fixed. Lesson logged: verify the return SHAPE, not the comment. PASS." }
+          ]
+        },
+        {
+          "item": "The advice contradicted itself — and the app's own coach read",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "Body composition said 'run a deficit' but the action said '2929 kcal, a slight surplus to build'. And the app's Coach's read told the same user to eat MORE. Which is it?" },
+            { "role": "eng", "type": "fix", "text": "The action was blindly echoing the physique preset's calorie surplus. Made the advice phase-aware: bodyfat-first, so an over-range member gets a cut (2229 kcal deficit) regardless of the preset. And rather than silently disagree with the app, the review now NAMES it: 'your plan is set to build, but at ~21% the smart order is cut to your range first, then lean-bulk'." },
+            { "role": "coo", "type": "challenge", "text": "So the premium review deliberately gives better advice than the basic coach read — is that confusing?" },
+            { "role": "eng", "type": "verify", "text": "It's framed as the smarter Elite read and explains the sequence, so it's an insight not a contradiction. Re-verified live: body-comp + action + tension note all align on 'cut first'. PASS." }
+          ]
+        },
+        {
+          "item": "Is it honest? No fake AI-vision, no coach we don't have",
+          "status": "pass",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "We killed the human-coach promise for exactly this reason. Does 'AI Progress Review' over-claim — does it pretend to read muscles from the photo?" },
+            { "role": "eng", "type": "answer", "text": "No. The only pixel analysis is average luminance (lighting consistency). The physique read is explicitly from logged metrics; the header says 'computed on your device from your tracked data', and the footer says 'a coaching guide, not medical advice'. Nothing leaves the device." },
+            { "role": "ceo", "type": "verify", "text": "This is what Elite needed: a real, deliverable, honest feature instead of a hollow promise. Elite finally has a spine. PASS — ship v166." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "qalead", "point": "The loop worked: two real defects ([object Object], the deficit/surplus contradiction) were caught and fixed in review with live re-verification before anything shipped." },
+        { "role": "cto", "point": "Whole feature lives in js/mod/review.js — off the JS budget — so Elite got a real feature without touching the payload gate." }
+      ],
+      "decisions": [
+        "SHIP v166: Elite AI Progress Review, Elite-gated, on-device, honest.",
+        "Elite's value is now a real feature (not a human-coach promise). Paywall copy already honest since v164.",
+        "Engineering rule logged: verify a function's RETURN SHAPE, never trust the doc-comment."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "SHIPPED v166 — EliteReview (js/mod/review.js), entry point in the Pro Photo Studio, Elite/Pro/free paths tested." },
+        { "owner": "cmo", "action": "Fold the AI Progress Review into the Elite value story + a reel (it's the honest Elite differentiator)." },
+        { "owner": "qa", "action": "Add the review to the recurring premium audit (T-88) as an Elite must-work surface." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -689,7 +755,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v165 · Founding-Member offer + Elite+ 'coming soon' tier (value ladder) + paywall-gate audit" },
+    { "label": "Live version", "value": "v166 · Elite AI Progress Review (real Elite spine) + Founding offer + Elite+ ladder" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1119,7 +1185,7 @@
     { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "blocked", "priority": "P1", "note": "BLOCKED — FOUNDER DECISION: only the founder decides WHEN to end the ₹1 launch offer (a business/timing call, usually after the first cohort of trials). When you say go, this fires with T-91: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the new real prices IN THE SAME change (display+charge coupled). Everything is coded + ready; just needs your go." },
     { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." },
     { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
-    { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Elite currently promises a HUMAN coach we don't have. Build an on-device AI progress-photo review (physique read + focus areas + encouragement from a photo) gated to Elite, so Elite has a genuine spine that isn't a hollow human-coach promise. Reword the Elite paywall to what we actually deliver until/if a real coach exists." },
+    { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE v166 (M-010). Built js/mod/review.js (off the JS budget) = window.EliteReview: an honest, on-device coaching read gated to Elite. Grounded ONLY in the member's own tracked data — training consistency (weeklyFrequency vs target), body composition (est. bodyfat vs the physique target range), trajectory (goal % + photo-measured kg/week) — plus a REAL pixel-level luminance check on their first vs latest progress photo (flags inconsistent lighting so comparisons are honest). Phase-aware advice (cuts an over-range member even if the physique preset says build) and it NAMES that tension instead of contradicting the app's coach read. No fake photo-vision claims: physique read is from logged metrics, clearly labelled 'not medical advice'. Entry point in the Pro Photo Studio: Elite → 'Get your AI Progress Review'; Pro-not-Elite → locked 'Elite ★' teaser → pricing (see-then-gate). Two real bugs caught + fixed in review (goalProgress returns an object; deficit/surplus contradiction). Tested live localhost across Elite/Pro/free. This is Elite's genuine spine — no human-coach promise." },
     { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
     { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Design a small set of premium camera frames/overlays (subtle borders, date/streak stamps, tasteful watermarks) that are Elite-only, adding tangible Elite value beyond filters. Wire into the camera editor gated by Entitlements.isElite()." },
     { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE → board.assets.launchKit.reelScripts (filter-enticement reel: 'preview free, keep with Pro/Elite' + transformation + problem/solution hooks)." },
