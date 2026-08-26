@@ -8,6 +8,12 @@ const Camera = {
   // big curated filter set (CSS filter strings, baked on capture) — Snapchat-level variety
   FILTERS: [
     { id: "normal", name: "Normal", css: "" },
+    // ---- Elite exclusives (the richest, most cinematic looks — Elite tier only) ----
+    { id: "cinema", name: "Cinema", css: "contrast(1.18) saturate(1.12) brightness(1.02) sepia(.07) hue-rotate(-4deg)" },
+    { id: "editorial", name: "Editorial", css: "contrast(1.24) saturate(.9) brightness(1.05)" },
+    { id: "platinum", name: "Platinum", css: "grayscale(.35) contrast(1.16) brightness(1.06) saturate(1.08)" },
+    { id: "noirlux", name: "Noir Lux", css: "grayscale(1) contrast(1.45) brightness(.99)" },
+    { id: "goldhour", name: "Gold Hour", css: "sepia(.36) saturate(1.62) hue-rotate(-8deg) brightness(1.08) contrast(1.06)" },
     // ---- Premium pack (curated, portrait/fitness-flattering; shown first) ----
     { id: "aura", name: "Aura", css: "contrast(1.08) saturate(1.3) brightness(1.05)" },
     { id: "marble", name: "Marble", css: "contrast(1.06) saturate(1.08) brightness(1.04)" },
@@ -143,10 +149,17 @@ const Camera = {
 
   supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
   cssFilter() { return (this.FILTERS[this.filterIdx] || {}).css || "none"; },
-  // Free tier = first 10 filters; Pro/Elite unlock all of them.
   _isPro() { return typeof Entitlements !== "undefined" && Entitlements.isPro(); },
-  maxFilters() { return this._isPro() ? this.FILTERS.length : Math.min(30, this.FILTERS.length); },
+  _isElite() { return typeof Entitlements !== "undefined" && Entitlements.isElite(); },
+  // ---- Filter tiers: a curated FREE set (~30) + an exclusive ELITE set; everything else is Pro.
+  // Everyone can PREVIEW any filter live; capturing/saving with a locked one needs the upgrade.
+  _FREE: new Set(["normal","aura","vivid","pop","clarity","bright","glow","warm","sunny","golden","peach","rose","crimson","cool","sky","cobalt","teal","emerald","mint","dusk","soft","fade","mono","silver","vintage","film","sepia","gym","radiant","onyx"]),
+  _ELITE: new Set(["cinema","editorial","platinum","noirlux","goldhour","lumen","velvet","cyber","prism","drama","midnight","eclipse","laser"]),
+  filterTier(i) { const f = this.FILTERS[i]; if (!f) return "free"; if (this._ELITE.has(f.id)) return "elite"; if (this._FREE.has(f.id)) return "free"; return "pro"; },
+  tierLocked(t) { if (t === "free") return false; if (t === "elite") return !this._isElite(); return !this._isPro(); },
+  maxFilters() { return this.FILTERS.length; },
   unlockFilters() { this.close(); if (typeof App !== "undefined" && App.openPricing) setTimeout(() => App.openPricing(), 120); },
+  _captureGate() { const t = this.filterTier(this.filterIdx); if (this.tierLocked(t)) { if (typeof App !== "undefined" && App.toast) App.toast((t === "elite" ? "Elite" : "Pro") + " filter — upgrade to capture ✨"); this.unlockFilters(); return true; } return false; },
   // clean line-icons (no emoji) for a professional camera UI
   ic(n) {
     const p = {
@@ -207,7 +220,7 @@ const Camera = {
     strip.style.setProperty("--cam-thumb", "url(" + url + ")");
   },
   setFilter(i) {
-    const n = this.maxFilters();
+    const n = this.FILTERS.length;
     this.filterIdx = (i + n) % n;
     const v = document.getElementById("cam-video");
     if (v) v.style.filter = this.cssFilter();
@@ -217,6 +230,13 @@ const Camera = {
     if (active && active.scrollIntoView) active.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
     const label = document.getElementById("cam-filter-name");
     if (label) { label.textContent = (this.FILTERS[this.filterIdx] || {}).name || ""; label.classList.remove("show"); void label.offsetWidth; label.classList.add("show"); }
+    this._updateLockBanner();
+  },
+  _updateLockBanner() {
+    const bar = document.getElementById("cam-lock-bar"); if (!bar) return;
+    const t = this.filterTier(this.filterIdx);
+    if (this.tierLocked(t)) { bar.innerHTML = `<span class="cam-lk-ic">🔒</span> <b>${t === "elite" ? "Elite" : "Pro"}</b> filter — preview only. <button onclick="Camera.unlockFilters()">Unlock to capture</button>`; bar.classList.add("show"); }
+    else bar.classList.remove("show");
   },
   nextFilter() { this.setFilter(this.filterIdx + 1); },
   prevFilter() { this.setFilter(this.filterIdx - 1); },
@@ -238,11 +258,11 @@ const Camera = {
           <button class="cam-ic" aria-label="Flip camera" onclick="Camera.flip()">${this.ic("flip")}</button>
         </div>
         <div class="cam-bottom">
+          <div class="cam-lock-bar" id="cam-lock-bar"></div>
           <div class="cam-filters" id="cam-filters">
-            ${this.FILTERS.slice(0, this.maxFilters()).map((f, i) => `<button class="cam-filter ${i === 0 ? "active" : ""}" onclick="Camera.setFilter(${i})"><span class="cam-filter-thumb"${f.css ? ` style="filter:${f.css}"` : ""}></span><span class="cam-filter-name-s">${esc(f.name)}</span></button>`).join("")}
-            ${!this._isPro() && this.FILTERS.length > this.maxFilters() ? `<button class="cam-filter cam-filter-locked" onclick="Camera.unlockFilters()"><span class="cam-filter-thumb lock">🔒</span><span class="cam-filter-name-s">${this.FILTERS.length - this.maxFilters()}+ Pro</span></button>` : ""}
+            ${this.FILTERS.map((f, i) => { const t = this.filterTier(i); const lk = this.tierLocked(t); return `<button class="cam-filter ${i === 0 ? "active" : ""}${lk ? " cam-filter-lk lk-" + t : ""}" onclick="Camera.setFilter(${i})"><span class="cam-filter-thumb"${f.css ? ` style="filter:${f.css}"` : ""}></span>${lk ? `<span class="cam-lock-badge">${t === "elite" ? "★" : "◆"}</span>` : ""}<span class="cam-filter-name-s">${esc(f.name)}</span></button>`; }).join("")}
           </div>
-          <div class="cam-hint" id="cam-hint">Swipe the photo to change filter · tap to shoot</div>
+          <div class="cam-hint" id="cam-hint">Swipe to preview any filter · ◆ Pro · ★ Elite</div>
           <div class="cam-modes">
             <button class="cam-mode active" id="cam-mode-photo" onclick="Camera.setMode('photo')">Photo</button>
             <button class="cam-mode" id="cam-mode-video" onclick="Camera.setMode('video')">Video</button>
@@ -294,11 +314,13 @@ const Camera = {
     return canvas;
   },
   snapPhoto() {
+    if (this._captureGate()) return;
     const canvas = this._frameCanvas();
     canvas.toBlob((blob) => { if (blob) this.openEditor(blob, false); }, "image/jpeg", 0.95);
   },
   startRec() {
     if (this.recording || !this.stream) return;
+    if (this._captureGate()) return;
     const v = document.getElementById("cam-video");
     // preserve the real aspect ratio (drawing 16:9 into a square squished the video)
     let w = v.videoWidth || 1080, h = v.videoHeight || 1920;
