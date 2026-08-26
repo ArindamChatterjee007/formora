@@ -1675,12 +1675,13 @@ const App = {
     window.Track && Track.event("paywall_opened");
     const P = (window.PRICING && window.PRICING.tiers) || [];
     const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
+    const offerOn = (t) => !!(window.LAUNCH_OFFER && t.id !== "free" && window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
     const tiers = P.map((t) => `
       <div class="ptier ${t.id === "pro" ? "featured" : ""}">
         ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
         <div class="pt-name">${esc(t.name)}</div>
-        <div class="pt-price">${t.price === "0" ? "Free" : (typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))}<small>${esc(t.period || "")}</small></div>
-        ${t.yearly ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}${(() => { const my = parseFloat(t.price), yr = parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
+        <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">₹${(RAZORPAY.inr && RAZORPAY.inr[t.id]) || ""}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price)))}<small>${offerOn(t) ? " launch offer" : esc(t.period || "")}</small></div>
+        ${t.yearly && !offerOn(t) ? `<div class="pt-year">or ${typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : ""}${typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)}${(() => { const my = parseFloat(t.price), yr = parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li${/^Everything in /.test(f) ? ' class="pt-inc"' : ""}>${esc(f)}</li>`).join("")}</ul>
         ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn ${t.id === "pro" ? "" : "ghost "}wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
       </div>`).join("");
