@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v162",
+    "liveVersion": "v163",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -434,6 +434,83 @@
         { "owner": "qalead", "action": "Re-run the premium audit (T-78) with the threaded method and record PASS/FAIL per surface." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-007",
+      "date": "2026-08-27",
+      "title": "Premium-value audit — what do Pro/Elite ACTUALLY give? (marketing reviews the whole app)",
+      "chair": "cmo",
+      "attendees": ["ceo","cmo","growth","analyst","content","cfo","pm","design","eng","qa","qalead"],
+      "agenda": [
+        "Founder: apart from Free, what EXTRA do Pro/Elite give that people will PAY for? Be honest, don't sell ourselves.",
+        "The filters are a headline feature — but free vs pro vs elite wasn't defined and free users can't preview the premium ones.",
+        "Marketing must review the WHOLE app for premium value + hollow claims, not just channels. Plan real premium features."
+      ],
+      "review": [
+        {
+          "item": "Is the Pro/Elite value actually worth paying for?",
+          "status": "open",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "Founder's challenge: what does someone GET with Pro or Elite that they'd pay for? Free already has the core loop — adaptive workouts, logging, social, filters. So what's the real pull?" },
+            { "role": "analyst", "type": "answer", "text": "Pro's pull = unlimited AI plans + full meal plans/grocery + all filters + advanced analytics + no ads. That's a fair $7.99 bundle IF those are genuinely gated and richer than free." },
+            { "role": "cmo", "type": "challenge", "text": "'IF'. Are we SURE every one of those is actually enforced? The founder's point is we claim things we haven't verified." },
+            { "role": "eng", "type": "answer", "text": "Unlimited AI plans + meal plans + grocery ARE gated today; filters now properly tiered (this sprint). 'Advanced analytics + progress photos' I have NOT re-verified is gated — needs a check." },
+            { "role": "pm", "type": "fix", "text": "T-86: audit EVERY paywall claim — prove each is gated AND delivers, fix copy for anything hollow. No promise on the pricing page we can't demonstrate live." },
+            { "role": "cfo", "type": "verify", "text": "Then price it honestly per region (T-80). The value is real once gating is proven — status stays OPEN until T-86 confirms each claim." }
+          ]
+        },
+        {
+          "item": "The 127 filters — free/pro/elite undefined + no preview (founder's example)",
+          "status": "pass",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "Filters are a headline feature, but which are free vs premium wasn't defined, and free users couldn't SEE what they're missing. That's a wasted conversion lever." },
+            { "role": "design", "type": "answer", "text": "Correct — it was 'first 30 free + one locked button', and ELITE got NOTHING extra over Pro. No preview, no reason to want it." },
+            { "role": "eng", "type": "fix", "text": "Rebuilt: 132 filters in 3 tiers — Free 30, Pro +89, Elite +13 EXCLUSIVE cinematic (Cinema, Editorial, Platinum, Noir Lux, Gold Hour). Everyone PREVIEWS any filter live; ◆ Pro / ★ Elite badges mark locked; selecting one shows 'preview only — unlock to capture'; the shutter on a locked filter opens the upgrade." },
+            { "role": "qa", "type": "verified", "text": "Verified on localhost: 132 filters, 89 Pro + 13 Elite badges, banner on locked selection, capture gate blocks free→pro/elite + pro→elite, elite unlocks all. PASS." },
+            { "role": "growth", "type": "verified", "text": "THIS is the enticement we were missing — 'your photo looks unreal with Cinema — unlock to keep it'. Goes straight into the reels script. PASS." }
+          ]
+        },
+        {
+          "item": "Elite promises a HUMAN COACH we don't have",
+          "status": "fail",
+          "thread": [
+            { "role": "cfo", "type": "challenge", "text": "Elite's headline is 'progress-photo reviews with your coach' + 'monthly human-coach check-in'. We have NO human coach. Charging for that = a promise we can't keep = chargebacks + 1-star reviews." },
+            { "role": "cmo", "type": "answer", "text": "Agreed — we can't market a human we don't employ. That's a real liability the founder is right to worry about." },
+            { "role": "ceo", "type": "challenge", "text": "But don't gut Elite to nothing either — it needs a REAL reason over Pro. Exclusive filters help; what else is Elite-only and actually deliverable?" },
+            { "role": "eng", "type": "answer", "text": "Buildable Elite-only value: the exclusive cinematic filters (done), an AI progress-photo review (on-device physique feedback from a photo), exclusive camera frames, and genuine early access. All real, no human required." },
+            { "role": "pm", "type": "fix", "text": "Decision: reword Elite now to deliverable value (drop the human-coach line unless we commit to a real/AI coach) + ship T-87 (AI progress-review) to give Elite a real spine. Status FAIL until the copy is fixed + T-87 lands." }
+          ]
+        },
+        {
+          "item": "Why wasn't marketing reviewing the product?",
+          "status": "open",
+          "thread": [
+            { "role": "ceo", "type": "challenge", "text": "Founder: marketing should be USING the app, finding gaps like the filters and flagging weak/hollow premium value — not just posting. Why did these slip?" },
+            { "role": "cmo", "type": "answer", "text": "Fair hit. We reviewed messaging, not the product surface — never dogfooded the paywall or the camera as free/pro/elite. That's on us." },
+            { "role": "growth", "type": "fix", "text": "New cadence: every cycle marketing does a FULL-APP premium audit — walk every screen as free, pro AND elite, list what would make someone pay + every hollow claim — recorded as a threaded review like this (T-88)." },
+            { "role": "ceo", "type": "verify", "text": "That's the rule: marketing owns a product-value audit, not just channels. OPEN until the first audit (T-88) is on the board." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "cmo", "point": "Honest read: our premium tiers are decent but under-sold (filters weren't previewable) and partly over-promised (a human coach we don't have). Fixed the first today; the second needs copy + a real Elite feature." },
+        { "role": "ceo", "point": "This is the marketing-reviews-the-product discipline the founder asked for — we found real value gaps by actually using the app, and every one has an owner." }
+      ],
+      "decisions": [
+        "Filters RETIERED (Free 30 / Pro +89 / Elite +13 exclusive) with live PREVIEW + capture-gate — SHIPPED. Free users now see the premium quality before buying.",
+        "Every paywall claim must be VERIFIED-gated AND deliverable (T-86); no promise we can't demonstrate live.",
+        "Elite reworded to deliverable value + gets a REAL spine (exclusive filters now + AI progress-review T-87); the 'human coach' line stays ONLY if we commit to a real/AI coach.",
+        "Marketing owns a recurring FULL-APP premium-value audit (T-88) — using the app as free/pro/elite — not just channels."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "Ship v163 — filter tiers + live preview + capture gate + retiered pricing copy." },
+        { "owner": "pm", "action": "T-86 — audit every Pro/Elite paywall claim is actually gated + delivered; fix any hollow copy." },
+        { "owner": "eng", "action": "T-87 — Elite AI progress-photo review (on-device physique feedback), a real Elite-only feature." },
+        { "owner": "cmo", "action": "T-88 — recurring full-app premium-value audit as free/pro/elite; feed T-80 willingness-to-pay." },
+        { "owner": "design", "action": "T-89 — exclusive Elite camera frames/overlays for more Elite-only value." },
+        { "owner": "content", "action": "T-90 — reels + paywall CTA built around the filter-preview enticement ('unlock to keep this look')." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -462,7 +539,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v162 · slide-text fix + metallic Elite gold + threaded office reviews" },
+    { "label": "Live version", "value": "v163 · premium filter tiers + live preview enticement + premium-value audit" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -842,7 +919,12 @@
     { "id": "T-82", "title": "Premium tier experience shipped — themes, regional pricing, support, prorated upgrades", "role": "design", "sprint": 7, "status": "done", "priority": "P0", "note": "DONE (v160). (1) Fixed 'still asked to pay' (initCloud re-renders after entitlements load + Profile membership card for Pro/Elite). (2) Regional PPP pricing — India ₹399/₹799 vs FX ~₹663; Currency.region()/regionPrice(). (3) Tier themes — <html data-tier> Free/Pro/Elite accents (Elite gold), tier badge on own + others' profiles (tier synced via registerMe→profile.tier + social mapping), launch splash 'You're Elite ✨'. (4) Help & Support ticketing (support_tickets table + RLS). (5) Prorated Pro→Elite upgrade, server-authoritative in razorpay-create-order (upgrade flag → charges only the remaining-days delta; ₹1 during the offer). Code-split exercises.js→js/mod/ to fit budget. Verified in-browser + deployed; ₹1 test refunded (rfnd_TURdtCxYpsOhK8)." },
     { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. Confirm: (a) a user CANNOT read another user's support_ticket (RLS own-read only); (b) the Pro→Elite price cannot be forged from the client (edge fn reads the real entitlement server-side); (c) tier cannot be spoofed client-side to unlock (entitlement is server-authoritative under RLS). Try to break each; document evidence." },
     { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. When the launch offer ends: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the real regional prices (India ₹399/₹799 → {pro:39900, elite:79900}) in the SAME change, so the label and the charge never diverge (same coupling discipline as the ₹1 launch). Verify a real charge matches the displayed price + proration." },
-    { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." }
+    { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." },
+    { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
+    { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Elite currently promises a HUMAN coach we don't have. Build an on-device AI progress-photo review (physique read + focus areas + encouragement from a photo) gated to Elite, so Elite has a genuine spine that isn't a hollow human-coach promise. Reword the Elite paywall to what we actually deliver until/if a real coach exists." },
+    { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
+    { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Design a small set of premium camera frames/overlays (subtle borders, date/streak stamps, tasteful watermarks) that are Elite-only, adding tangible Elite value beyond filters. Wire into the camera editor gated by Entitlements.isElite()." },
+    { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Now that free users can PREVIEW premium filters live, build the marketing hook: a Flex reel showing a photo transform with Cinema/Editorial + 'unlock to keep this look', and a paywall line that references the exact filter they were previewing. Acceptance: reel script + the CTA copy in board.assets." }
   ],
   "readiness": {
     "date": "2026-08-25",
@@ -880,6 +962,7 @@
     "remaining": ["DONE (v155): JS code-split — charts.js lazy-loaded to js/mod/ (loads only on Progress, genuine payload win), reclaimed ~4.2KB (179B->4245B free)", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
   },
   "activity": [
+    { "ts": "2026-08-27", "role": "cmo", "text": "🎬 PREMIUM FILTER TIERS + PREVIEW ENTICEMENT + PREMIUM-VALUE AUDIT (v163, founder: 'apart from free, what EXTRA do Pro/Elite actually give that people will PAY for? The 127 filters — free vs pro vs elite isn't defined, and free users can't PREVIEW the premium ones. Show them \"this looks amazing with Pro but you don't get it on Free\". Develop it. And why isn't marketing reviewing the whole app for this?'). BUILT (real dev): the camera's filters were 'first 30 free + one locked button', with ELITE GETTING NOTHING EXTRA and NO preview. Now 132 filters in 3 REAL tiers — Free 30, Pro +89, Elite +13 EXCLUSIVE cinematic (Cinema, Editorial, Platinum, Noir Lux, Gold Hour). EVERYONE can PREVIEW any filter LIVE on their own face; locked ones show a ◆ Pro (violet) / ★ Elite (gold) badge; selecting one shows a 'preview only — Unlock to capture' banner; tapping the shutter on a locked filter opens the upgrade — so free users SEE the premium quality and feel the pull (exactly the founder's ask). Verified on localhost: 132 filters, 89 Pro + 13 Elite badges, capture gate blocks free→pro/elite and pro→elite, elite unlocks all, banner shows only on locked selection. Pricing copy retiered (Free '30+ filters (preview all)', Pro '90+ Pro cinema filters', Elite 'Exclusive Elite cinematic filters'). MEETING M-007 (THREADED, marketing-led — the founder's ask that marketing audit the WHOLE app for premium value) found real gaps: (a) filters undefined / no-preview → FIXED; (b) ELITE PROMISES A HUMAN COACH WE DON'T HAVE ('progress-photo reviews with your coach' + 'monthly human-coach check-in') = a promise we can't keep → reword to deliverable value + build a real Elite spine (AI progress-review, T-87); (c) EVERY paywall claim must be VERIFIED-gated + delivered (T-86) — no claim we can't demonstrate; (d) marketing now owns a recurring full-app premium-value audit (T-88), not just channels. Sprint tasks T-86..T-90 added. liveVersion v163." },
     { "ts": "2026-08-27", "role": "qalead", "text": "🔎 SLIDE-TEXT BUG FIXED + ELITE GOLD REWORKED + REAL THREADED REVIEWS (v162, founder: 'the \"Slide to…\" text isn't readable, the gold is dull, and the office meetings are one-liners — I need real cross-questioning, review-of-review, verify, catch mistakes, then correct'). (1) BUG (our fault, owned): the v161 Elite dark-ink contrast rule wrongly included .sb-label, which sits on the slide's DARK track (not the gold fill) → 'Slide to start workout / plan meals / view program' went dark-on-dark = INVISIBLE. The M-005 'contrast verified' was a rubber-stamp that sampled ONE filled button and generalised. FIX: removed .sb-label from the elite override (label stays white + a text-shadow so it's legible on the dark track AND where the gold fill passes under mid-drag). Verified live at 402px: all four slide labels compute rgb(255,255,255). (2) ELITE GOLD REWORK (founder: 'dull/muddy'): old #e7b23f was a mustard tone + a heavy gold bg-glow washed the screen olive. New = metallic bronze→gold (accent #d99f2b→#f7cf6b), bg-glow opacity ~halved so gold reads as a crisp ACCENT on a clean dark base, + a bronze→gold sheen on the profile cover. Founder approved the 'B' direction; Pro violet unchanged. (3) OFFICE PROCESS FIX — meetings were ONE 'point' per role (a summary, not a debate, nobody catching anyone's miss). NEW THREADED format: each finding is a chain — reviewer QUESTIONS → owner ANSWERS/owns → CROSS-QUESTION → FIX → re-VERIFY, with PASS/FAIL, stored in board.meetings[].review[] and rendered on the dashboard Meetings tab. M-006 demonstrates it: QA cross-questioned the 'contrast verified' claim and CAUGHT the invisible slide text the flat review missed; eng owned the mistake; the fix was re-verified PASS. STANDING RULE: no 'GO' without a per-item thread + re-verification, and contrast is checked per-element on its ACTUAL background. liveVersion v162." },
     { "ts": "2026-08-27", "role": "design", "text": "🎨 WHOLE-APP TIER THEME + PROFILE REDESIGN — FULL REVIEW LIFECYCLE (v161, founder: 'the launch theme wasn't per-tier, the whole app didn't re-theme, Log out overlapped the Rookie badge, the cover looked blank, others' profiles weren't tier-themed — and run a real engineer→manager→QA→UX review-with-fixes cycle'). BUILT, then the office reviewed it ONE BY ONE (meeting M-005): each role raised a REAL issue and every issue was fixed before shipping. (1) WHOLE-APP TIER THEME — the ENTIRE app now re-themes by overriding --accent/--accent2 (which drive every button, gradient, ring, nav across styles.css) per tier: Free orange→pink, Pro violet→magenta, Elite champagne gold. Root cause of 'theme didn't change' in v160: it used a --tier-accent var that almost nothing consumed; the app themes off --accent. (2) PER-TIER LAUNCH SPLASH — gold/violet wordmark + loading bar + background tint + logo hue-shift, themed from the cached tier on the FIRST frame (before boot). (3) PROFILE REDESIGN — cover photo + upload, Log out moved to an icon on the cover (fixes the logout↔Rookie overlap the founder caught), tier + level moved to their own chips row. (4) OTHERS' PROFILES THEMED BY THEIR TIER — opening an Elite member shows gold + ★ Elite, a Pro member shows violet + ◆ Pro; scoped to the modal ([data-tier] attribute selector) so your OWN app keeps your theme. REVIEW FIXES (comment→fix): Design 'gold fails contrast' → filled accents get dark ink on Elite; PM 'card parity' → Pro members get a violet membership card; QAUX 'paid-look leak' → logout clears the cached tier + resets to free; QA 'cover eats storage' → save() sheds the cover first on quota. Verified live in-browser at 390px: --accent per tier (orange/violet/gold), gold-button dark ink, no logout↔level overlap, cover controls, cross-profile theming (Free viewer sees Elite gold / Pro violet), gold launch splash 'You're Elite ✨'. Code-split mailer.js→js/mod/ for budget. liveVersion v161." },
     { "ts": "2026-08-26", "role": "design", "text": "🎁 PREMIUM TIER BATCH SHIPPED + ₹1 REFUNDED (v160, founder out 3h: 'return a perfect, very premium product'). Shipped, tested live + deployed: (1) FIXED 'why am I still being asked to pay' — initCloud now RE-RENDERS after entitlements load, and Profile shows a 'You're Elite/Pro · Active · renews <date>' membership card instead of the upsell (the upsell only shows to free users). (2) REGIONAL (PPP) PRICING — India now sees ₹399/₹799 built for the market, not the FX-converted ~₹663 that was scaring buyers off (struck→₹1 under the launch offer); US/global stay USD; Currency.region() selects the table. (3) TIER THEMES — <html data-tier> gives Free/Pro/Elite distinct accents (Elite = gold), a tier badge on your name AND on other members' profiles you open, and the launch splash greets you 'You're Elite ✨' from the first frame. (4) HELP & SUPPORT — a REAL ticketing surface (FAQ + contact form → Supabase support_tickets with RLS own-insert/read) reachable from every profile + the membership card (founder: 'we hired support but there's no way to raise a ticket'). (5) PRORATED PRO→ELITE UPGRADE — 'Upgrade to Elite' charges ONLY the difference for the days left in the Pro plan, computed SERVER-SIDE in the edge fn (client can't forge the price); shows ₹1 during the launch offer. Code-split exercises.js→js/mod/ to fit the JS budget. Verified in-browser: India paywall ₹399→₹1, proration ₹200 for 15/30 days, data-tier applies, support + upgrade modals render, zero errors. (6) REFUNDED the founder's ₹1 test (pay_TUQYBTiQ6yilZu → rfnd_TURdtCxYpsOhK8) via a one-shot server-side refund fn using the Razorpay secret, then deleted the fn. liveVersion v160." },
