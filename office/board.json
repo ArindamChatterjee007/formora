@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v160",
+    "liveVersion": "v161",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -331,6 +331,44 @@
         { "owner": "support", "action": "T-81 — set a response SLA, write the first macros, triage the ticket queue daily." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-005",
+      "date": "2026-08-27",
+      "title": "Premium tier theming + profile redesign — full review lifecycle (build → PM → Design → QA → fixes)",
+      "chair": "pm",
+      "attendees": ["ceo","pm","req","design","cto","architect","eng","qalead","qa","qaux"],
+      "agenda": [
+        "Engineer walks the build; then each reviewer finds REAL issues one by one (no rubber-stamps).",
+        "Founder's report: launch theme wasn't per-tier, the whole app didn't re-theme, Log out overlapped the level badge, the cover was blank, others' profiles weren't tier-themed.",
+        "Comment → fix → re-review until it's genuinely premium."
+      ],
+      "discussion": [
+        { "role": "eng", "point": "Built it: the WHOLE app now re-themes by overriding --accent/--accent2 per tier (Free orange→pink · Pro violet→magenta · Elite gold) — every button, gradient, ring, nav and the launch splash follow. Root-caused the founder's 'theme didn't change': v160 used a --tier-accent variable almost nothing consumed; the app themes off --accent. Also redesigned the profile header (cover photo + upload, Log out moved to an icon on the cover, tier+level moved to a chips row) and made other members' profiles show THEIR tier via a scoped [data-tier] accent override." },
+        { "role": "pm", "point": "Whole-app re-theme off one variable pair is the right, cohesive call. Comment: Pro members had a plain membership card while Elite got a gold one — parity gap. Confirm the launch reads the CACHED tier so it themes on the very first frame, not after boot." },
+        { "role": "design", "point": "The redesign fixes the overlap and the blank cover. Comment: Elite gold on white-text buttons FAILS contrast — filled buttons need dark ink on gold. The launch wordmark + bar + background should ALL shift per tier, not just a text line. Cover empty-state should still feel premium (themed gradient + a clear 'add cover' affordance)." },
+        { "role": "qaux", "point": "Feel-audit as Free→Pro→Elite: the tier now reads instantly on the splash and across the app. Issue: after logout the cached tier persisted, so a logged-out / next user briefly saw the previous member's paid (gold) theme — a paid-look leak." },
+        { "role": "qa", "point": "Contrast: verified gold buttons now render dark ink (rgb 42,28,5) = legible. Robustness: a cover photo is a heavy on-device image; if localStorage fills, save() must shed the cover FIRST (like avatar) so logs are never lost. Scope: confirmed a Free viewer opening an Elite profile themes only the MODAL (gold) while their own app stays orange — no global leak." },
+        { "role": "qalead", "point": "Verified live in-browser at 390px: --accent per tier (orange/violet/gold), gold-button dark ink, profile header has NO logout↔level overlap, cover controls present, cross-profile theming (Free viewer → Elite profile shows gold + ★ Elite, Pro profile shows violet + ◆ Pro), launch splash gold wordmark + warm bg + 'You're Elite ✨'. Gating the release on the fixes below." },
+        { "role": "architect", "point": "Attribute selectors [data-tier=...] (not html-scoped) is the right primitive — one rule themes the html for the whole app AND scopes a profile modal to another member's tier. Clean and cheap." },
+        { "role": "cto", "point": "Budget: the new JS pushed over the ceiling → relocated mailer.js to js/mod/ (eager, same position, zero behaviour change) to reclaim room; all new CSS is inline in index.html (escapes the CSS ceiling). JS ~437.6K/440.3K. GO once fixes land." },
+        { "role": "req", "point": "Acceptance for 'done': all three tiers visibly distinct on the launch AND across the app; profile header no overlap + a working cover upload; other members' profiles themed by their tier — verified on a real render, not a code-read." },
+        { "role": "ceo", "point": "This is the review lifecycle I asked for — engineer built, everyone found real issues, and they get FIXED before shipping. Ship once QA's fixes are in." }
+      ],
+      "decisions": [
+        "FIXES APPLIED this pass (comment → fix): Design 'gold contrast' → filled accents get dark ink on Elite; Design/PM 'launch must fully re-theme' → gold/violet wordmark + bar + background + logo tint per tier; PM 'card parity' → Pro members get a violet-tinted membership card; QAUX 'paid-look leak on logout' → logout clears the cached tier + resets to the free theme; QA 'cover eats storage' → save() sheds the cover first in the quota fallback.",
+        "Whole-app tier theme via --accent/--accent2 override (attribute selectors) is the STANDARD; new premium CSS stays inline in index.html.",
+        "Release GATED on QA Lead's live 390px pass — passed for v161."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "Ship v161 — tier theme + per-tier launch + profile redesign + the 5 review fixes." },
+        { "owner": "design", "action": "T-79 — continue the feel-audit; refine the Elite cover empty-state + reduce the twin-gold-pill sameness (tier badge vs level)." },
+        { "owner": "qalead", "action": "T-78 — fold these surfaces into the premium audit defect list; re-run on a real device." },
+        { "owner": "qaux", "action": "Verify the logout theme-reset + cover upload on a real phone." },
+        { "owner": "eng", "action": "T-85 — sync a member's cover photo to their public profile so others see it when viewing them (currently local-only to bound the get_state payload)." },
+        { "owner": "pm", "action": "Confirm tier parity on every premium surface before closing Sprint 7." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -359,7 +397,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v160 · premium tiers, regional pricing, support & prorated upgrades" },
+    { "label": "Live version", "value": "v161 · whole-app tier themes, per-tier launch & profile redesign" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -738,7 +776,8 @@
     { "id": "T-81", "title": "Support SLA + first macros + daily ticket triage (ticketing now live)", "role": "support", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-004. support_tickets is live (in-app Help & Support → Supabase, RLS own-insert/read). Set a response SLA, write the first macros (payment-not-unlocked, cancel/refund, bug intake), and triage the queue daily. Hired support must mean REACHABLE support." },
     { "id": "T-82", "title": "Premium tier experience shipped — themes, regional pricing, support, prorated upgrades", "role": "design", "sprint": 7, "status": "done", "priority": "P0", "note": "DONE (v160). (1) Fixed 'still asked to pay' (initCloud re-renders after entitlements load + Profile membership card for Pro/Elite). (2) Regional PPP pricing — India ₹399/₹799 vs FX ~₹663; Currency.region()/regionPrice(). (3) Tier themes — <html data-tier> Free/Pro/Elite accents (Elite gold), tier badge on own + others' profiles (tier synced via registerMe→profile.tier + social mapping), launch splash 'You're Elite ✨'. (4) Help & Support ticketing (support_tickets table + RLS). (5) Prorated Pro→Elite upgrade, server-authoritative in razorpay-create-order (upgrade flag → charges only the remaining-days delta; ₹1 during the offer). Code-split exercises.js→js/mod/ to fit budget. Verified in-browser + deployed; ₹1 test refunded (rfnd_TURdtCxYpsOhK8)." },
     { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. Confirm: (a) a user CANNOT read another user's support_ticket (RLS own-read only); (b) the Pro→Elite price cannot be forged from the client (edge fn reads the real entitlement server-side); (c) tier cannot be spoofed client-side to unlock (entitlement is server-authoritative under RLS). Try to break each; document evidence." },
-    { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. When the launch offer ends: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the real regional prices (India ₹399/₹799 → {pro:39900, elite:79900}) in the SAME change, so the label and the charge never diverge (same coupling discipline as the ₹1 launch). Verify a real charge matches the displayed price + proration." }
+    { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. When the launch offer ends: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the real regional prices (India ₹399/₹799 → {pro:39900, elite:79900}) in the SAME change, so the label and the charge never diverge (same coupling discipline as the ₹1 launch). Verify a real charge matches the displayed price + proration." },
+    { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." }
   ],
   "readiness": {
     "date": "2026-08-25",
@@ -776,6 +815,7 @@
     "remaining": ["DONE (v155): JS code-split — charts.js lazy-loaded to js/mod/ (loads only on Progress, genuine payload win), reclaimed ~4.2KB (179B->4245B free)", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
   },
   "activity": [
+    { "ts": "2026-08-27", "role": "design", "text": "🎨 WHOLE-APP TIER THEME + PROFILE REDESIGN — FULL REVIEW LIFECYCLE (v161, founder: 'the launch theme wasn't per-tier, the whole app didn't re-theme, Log out overlapped the Rookie badge, the cover looked blank, others' profiles weren't tier-themed — and run a real engineer→manager→QA→UX review-with-fixes cycle'). BUILT, then the office reviewed it ONE BY ONE (meeting M-005): each role raised a REAL issue and every issue was fixed before shipping. (1) WHOLE-APP TIER THEME — the ENTIRE app now re-themes by overriding --accent/--accent2 (which drive every button, gradient, ring, nav across styles.css) per tier: Free orange→pink, Pro violet→magenta, Elite champagne gold. Root cause of 'theme didn't change' in v160: it used a --tier-accent var that almost nothing consumed; the app themes off --accent. (2) PER-TIER LAUNCH SPLASH — gold/violet wordmark + loading bar + background tint + logo hue-shift, themed from the cached tier on the FIRST frame (before boot). (3) PROFILE REDESIGN — cover photo + upload, Log out moved to an icon on the cover (fixes the logout↔Rookie overlap the founder caught), tier + level moved to their own chips row. (4) OTHERS' PROFILES THEMED BY THEIR TIER — opening an Elite member shows gold + ★ Elite, a Pro member shows violet + ◆ Pro; scoped to the modal ([data-tier] attribute selector) so your OWN app keeps your theme. REVIEW FIXES (comment→fix): Design 'gold fails contrast' → filled accents get dark ink on Elite; PM 'card parity' → Pro members get a violet membership card; QAUX 'paid-look leak' → logout clears the cached tier + resets to free; QA 'cover eats storage' → save() sheds the cover first on quota. Verified live in-browser at 390px: --accent per tier (orange/violet/gold), gold-button dark ink, no logout↔level overlap, cover controls, cross-profile theming (Free viewer sees Elite gold / Pro violet), gold launch splash 'You're Elite ✨'. Code-split mailer.js→js/mod/ for budget. liveVersion v161." },
     { "ts": "2026-08-26", "role": "design", "text": "🎁 PREMIUM TIER BATCH SHIPPED + ₹1 REFUNDED (v160, founder out 3h: 'return a perfect, very premium product'). Shipped, tested live + deployed: (1) FIXED 'why am I still being asked to pay' — initCloud now RE-RENDERS after entitlements load, and Profile shows a 'You're Elite/Pro · Active · renews <date>' membership card instead of the upsell (the upsell only shows to free users). (2) REGIONAL (PPP) PRICING — India now sees ₹399/₹799 built for the market, not the FX-converted ~₹663 that was scaring buyers off (struck→₹1 under the launch offer); US/global stay USD; Currency.region() selects the table. (3) TIER THEMES — <html data-tier> gives Free/Pro/Elite distinct accents (Elite = gold), a tier badge on your name AND on other members' profiles you open, and the launch splash greets you 'You're Elite ✨' from the first frame. (4) HELP & SUPPORT — a REAL ticketing surface (FAQ + contact form → Supabase support_tickets with RLS own-insert/read) reachable from every profile + the membership card (founder: 'we hired support but there's no way to raise a ticket'). (5) PRORATED PRO→ELITE UPGRADE — 'Upgrade to Elite' charges ONLY the difference for the days left in the Pro plan, computed SERVER-SIDE in the edge fn (client can't forge the price); shows ₹1 during the launch offer. Code-split exercises.js→js/mod/ to fit the JS budget. Verified in-browser: India paywall ₹399→₹1, proration ₹200 for 15/30 days, data-tier applies, support + upgrade modals render, zero errors. (6) REFUNDED the founder's ₹1 test (pay_TUQYBTiQ6yilZu → rfnd_TURdtCxYpsOhK8) via a one-shot server-side refund fn using the Razorpay secret, then deleted the fn. liveVersion v160." },
     { "ts": "2026-08-26", "role": "eng", "text": "🐛→✅ PAYMENT-UNLOCK BUG (founder paid ₹1 for Elite — money taken, nothing unlocked, no animation — rightly furious). DIAGNOSED with live DB access: payment + webhook WORKED (billing_events payment.captured + entitlement written) BUT under the EMAIL-SLUG uid while the app reads by the auth UUID under RLS (ent_read: auth.uid()::text = uid) → mismatch → app saw 'free' → paywall stayed. FIXES: (1) granted the founder's Elite under their real UUID (immediate); (2) added an `ent_read_slug` RLS policy so a logged-in user reads their entitlement under EITHER the UUID or their email-slug; (3) client now sends the LIVE auth UUID (SupaAuth.uid()) at checkout so future entitlements land under the UUID; (4) after payment the app POLLS for the entitlement (webhook lags a few sec), RE-RENDERS, and plays a premium 'Welcome to Elite/Pro — UNLOCKED' mode-switch animation + confetti (the switching-to-tier moment the founder expected — was missing entirely). Shipped v159. The ₹1 is honoured (Elite granted); refund on request." },
     { "ts": "2026-08-26", "role": "devops", "text": "🚀 ₹1 LAUNCH OFFER IS LIVE (v158). Founder logged into Supabase → I deployed the razorpay-create-order edge fn (version 6, ACTIVE) via the Management API and VERIFIED it now charges amount=100 (₹1) for Pro+Elite on rzp_live. With the charge confirmed ₹1, flipped LAUNCH_OFFER=true — the India paywall now shows ₹699/₹1699 struck through → ₹1. Display and charge match (no overcharge). Also fixed the recurring-login pain: installed the Supabase CLI for persistent, no-browser deploys going forward. Final human check: one real ₹1 UPI payment to confirm the unlock end-to-end." },
