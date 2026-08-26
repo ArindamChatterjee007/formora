@@ -208,6 +208,7 @@ const App = {
     if (typeof SupaAuth !== "undefined" && SupaAuth.active()) { try { SupaAuth.logout(); } catch (_) {} }
     Auth.logout();
     this.session = null;
+    try { localStorage.removeItem("fm_tier"); document.documentElement.setAttribute("data-tier", "free"); } catch (_) {}
     document.getElementById("app-shell").classList.add("hidden");
     this.showAuth("login");
   },
@@ -833,6 +834,7 @@ const App = {
     eyeOff: '<path d="M9.9 5.1A9.6 9.6 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-3.4 4.1"/><path d="M6.5 6.6A15.5 15.5 0 0 0 2 12s3.6 7 10 7a9.5 9.5 0 0 0 4-.9"/><path d="M14.1 14.1A3 3 0 1 1 9.9 9.9"/><path d="m2 2 20 20"/>',
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     chevronR: '<path d="M9 6l6 6-6 6"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -2852,21 +2854,28 @@ const App = {
     const s = Engine.stats();
     const u = Auth.currentUser() || {};
     const cloudOn = typeof Cloud !== "undefined" && Cloud.active();
+    const myTier = (typeof Entitlements !== "undefined") ? (Entitlements.isElite() ? "elite" : Entitlements.isPro() ? "pro" : "free") : "free";
     const myPosts = cloudOn ? Social.cloud.feed.filter((x) => x.author === Cloud.me) : Social.feed().filter((x) => x.author === "me");
     el.innerHTML = `
-      <div class="card profile-hero">
-        <div class="ph-cover"></div>
+      <div class="card profile-hero" data-tier="${myTier}">
+        <div class="ph-cover"${p.cover ? ` style="background-image:url('${esc(p.cover)}');background-size:cover;background-position:center"` : ""}>
+          <label class="ph-cover-edit" title="Change cover photo"><input type="file" accept="image/*" onchange="App.uploadCover(event)" hidden>${this.ic("camera", { size: 14 })}<span>Cover</span></label>
+          <button class="ph-logout-ic" onclick="App.logout()" title="Log out" aria-label="Log out">${this.ic("logout", { size: 17 })}</button>
+        </div>
         <div class="ph-main">
           <label class="ph-avatar" title="Change photo">
             ${Social.avatar(Social.me(), 92)}
-            <span class="ph-cam">📷</span>
+            <span class="ph-cam">${this.ic("camera", { size: 13 })}</span>
             <input type="file" accept="image/*" onchange="App.uploadAvatar(event)" hidden>
           </label>
           <div class="ph-id">
-            <div class="ph-name">${esc(p.name || "User")}${(typeof Entitlements !== "undefined" && Entitlements.isPro()) ? Social.tierBadge({ tier: Entitlements.isElite() ? "elite" : "pro" }) : ""} <span class="lvl">${esc(Social.me().level)}</span></div>
+            <div class="ph-name">${esc(p.name || "User")}</div>
             <div class="ph-handle">@${esc(p.username || (u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
           </div>
-          <button class="btn ghost sm ph-logout" onclick="App.logout()">Log out</button>
+        </div>
+        <div class="ph-chips">
+          ${(typeof Entitlements !== "undefined" && Entitlements.isPro()) ? Social.tierBadge({ tier: Entitlements.isElite() ? "elite" : "pro" }) : ""}
+          <span class="lvl">${esc(Social.me().level)}</span>
         </div>
         <div class="ph-stats">
           <div><b>${cloudOn ? Social.connectionsCount() : Social.crewList().length}</b><span>Connections</span></div>
@@ -3121,6 +3130,14 @@ const App = {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     resizeImage(f, 256, 0.85).then((data) => {
       Store.state.profile.avatar = data;
+      Store.save();
+      this.renderProfile();
+    }).catch(() => alert("Couldn't read that image. Try another one."));
+  },
+  uploadCover(e) {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    resizeImage(f, 900, 0.82).then((data) => {
+      Store.state.profile.cover = data;
       Store.save();
       this.renderProfile();
     }).catch(() => alert("Couldn't read that image. Try another one."));
