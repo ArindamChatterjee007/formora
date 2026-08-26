@@ -20,7 +20,7 @@
   <meta property="og:title" content="Formora — Build your dream physique" />
   <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
-  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=162" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=163" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Formora — Build your dream physique" />
@@ -28,12 +28,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
   <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
-  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=162" />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=163" />
   <!-- Structured data for search engines -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
-  <link rel="manifest" href="manifest.webmanifest?v=162" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=162" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=162" />
+  <link rel="manifest" href="manifest.webmanifest?v=163" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=163" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=163" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -42,7 +42,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 162;
+      var V = 163;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=162" />
+  <link rel="stylesheet" href="css/styles.css?v=163" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -225,6 +225,17 @@
       -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: background .15s ease; }
     .ph-logout-ic:hover { background: rgba(0,0,0,.6); }
     .ph-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 18px 0; }
+
+    /* Camera filter tiers — lock badges (◆ Pro violet / ★ Elite gold) + a preview-only banner */
+    .cam-filter.cam-filter-lk { position: relative; }
+    .cam-filter-lk .cam-filter-thumb { opacity: .82; }
+    .cam-lock-badge { position: absolute; top: 1px; right: 3px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 999px; display: grid; place-items: center; font-size: 9px; font-weight: 900; line-height: 1; z-index: 2; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+    .lk-pro .cam-lock-badge { background: linear-gradient(135deg,#9b6bff,#ff5aa0); color: #fff; }
+    .lk-elite .cam-lock-badge { background: linear-gradient(135deg,#f7cf6b,#cf9020); color: #2a1c05; }
+    .cam-lock-bar { display: none; margin: 0 auto 10px; max-width: 92%; text-align: center; font-size: 12px; color: #fff; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 6px 12px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+    .cam-lock-bar.show { display: block; }
+    .cam-lock-bar b { color: #ffd36b; }
+    .cam-lock-bar button { background: linear-gradient(135deg,#ff9d4d,#ff3d7f); color: #fff; border: none; border-radius: 999px; padding: 3px 11px; font-weight: 800; font-size: 11px; margin-left: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -350,18 +361,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=162"></script>
-  <script src="js/data.js?v=162"></script>
-  <script src="js/mod/exercises.js?v=162"></script>
-  <script src="js/storage.js?v=162"></script>
-  <script src="js/engine.js?v=162"></script>
-  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=162";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
-  <script src="js/nutrition.js?v=162"></script>
-  <script src="js/auth.js?v=162"></script>
-  <script src="js/social.js?v=162"></script>
-  <script src="js/cloud.js?v=162"></script>
-  <script src="js/entitlements.js?v=162"></script>
-  <script src="js/supaauth.js?v=162"></script>
+  <script src="js/config.js?v=163"></script>
+  <script src="js/data.js?v=163"></script>
+  <script src="js/mod/exercises.js?v=163"></script>
+  <script src="js/storage.js?v=163"></script>
+  <script src="js/engine.js?v=163"></script>
+  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=163";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
+  <script src="js/nutrition.js?v=163"></script>
+  <script src="js/auth.js?v=163"></script>
+  <script src="js/social.js?v=163"></script>
+  <script src="js/cloud.js?v=163"></script>
+  <script src="js/entitlements.js?v=163"></script>
+  <script src="js/supaauth.js?v=163"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -372,7 +383,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=162";
+          s.src = "js/mod/camera.js?v=163";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -384,7 +395,7 @@
       }
     };
   </script>
-  <script src="js/mod/mailer.js?v=162"></script>
-  <script src="js/app.js?v=162"></script>
+  <script src="js/mod/mailer.js?v=163"></script>
+  <script src="js/app.js?v=163"></script>
 </body>
 </html>
