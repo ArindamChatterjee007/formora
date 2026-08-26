@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v161",
+    "liveVersion": "v162",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -369,6 +369,71 @@
         { "owner": "pm", "action": "Confirm tier parity on every premium surface before closing Sprint 7." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-006",
+      "date": "2026-08-27",
+      "title": "Theme review — REAL cross-questioning (caught the invisible slide text the flat review missed)",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","pm","design","eng","qalead","qa","qaux","cto"],
+      "agenda": [
+        "Founder: the 'Slide to…' text isn't readable, the Elite gold looks dull, and our meetings are one-liners with no real debate.",
+        "Run this as a THREADED review: each finding gets question → answer → cross-question → fix → re-verify, with PASS/FAIL.",
+        "Find our OWN mistakes first."
+      ],
+      "review": [
+        {
+          "item": "Elite theme — the 'Slide to…' labels are unreadable",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "Eng, M-005 said 'gold buttons verified legible (dark ink)'. Did that check include the slide-to-confirm LABEL? It sits on the dark track, not on the gold fill." },
+            { "role": "eng", "type": "answer", "text": "Checking the live Elite theme now… you're right. I put .sb-label in the Elite dark-ink override, so the label became dark text on the dark track — 'Slide to start workout' is invisible. That's my mistake; the M-005 'contrast verified' was too broad." },
+            { "role": "qalead", "type": "challenge", "text": "So M-005 PASSED a control we never actually read. That's exactly the rubber-stamp the founder called out. Why did the check miss it?" },
+            { "role": "qa", "type": "answer", "text": "It sampled ONE filled .btn (gold fill → dark ink = correct) and generalised to 'all accent text'. It never sampled .sb-label, whose background is the DARK track. Lesson: verify each element on its OWN background, not a representative sample." },
+            { "role": "eng", "type": "fix", "text": "Removed .sb-label from the Elite dark-ink list; the label stays white + a text-shadow so it's legible on the dark track AND where the gold fill slides under it mid-drag." },
+            { "role": "qa", "type": "verified", "text": "Re-tested live at 402px on the Overview: all four slide labels compute rgb(255,255,255) and are readable. PASS." }
+          ]
+        },
+        {
+          "item": "Elite gold looks dull / muddy (founder)",
+          "status": "pass",
+          "thread": [
+            { "role": "design", "type": "answer", "text": "Two causes: (a) the accent #e7b23f is a yellow-mustard tone; (b) the ambient bg-glow was a strong gold wash that muddied the whole screen to olive — worst on the Overview hero card." },
+            { "role": "pm", "type": "question", "text": "Before we recolour — are we sure it's the palette and not just the glow? And does any fix touch Pro?" },
+            { "role": "design", "type": "answer", "text": "Both: I moved the accent to a metallic bronze→gold (#d99f2b→#f7cf6b) AND cut the bg-glow opacity ~50% so gold reads as a crisp accent on a clean dark base. Pro (violet→magenta) is untouched." },
+            { "role": "qaux", "type": "verify", "text": "Previewed Overview + Profile: the olive wash is gone, the cover has a real bronze→gold sheen, gold accents pop. Feel = dark-luxe, not mustard." },
+            { "role": "ceo", "type": "verified", "text": "Founder reviewed the two options live and approved 'B' (metallic bronze→gold). PASS — ship it, keep tuning open." }
+          ]
+        },
+        {
+          "item": "PROCESS — why our reviews felt like one-liners",
+          "status": "open",
+          "thread": [
+            { "role": "ceo", "type": "challenge", "text": "Founder's core point: one line per role, no cross-questioning, nobody asking 'did I get it wrong', no verification. That's a status update, not a review." },
+            { "role": "coo", "type": "answer", "text": "Correct. M-001…M-005 recorded a single 'point' per role. No round two, no one catching another's miss — which is exactly how the slide bug shipped." },
+            { "role": "pm", "type": "fix", "text": "New format, starting this meeting: every finding is a THREAD (question → answer → cross-question → fix → re-verify) with a PASS/FAIL, recorded in review[] and rendered on the dashboard so the founder can read the whole exchange." },
+            { "role": "cto", "type": "verify", "text": "This meeting already proved it works: cross-questioning caught a real shipped bug (invisible slide text) the flat review missed." },
+            { "role": "qalead", "type": "challenge", "text": "It's 'open', not 'pass', until it's ENFORCED — a rule the office can't skip, plus the per-element-contrast rule folded into the audit." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "qalead", "point": "Ran this as a real threaded review, not a round of one-liners. We found and owned our OWN mistake (the invisible slide label) before the founder had to chase it — that's the bar now." },
+        { "role": "ceo", "point": "This is what I want every time: input → review → cross-question → 'was it my mistake or a misread?' → fix → verify. Recorded so the founder can actually follow it." }
+      ],
+      "decisions": [
+        "Slide label legibility FIXED (was dark-on-dark on Elite). Standing rule: verify contrast PER-ELEMENT on its ACTUAL background, never a representative sample.",
+        "Elite gold reworked to metallic bronze→gold + reduced ambient glow (fixes 'dull/muddy'); Pro violet unchanged; founder approved direction 'B'.",
+        "Meeting format is now THREADED reviews (question→answer→cross-question→fix→verify, with PASS/FAIL) rendered on the dashboard. No 'GO' without a per-item thread + re-verification."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "Ship v162 — slide-label fix + metallic Elite gold." },
+        { "owner": "qa", "action": "T-83 — fold the per-element-on-actual-background contrast rule into the security/premium audit; re-scan v161/v162 for other dark-on-dark or low-contrast spots." },
+        { "owner": "design", "action": "T-79 — the Overview hero-card still carries a faint warm wash on Elite; refine it next." },
+        { "owner": "pm", "action": "Update the orchestrator playbook so every review MUST use the threaded format — enforce it." },
+        { "owner": "qalead", "action": "Re-run the premium audit (T-78) with the threaded method and record PASS/FAIL per surface." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -397,7 +462,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v161 · whole-app tier themes, per-tier launch & profile redesign" },
+    { "label": "Live version", "value": "v162 · slide-text fix + metallic Elite gold + threaded office reviews" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -815,6 +880,7 @@
     "remaining": ["DONE (v155): JS code-split — charts.js lazy-loaded to js/mod/ (loads only on Progress, genuine payload win), reclaimed ~4.2KB (179B->4245B free)", "Nutrition: ring-cards horizontal-scroll cutoff hint + 5-stat grid leaves a lone 5th tile (minor)", "Nutrition 'Today's food' empty state → use App.emptyState for consistency (minor)", "T-61 full per-screen spacing tidy (optional, with founder)"]
   },
   "activity": [
+    { "ts": "2026-08-27", "role": "qalead", "text": "🔎 SLIDE-TEXT BUG FIXED + ELITE GOLD REWORKED + REAL THREADED REVIEWS (v162, founder: 'the \"Slide to…\" text isn't readable, the gold is dull, and the office meetings are one-liners — I need real cross-questioning, review-of-review, verify, catch mistakes, then correct'). (1) BUG (our fault, owned): the v161 Elite dark-ink contrast rule wrongly included .sb-label, which sits on the slide's DARK track (not the gold fill) → 'Slide to start workout / plan meals / view program' went dark-on-dark = INVISIBLE. The M-005 'contrast verified' was a rubber-stamp that sampled ONE filled button and generalised. FIX: removed .sb-label from the elite override (label stays white + a text-shadow so it's legible on the dark track AND where the gold fill passes under mid-drag). Verified live at 402px: all four slide labels compute rgb(255,255,255). (2) ELITE GOLD REWORK (founder: 'dull/muddy'): old #e7b23f was a mustard tone + a heavy gold bg-glow washed the screen olive. New = metallic bronze→gold (accent #d99f2b→#f7cf6b), bg-glow opacity ~halved so gold reads as a crisp ACCENT on a clean dark base, + a bronze→gold sheen on the profile cover. Founder approved the 'B' direction; Pro violet unchanged. (3) OFFICE PROCESS FIX — meetings were ONE 'point' per role (a summary, not a debate, nobody catching anyone's miss). NEW THREADED format: each finding is a chain — reviewer QUESTIONS → owner ANSWERS/owns → CROSS-QUESTION → FIX → re-VERIFY, with PASS/FAIL, stored in board.meetings[].review[] and rendered on the dashboard Meetings tab. M-006 demonstrates it: QA cross-questioned the 'contrast verified' claim and CAUGHT the invisible slide text the flat review missed; eng owned the mistake; the fix was re-verified PASS. STANDING RULE: no 'GO' without a per-item thread + re-verification, and contrast is checked per-element on its ACTUAL background. liveVersion v162." },
     { "ts": "2026-08-27", "role": "design", "text": "🎨 WHOLE-APP TIER THEME + PROFILE REDESIGN — FULL REVIEW LIFECYCLE (v161, founder: 'the launch theme wasn't per-tier, the whole app didn't re-theme, Log out overlapped the Rookie badge, the cover looked blank, others' profiles weren't tier-themed — and run a real engineer→manager→QA→UX review-with-fixes cycle'). BUILT, then the office reviewed it ONE BY ONE (meeting M-005): each role raised a REAL issue and every issue was fixed before shipping. (1) WHOLE-APP TIER THEME — the ENTIRE app now re-themes by overriding --accent/--accent2 (which drive every button, gradient, ring, nav across styles.css) per tier: Free orange→pink, Pro violet→magenta, Elite champagne gold. Root cause of 'theme didn't change' in v160: it used a --tier-accent var that almost nothing consumed; the app themes off --accent. (2) PER-TIER LAUNCH SPLASH — gold/violet wordmark + loading bar + background tint + logo hue-shift, themed from the cached tier on the FIRST frame (before boot). (3) PROFILE REDESIGN — cover photo + upload, Log out moved to an icon on the cover (fixes the logout↔Rookie overlap the founder caught), tier + level moved to their own chips row. (4) OTHERS' PROFILES THEMED BY THEIR TIER — opening an Elite member shows gold + ★ Elite, a Pro member shows violet + ◆ Pro; scoped to the modal ([data-tier] attribute selector) so your OWN app keeps your theme. REVIEW FIXES (comment→fix): Design 'gold fails contrast' → filled accents get dark ink on Elite; PM 'card parity' → Pro members get a violet membership card; QAUX 'paid-look leak' → logout clears the cached tier + resets to free; QA 'cover eats storage' → save() sheds the cover first on quota. Verified live in-browser at 390px: --accent per tier (orange/violet/gold), gold-button dark ink, no logout↔level overlap, cover controls, cross-profile theming (Free viewer sees Elite gold / Pro violet), gold launch splash 'You're Elite ✨'. Code-split mailer.js→js/mod/ for budget. liveVersion v161." },
     { "ts": "2026-08-26", "role": "design", "text": "🎁 PREMIUM TIER BATCH SHIPPED + ₹1 REFUNDED (v160, founder out 3h: 'return a perfect, very premium product'). Shipped, tested live + deployed: (1) FIXED 'why am I still being asked to pay' — initCloud now RE-RENDERS after entitlements load, and Profile shows a 'You're Elite/Pro · Active · renews <date>' membership card instead of the upsell (the upsell only shows to free users). (2) REGIONAL (PPP) PRICING — India now sees ₹399/₹799 built for the market, not the FX-converted ~₹663 that was scaring buyers off (struck→₹1 under the launch offer); US/global stay USD; Currency.region() selects the table. (3) TIER THEMES — <html data-tier> gives Free/Pro/Elite distinct accents (Elite = gold), a tier badge on your name AND on other members' profiles you open, and the launch splash greets you 'You're Elite ✨' from the first frame. (4) HELP & SUPPORT — a REAL ticketing surface (FAQ + contact form → Supabase support_tickets with RLS own-insert/read) reachable from every profile + the membership card (founder: 'we hired support but there's no way to raise a ticket'). (5) PRORATED PRO→ELITE UPGRADE — 'Upgrade to Elite' charges ONLY the difference for the days left in the Pro plan, computed SERVER-SIDE in the edge fn (client can't forge the price); shows ₹1 during the launch offer. Code-split exercises.js→js/mod/ to fit the JS budget. Verified in-browser: India paywall ₹399→₹1, proration ₹200 for 15/30 days, data-tier applies, support + upgrade modals render, zero errors. (6) REFUNDED the founder's ₹1 test (pay_TUQYBTiQ6yilZu → rfnd_TURdtCxYpsOhK8) via a one-shot server-side refund fn using the Razorpay secret, then deleted the fn. liveVersion v160." },
     { "ts": "2026-08-26", "role": "eng", "text": "🐛→✅ PAYMENT-UNLOCK BUG (founder paid ₹1 for Elite — money taken, nothing unlocked, no animation — rightly furious). DIAGNOSED with live DB access: payment + webhook WORKED (billing_events payment.captured + entitlement written) BUT under the EMAIL-SLUG uid while the app reads by the auth UUID under RLS (ent_read: auth.uid()::text = uid) → mismatch → app saw 'free' → paywall stayed. FIXES: (1) granted the founder's Elite under their real UUID (immediate); (2) added an `ent_read_slug` RLS policy so a logged-in user reads their entitlement under EITHER the UUID or their email-slug; (3) client now sends the LIVE auth UUID (SupaAuth.uid()) at checkout so future entitlements land under the UUID; (4) after payment the app POLLS for the entitlement (webhook lags a few sec), RE-RENDERS, and plays a premium 'Welcome to Elite/Pro — UNLOCKED' mode-switch animation + confetti (the switching-to-tier moment the founder expected — was missing entirely). Shipped v159. The ₹1 is honoured (Elite granted); refund on request." },

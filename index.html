@@ -20,7 +20,7 @@
   <meta property="og:title" content="Formora — Build your dream physique" />
   <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
-  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=161" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=162" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Formora — Build your dream physique" />
@@ -28,12 +28,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
   <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
-  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=161" />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=162" />
   <!-- Structured data for search engines -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
-  <link rel="manifest" href="manifest.webmanifest?v=161" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=161" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=161" />
+  <link rel="manifest" href="manifest.webmanifest?v=162" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=162" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=162" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -42,7 +42,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 161;
+      var V = 162;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=161" />
+  <link rel="stylesheet" href="css/styles.css?v=162" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -137,26 +137,28 @@
        Elite = champagne gold. ============================================================ */
     :root { --tier-accent: #ff9d4d; --tier-accent2: #ff3d7f; }
     [data-tier="pro"]   { --accent: #9b6bff; --accent2: #ff5aa0; --tier-accent: #b98cff; --tier-accent2: #ff5aa0; }
-    [data-tier="elite"] { --accent: #e7b23f; --accent2: #f6d67a; --tier-accent: #f6d67a; --tier-accent2: #e79b3c; }
+    [data-tier="elite"] { --accent: #d99f2b; --accent2: #f7cf6b; --tier-accent: #f7cf6b; --tier-accent2: #cf9020; }
     /* Elite gold is light → filled accents get dark ink so text stays legible (white-on-gold fails contrast) */
     html[data-tier="elite"] .btn:not(.ghost):not(.icon-btn),
     html[data-tier="elite"] .btn-big.go, html[data-tier="elite"] .ut.active,
     html[data-tier="elite"] .exp-chip.active, html[data-tier="elite"] .diet-toggle button.active,
     html[data-tier="elite"] .cuisine-chip.active, html[data-tier="elite"] .ssub.active,
     html[data-tier="elite"] .pw-tab.active, html[data-tier="elite"] .pt-badge,
-    html[data-tier="elite"] .pro-tag, html[data-tier="elite"] .sb-label,
+    html[data-tier="elite"] .pro-tag,
     .view-profile[data-tier="elite"] .btn:not(.ghost),
     .member-card[data-tier="elite"] .btn:not(.ghost) { color: #2a1c05; }
     html[data-tier="elite"] .sb-thumb { color: #b6841f; }
+    /* slide label stays LIGHT on its dark track (it is NOT on the accent fill); shadow keeps it legible where the fill passes under */
+    .sb-label { text-shadow: 0 1px 3px rgba(0,0,0,.55); }
     /* ambient background glow follows the tier */
     html[data-tier="pro"] .bg-glow { background:
       radial-gradient(600px 400px at 15% -5%, rgba(155,107,255,.20), transparent 60%),
       radial-gradient(700px 500px at 100% 0%, rgba(61,139,255,.12), transparent 55%),
       radial-gradient(600px 600px at 50% 120%, rgba(255,90,160,.14), transparent 60%); }
     html[data-tier="elite"] .bg-glow { background:
-      radial-gradient(600px 400px at 15% -5%, rgba(231,178,63,.20), transparent 60%),
-      radial-gradient(700px 500px at 100% 0%, rgba(246,214,122,.12), transparent 55%),
-      radial-gradient(600px 600px at 50% 120%, rgba(231,155,60,.14), transparent 60%); }
+      radial-gradient(600px 400px at 15% -5%, rgba(230,170,60,.09), transparent 60%),
+      radial-gradient(700px 500px at 100% 0%, rgba(120,90,255,.05), transparent 55%),
+      radial-gradient(600px 600px at 50% 120%, rgba(230,160,40,.06), transparent 60%); }
 
     /* ---- launch splash themes per tier (plays instantly from cached fm_tier) ---- */
     #launch .la-tier { margin-top: 12px; font-family: Outfit, sans-serif; font-weight: 800; font-size: 12px;
@@ -168,17 +170,17 @@
     html[data-tier="pro"] #launch .la-bar i { background: linear-gradient(90deg,#b98cff,#ff5aa0); }
     html[data-tier="pro"] #launch .la-tag { color: #c8b4ff; }
     html[data-tier="elite"] #launch { background: radial-gradient(130% 120% at 50% 38%, #2b2213 0%, #16120a 45%, #0e0f13 100%); }
-    html[data-tier="elite"] #launch .la-name span { background: linear-gradient(135deg,#f6d67a,#e79b3c); -webkit-background-clip: text; background-clip: text; }
-    html[data-tier="elite"] #launch .la-name { text-shadow: 0 2px 34px rgba(246,214,122,.35); }
-    html[data-tier="elite"] #launch .la-mark { filter: hue-rotate(18deg) saturate(1.25) brightness(1.08); }
-    html[data-tier="elite"] #launch .la-bar i { background: linear-gradient(90deg,#f6d67a,#e79b3c); }
+    html[data-tier="elite"] #launch .la-name span { background: linear-gradient(135deg,#f7cf6b,#cf9020); -webkit-background-clip: text; background-clip: text; }
+    html[data-tier="elite"] #launch .la-name { text-shadow: 0 2px 34px rgba(247,207,107,.35); }
+    html[data-tier="elite"] #launch .la-mark { filter: hue-rotate(14deg) saturate(1.3) brightness(1.06); }
+    html[data-tier="elite"] #launch .la-bar i { background: linear-gradient(90deg,#f7cf6b,#cf9020); }
     html[data-tier="elite"] #launch .la-tag { color: #e8c98a; }
 
     .tier-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; vertical-align: middle;
       font-family: Outfit, sans-serif; font-weight: 800; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
       color: #fff; background: linear-gradient(135deg, #9b6bff, #ff5aa0); box-shadow: 0 4px 14px rgba(155,107,255,.32); }
     .tier-badge.tb-pro { background: linear-gradient(135deg,#9b6bff,#ff5aa0); }
-    .tier-badge.tb-elite { background: linear-gradient(135deg,#f7d488,#e79b3c); color: #3a2708; box-shadow: 0 4px 16px rgba(230,155,60,.45); }
+    .tier-badge.tb-elite { background: linear-gradient(135deg,#f7cf6b,#cf9020); color: #2a1c05; box-shadow: 0 4px 16px rgba(207,144,32,.45); }
     .tier-badge.tb-free { background: rgba(255,255,255,.1); color: #c7ccd6; box-shadow: none; }
     .tier-badge svg { width: 11px; height: 11px; }
     html[data-tier="elite"] .about-card .about-brand,
@@ -186,7 +188,8 @@
 
     /* Current-plan (membership) card — shown instead of the upsell once a member is Pro/Elite */
     .member-card { position: relative; overflow: hidden; }
-    .member-card[data-tier="elite"] { background: linear-gradient(160deg, rgba(246,198,107,.14), rgba(231,155,60,.06)); border-color: rgba(246,198,107,.4); }
+    .member-card[data-tier="elite"] { background: linear-gradient(160deg, rgba(217,159,43,.15), rgba(90,60,15,.05)); border-color: rgba(217,159,43,.42); }
+    .profile-hero[data-tier="elite"] .ph-cover { background: linear-gradient(125deg, #5f3f0f 0%, #b9821f 45%, #f4cf6e 100%); }
     .member-card[data-tier="pro"] { background: linear-gradient(160deg, rgba(155,107,255,.13), rgba(255,90,160,.05)); border-color: rgba(155,107,255,.36); }
     .member-card .mc-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .member-card .mc-status { font-size: 12px; color: #9aa0aa; }
@@ -347,18 +350,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=161"></script>
-  <script src="js/data.js?v=161"></script>
-  <script src="js/mod/exercises.js?v=161"></script>
-  <script src="js/storage.js?v=161"></script>
-  <script src="js/engine.js?v=161"></script>
-  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=161";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
-  <script src="js/nutrition.js?v=161"></script>
-  <script src="js/auth.js?v=161"></script>
-  <script src="js/social.js?v=161"></script>
-  <script src="js/cloud.js?v=161"></script>
-  <script src="js/entitlements.js?v=161"></script>
-  <script src="js/supaauth.js?v=161"></script>
+  <script src="js/config.js?v=162"></script>
+  <script src="js/data.js?v=162"></script>
+  <script src="js/mod/exercises.js?v=162"></script>
+  <script src="js/storage.js?v=162"></script>
+  <script src="js/engine.js?v=162"></script>
+  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=162";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
+  <script src="js/nutrition.js?v=162"></script>
+  <script src="js/auth.js?v=162"></script>
+  <script src="js/social.js?v=162"></script>
+  <script src="js/cloud.js?v=162"></script>
+  <script src="js/entitlements.js?v=162"></script>
+  <script src="js/supaauth.js?v=162"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -369,7 +372,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=161";
+          s.src = "js/mod/camera.js?v=162";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -381,7 +384,7 @@
       }
     };
   </script>
-  <script src="js/mod/mailer.js?v=161"></script>
-  <script src="js/app.js?v=161"></script>
+  <script src="js/mod/mailer.js?v=162"></script>
+  <script src="js/app.js?v=162"></script>
 </body>
 </html>
