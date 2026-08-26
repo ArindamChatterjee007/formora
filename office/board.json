@@ -101,7 +101,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v117 · camera filter fix + single-video sound + 30 free filters" },
+    { "label": "Live version", "value": "v156 · premium slide-to-confirm + mode-switch animation" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
