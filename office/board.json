@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v166",
+    "liveVersion": "v167",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -727,6 +727,53 @@
         { "owner": "qa", "action": "Add the review to the recurring premium audit (T-88) as an Elite must-work surface." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-011",
+      "date": "2026-08-28",
+      "title": "Build review — acquisition funnel: plain Go-Pro CTA (T-70) + guide front-door CTAs (T-71), v167",
+      "chair": "growth",
+      "attendees": ["ceo","coo","cmo","growth","design","content","analyst","eng"],
+      "agenda": [
+        "We have zero users. Two funnel fixes: reduce the friction to go Pro, and give organic guide traffic a front door.",
+        "Loop mandate: verify each actually works before we call it done."
+      ],
+      "review": [
+        {
+          "item": "T-70 — does the plain Go-Pro CTA actually cut friction?",
+          "status": "pass",
+          "thread": [
+            { "role": "design", "type": "question", "text": "Why was there a slide-to-unlock on the BUY action? Sliding to open a paywall is friction on the one action we want to be effortless." },
+            { "role": "eng", "type": "fix", "text": "Agreed — the slide is for commit moments (start/finish a workout), not purchases. The overview program card now shows free users a plain 'Go Pro — unlock your program' button that opens the paywall directly. Pro members keep the premium slide-to-view-program." },
+            { "role": "growth", "type": "challenge", "text": "Does it hit the ≤2-taps-to-checkout acceptance?" },
+            { "role": "eng", "type": "verify", "text": "Yes: tap 'Go Pro' (1) → paywall → 'Choose Pro / Pay with UPI' (2) → checkout. Verified live: free user's card renders a BUTTON with onclick openPricing, not a slide. PASS." }
+          ]
+        },
+        {
+          "item": "T-71 — do the guide CTAs give organic traffic a real front door + attribution?",
+          "status": "pass",
+          "thread": [
+            { "role": "content", "type": "answer", "text": "All 8 ranking SEO guides now open with a slim 'Try Formora free' banner linking into the app — the cheapest acquisition we have (the pages already rank; this converts readers to signups)." },
+            { "role": "analyst", "type": "challenge", "text": "Is the signup actually attributable, or is it a blind link?" },
+            { "role": "eng", "type": "answer", "text": "Each links to ../?src=guide-<slug> (unique per guide). The param rides into the app; when PostHog lands (T-69) it reads src for per-guide conversion. Today it's harmless and future-proof — no fake analytics claimed." },
+            { "role": "growth", "type": "verify", "text": "Verified live: the belly-fat guide renders the CTA with href ../?src=guide-how-to-lose-belly-fat. 8/8 guides carry it. PASS." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "growth", "point": "Small, cheap, high-leverage: the front door (guides → free signup) and the on-ramp (free → Pro) both got less friction. Now we need actual traffic (founder-led, T-96) to measure it." },
+        { "role": "cmo", "point": "src tagging means when we do get traffic we'll know which guide converts — so we double down on the winner instead of guessing." }
+      ],
+      "decisions": [
+        "SHIP v167: plain Go-Pro CTA on the overview + 'Try Formora free' CTA on all 8 guides with per-guide src.",
+        "Attribution is wired at the URL level now; PostHog (T-69) reads it later — no analytics over-claim today."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "SHIPPED v167 — overview Go-Pro button + 8 guide CTAs (tested live)." },
+        { "owner": "bizdev", "action": "T-96 (founder-led) — drive real traffic to the guides so the funnel has data." },
+        { "owner": "bi", "action": "T-69 — when PostHog lands, read ?src=guide-<slug> for per-guide conversion." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -755,7 +802,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v166 · Elite AI Progress Review (real Elite spine) + Founding offer + Elite+ ladder" },
+    { "label": "Live version", "value": "v167 · acquisition funnel — plain Go-Pro CTA + guide front-door CTAs (on top of v166 Elite review)" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1168,8 +1215,8 @@
     { "id": "T-65", "title": "Forgot / reset password flow", "role": "eng", "sprint": 7, "status": "done", "priority": "P0", "note": "GAP THE FOUNDER CAUGHT (a real miss — a login screen with NO password recovery). SHIPPED v138: a 'Forgot your password?' link on login → enter email → Supabase sends a reset link (SupaAuth.recover → /auth/v1/recover, returns 200 even for unknown emails = no user-enumeration) → the link redirects back to the app which detects #type=recovery on boot (App._checkRecovery) → a 'set a new password' view → SupaAuth.setPasswordWithToken (PUT /auth/v1/user with the recovery token) updates the password + logs the user in. Reuses existing field/button styles (no new CSS). ONE Supabase config still needed for the emailed link to land on the app: Auth → URL Configuration → Site URL = the app URL (Management API token expired ~1hr so I couldn't set it this session — founder re-login Supabase or set it in the dashboard). Deliverability caveat: Supabase's built-in sender is rate-limited on free tier; reliable delivery comes with custom SMTP once a domain exists (T-56)." },
     { "id": "T-66", "title": "Auth UX completeness — show/hide password, strength meter, optional phone, inline validation", "role": "design", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE (v139-v140) — SHIPPED: a show/hide password toggle (eye icon) on all 5 password fields (login / signup×2 / reset×2); a live password-STRENGTH meter (Weak→Fair→Good→Strong bar) on the new-password fields; the signup phone field is now OPTIONAL (relabeled + validation relaxed); + email/tel autocomplete hints. All inline-styled (ZERO new CSS) reusing App.ic(). TESTED live: toggle flips password↔text, meter scales (abc→Weak, Abcdef12→Good, Abcdef12!@#x→Strong), phone optional, zero errors. REMAINING (minor non-user-facing tech-debt, deferred): removing the dead 'google'/'phone' legacy auth views." },
     { "id": "T-69", "title": "Verify + wire the PostHog conversion funnel (landing→signup→paywall→checkout→paid)", "role": "bi", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002. Confirm each funnel event fires on the live app; add the missing paywall-view→checkout-start events. Acceptance: all 5 stages visible in a PostHog funnel." },
-    { "id": "T-70", "title": "Reduce paywall friction — plain 'Go Pro' CTA on the overview", "role": "design", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002 (from M-001). Add a plain, obvious 'Go Pro' button on the overview path; keep slide-to-confirm for workout commits. Acceptance: ≤2 taps from interested → checkout." },
-    { "id": "T-71", "title": "'Try Formora free' CTA atop every live SEO guide", "role": "content", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Give organic traffic a front door. Acceptance: each /guides/ page has a top CTA linking into the app." },
+    { "id": "T-70", "title": "Reduce paywall friction — plain 'Go Pro' CTA on the overview", "role": "design", "sprint": 5, "status": "done", "priority": "P1", "note": "DONE v167 (M-011). The overview 'Your training program' card no longer forces free users through a slide-to-unlock — they now get a plain, obvious 'Go Pro — unlock your program' button that opens the paywall directly (≤2 taps to checkout: Go Pro → Choose plan). Pro members keep the premium slide-to-view-program. Verified live: free → BUTTON onclick openPricing (not a slide)." },
+    { "id": "T-71", "title": "'Try Formora free' CTA atop every live SEO guide", "role": "content", "sprint": 5, "status": "done", "priority": "P2", "note": "DONE v167 (M-011). Added a slim 'Try Formora free' top CTA banner to all 8 SEO guides (belly-fat, build-muscle, lean-bulk, high-protein-foods, beginner-workout, home-workout, v-taper, aesthetic-physique), each linking to ../?src=guide-<slug> so signups can be attributed (PostHog T-69 will read src). Turns organic readers into free signups — the cheapest acquisition we have. Verified live: guide renders the CTA with the correct per-guide src." },
     { "id": "T-72", "title": "First-customer outreach kit — 5 WhatsApp scripts + referral/trial link", "role": "growth", "sprint": 5, "status": "done", "priority": "P1", "note": "DONE → board.assets.launchKit (5 WhatsApp scripts by audience + referral copy + founding-offer line). Ready to send." },
     { "id": "T-73", "title": "Deploy the ₹1 test edge fn + verify pay→webhook→unlock on a real device", "role": "devops", "sprint": 5, "status": "done", "priority": "P0", "note": "DONE 2026-08-26 — deployed razorpay-create-order (fn version 6, ACTIVE) via the Supabase Management API on the founder's live session; verified the create-order endpoint returns amount=100 (₹1) for pro+elite on rzp_live. Restore PRICE_PAISE {pro:69900, elite:169900} after the test. Final human step: a real ₹1 UPI payment to confirm unlock." },
     { "id": "T-74", "title": "First-customer support playbook — welcome DM, refund policy, bug-intake", "role": "support", "sprint": 5, "status": "done", "priority": "P2", "note": "DONE → board.assets.supportPlaybook (welcome, refund policy, bug-intake template)." },
