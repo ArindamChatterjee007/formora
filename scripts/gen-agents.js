@@ -99,7 +99,8 @@ const OUTPUT = {
   qa: 'A red\u2192green verification: reproduce, fix-check, confirm. Pass/fail + evidence.',
   qaint: 'An integration/regression report across flows. Pass/fail + evidence.',
   qaux: 'A UX-QA report from the live app — friction points + severity.',
-  devops: 'Version shipped + CI/promotion status + live-verification result.'
+  devops: 'Version shipped + CI/promotion status + live-verification result.',
+  support: 'A ready-to-send support reply, a logged bug (repro steps + severity), or an early-retention save.'
 };
 
 function body(role, tier, grounds) {

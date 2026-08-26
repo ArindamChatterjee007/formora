@@ -293,7 +293,7 @@
     const counts=R.reduce((a,x)=>{a[x.tier]=(a[x.tier]||0)+1;return a},{});
     const legend=Object.keys(A.tiers||{}).map(t=>`<span class="st" style="background:${tc[t]}22;color:${tc[t]};border:1px solid ${tc[t]}66;margin:0 6px 4px 0;display:inline-block">${t} ×${counts[t]||0} — ${esc(A.tiers[t])}</span>`).join('');
     const head=`<div class="panel" style="margin-bottom:12px"><div style="font-size:12.5px;color:var(--sub);line-height:1.55">${esc(A.engine)}</div><div style="margin-top:10px;font-size:11px">${legend}</div></div>`;
-    const hires=(A.proposedHires||[]).map(h=>`<div class="hire-row"><span class="pe">${h.emoji}</span><div><div class="pn">${esc(h.title)} <span class="st building">proposed hire</span></div><div class="pd">Proposed by ${esc(roleOf(b,h.proposedBy).title||h.proposedBy)} · ${esc(h.reason)}</div></div></div>`).join('');
+    const hires=(A.proposedHires||[]).filter(h=>h.status==='proposed').map(h=>`<div class="hire-row"><span class="pe">${h.emoji}</span><div><div class="pn">${esc(h.title)} <span class="st building">proposed hire</span></div><div class="pd">Proposed by ${esc(roleOf(b,h.proposedBy).title||h.proposedBy)} · ${esc(h.reason)}</div></div></div>`).join('');
     const hiresBlock=hires?`<div class="panel" style="margin-bottom:12px;border-color:rgba(255,206,84,.4)"><div class="ph">🆕 Open roles — proposed by the team, awaiting your sign-off</div>${hires}</div>`:'';
     const order=['Executive','Finance','Business Intelligence','Sales & Partnerships','Marketing & Growth','Product','Engineering'];
     const teams=Array.from(new Set(R.map(x=>roleOf(b,x.key).team||'Other'))).sort((a,c)=>(order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(c)<0?99:order.indexOf(c)));
