@@ -73,8 +73,55 @@
       { "key": "qaint",      "tier": "coding",    "status": "idle", "task": "", "grounds": ["repo"] },
       { "key": "qaux",       "tier": "coding",    "status": "idle", "task": "", "grounds": ["live app"] },
       { "key": "devops",     "tier": "coding",    "status": "idle", "task": "", "grounds": ["CI", "pipeline"] }
+    ],
+    "proposedHires": [
+      { "key": "support", "title": "Customer Support & Success Lead", "emoji": "🎧", "team": "Product", "tier": "fast", "proposedBy": "coo", "at": "2026-08-26", "reason": "The moment the first paying customer lands (M1), someone must own support replies, bug intake, refunds and early retention — no current seat covers it. Cheap on the fast tier; turns first users into keepers.", "status": "proposed" }
     ]
   },
+  "meetings": [
+    {
+      "id": "M-001",
+      "date": "2026-08-26",
+      "title": "Daily standup — the road to the first paying customer (M1)",
+      "chair": "ceo",
+      "attendees": ["ceo", "coo", "cfo", "cmo", "growth", "bi", "cto", "qaux", "pm"],
+      "agenda": [
+        "What is the ONE thing blocking the first paid rupee?",
+        "Do we wait for the card (Lemon Squeezy) KYC, or ship via UPI now?",
+        "Which distribution channel gets the first customer?",
+        "Is the funnel measured end-to-end?",
+        "Any new hire needed for this phase?"
+      ],
+      "discussion": [
+        { "role": "ceo", "point": "Product is done and live (v156 — premium, secure, tested). We are ONE step from M1: a real stranger paying. That is distribution, not more building. Freeze new features; everyone points at the first paying user." },
+        { "role": "cfo", "point": "UPI already takes real money TODAY — we do not need to wait for card KYC to earn the first rupee; card just widens reach later. Run-cost is ~$0, so the only scarce resource is the founder's outreach time. Spend that, not money." },
+        { "role": "cmo", "point": "Three free channels fit us: warm WhatsApp to the founder's gym contacts, ONE Indian fitness community (Reddit/FB group), and the app's own Flex clips reposted as Reels/Shorts. Go DEEP on one, not shallow on three." },
+        { "role": "growth", "point": "For the FIRST customer, warm beats cold — WhatsApp first. Give me the referral link + a 7-day Pro trial and I will script 5 personal messages the founder sends tonight." },
+        { "role": "bi", "point": "We are flying blind without the funnel. Confirm PostHog fires landing → signup → paywall-view → checkout-start → paid. Without paywall→checkout we cannot see WHERE the first visitors stall." },
+        { "role": "cto", "point": "Pushback: before we drive ANY traffic, QA the UPI checkout on a real phone end-to-end. A broken first payment is worse than no traffic. One verified path first." },
+        { "role": "qaux", "point": "Agreed — I will run the UPI purchase on a real device and report pass/fail with evidence before anyone is sent to it." },
+        { "role": "pm", "point": "The last review flagged slide-to-open-paywall friction. For the M1 push, put a plain, obvious 'Go Pro' button on the path — cut every extra tap between interested and paying." },
+        { "role": "coo", "point": "New-hire proposal: the minute the first customer lands we need someone owning support, refunds and early retention. No current seat covers it. Proposing a Customer Support & Success Lead (fast tier, cheap)." }
+      ],
+      "decisions": [
+        "Do NOT wait for card KYC — drive the first paying customer via UPI now (card widens reach at M2).",
+        "Channel: warm WhatsApp outreach + ONE fitness community. No paid ads until M2.",
+        "Hard gate: QA verifies the UPI purchase on a real device BEFORE any traffic is driven.",
+        "Instrument the full PostHog funnel (landing → signup → paywall → checkout → paid) to expose the drop-off.",
+        "Reduce paywall friction: add a plain 'Go Pro' CTA on the M1 path (keep slide-to-confirm for workout commits).",
+        "Approve interviewing a Customer Support & Success Lead — added to proposed hires for founder sign-off."
+      ],
+      "actions": [
+        { "owner": "qaux", "action": "Verify the UPI purchase flow on a real device; report pass/fail with evidence." },
+        { "owner": "bi", "action": "Confirm/instrument PostHog events landing → signup → paywall → checkout → paid." },
+        { "owner": "growth", "action": "Draft 5 personal WhatsApp outreach messages + the referral/trial link for the founder to send." },
+        { "owner": "content", "action": "Add a clear 'Try Formora free' CTA to the top of each live SEO guide." },
+        { "owner": "design", "action": "Add a plain 'Go Pro' button on the overview path (keep slides for workout commits)." },
+        { "owner": "founder", "action": "Send the 5 messages + post once in a fitness community (the human-only step)." }
+      ],
+      "hires": ["support"]
+    }
+  ],
   "columns": [
     { "key": "backlog",     "title": "Backlog" },
     { "key": "todo",        "title": "To Do" },
