@@ -122,6 +122,54 @@
         { "owner": "founder", "action": "Send the 5 messages + post once in a fitness community (the human-only step)." }
       ],
       "hires": ["support"]
+    },
+    {
+      "id": "M-002",
+      "date": "2026-08-26",
+      "title": "Sprint planning — the next sprint: First 10 Customers & the Funnel",
+      "chair": "pm",
+      "attendees": ["ceo", "coo", "pm", "cto", "cmo", "growth", "bi", "analyst", "design", "eng", "qalead", "qaux", "lifecycle", "content", "support", "cfo", "vpsales", "sales"],
+      "agenda": [
+        "Reality check: is the next sprint scoped right?",
+        "What converts the community traffic into the first paying customers?",
+        "What must we measure to learn anything?",
+        "The ₹1 real-payment test — what's blocking it?",
+        "Lock the sprint backlog + owners."
+      ],
+      "discussion": [
+        { "role": "pm", "point": "Reality check: Sprint 4 (first paying customer) isn't hit yet, and Sprint 5 was scoped as '$1k MRR Growth Engine' — unrealistic before customer #1. I'm re-scoping the next sprint to 'First 10 Customers & the Funnel' (M1→M2). Let's plan THAT." },
+        { "role": "ceo", "point": "Agreed. The product is done — this sprint is 100% converting the community traffic Arindam just posted into paying users, and measuring every step. Freeze features unless they remove pay friction." },
+        { "role": "cmo", "point": "Traffic is landing from the community post right now. If we don't measure the funnel we learn nothing — BI's funnel is task #1, before we push more traffic." },
+        { "role": "bi", "point": "I'll verify PostHog fires landing → signup → paywall-view → checkout-start → paid. My worry is paywall-view→checkout-start isn't instrumented — that's exactly where we'd be blind on why people don't pay." },
+        { "role": "growth", "point": "I'll ship 5 personal WhatsApp scripts + the referral/trial link today so Arindam can DM warm contacts alongside the community post — warm converts the first customer faster than cold reach." },
+        { "role": "design", "point": "From M-001: slide-to-open-paywall adds friction. I'll add a plain 'Go Pro' button on the overview and cut the taps between interested and checkout." },
+        { "role": "cto", "point": "Pushback on scope honesty: the ₹1 test needs the Razorpay edge function redeployed, and that needs Arindam's Supabase login — we cannot deploy it ourselves. Flag T-73 as founder-gated; do NOT mark it done." },
+        { "role": "qaux", "point": "Hard line: until the ₹1 function is deployed AND I verify pay→unlock on a real phone, the live charge is still ₹699/₹1699 — so we must NOT display '₹1' anywhere, or we'd overcharge real people. Deploy + verify first, advertise second." },
+        { "role": "support", "point": "First meeting — I'll own the first-customer experience: a welcome DM, a plain refund line, and a bug-intake template so the first users feel handled, not ignored. Retention starts at hello." },
+        { "role": "lifecycle", "point": "I'll turn on the onboarding + trial→paid email sequence for real signups. Honest caveat: deliverability is capped on the free EmailJS tier until a domain exists." },
+        { "role": "analyst", "point": "I'll set a weekly readout — activation, paywall-view→pay %, D1/D7 retention — so we judge the funnel on numbers, not vibes." },
+        { "role": "content", "point": "I'll add a 'Try Formora free' CTA to the top of each live SEO guide so the organic traffic has a clear front door into the app." },
+        { "role": "cfo", "point": "Cost stays ~$0. Only spend is the ₹1 test itself. No paid ads until the funnel proves it converts (M2). Keep it lean." }
+      ],
+      "decisions": [
+        "Re-scope the next sprint (Sprint 5) from '$1k MRR Growth Engine' to 'First 10 Customers & the Funnel' (M1→M2) — realistic before customer #1.",
+        "Sprint backlog = T-69..T-76 (funnel instrumentation, pay-friction, guide CTAs, outreach kit, ₹1 deploy+verify, support playbook, lifecycle emails, weekly metrics).",
+        "HARD RULE: do NOT display or advertise ₹1 until the ₹1 edge function is deployed AND verified — otherwise we overcharge. The function is code-ready; deploying it needs Arindam's Supabase session (T-73, founder-gated).",
+        "No paid acquisition until the funnel converts (M2). Spend stays ~$0.",
+        "Freeze new features except those that remove friction on the path to pay."
+      ],
+      "actions": [
+        { "owner": "bi", "action": "T-69 — verify + wire the PostHog funnel (landing→signup→paywall→checkout→paid)." },
+        { "owner": "design", "action": "T-70 — add a plain 'Go Pro' CTA on the overview + cut taps to checkout." },
+        { "owner": "content", "action": "T-71 — add a 'Try Formora free' CTA to the top of each live SEO guide." },
+        { "owner": "growth", "action": "T-72 — ship 5 WhatsApp outreach scripts + the referral/trial link for the founder." },
+        { "owner": "devops", "action": "T-73 — deploy the ₹1 edge fn + verify pay→unlock on a real device (BLOCKED: needs founder's Supabase login)." },
+        { "owner": "support", "action": "T-74 — draft the first-customer support playbook (welcome DM, refund policy, bug-intake)." },
+        { "owner": "lifecycle", "action": "T-75 — turn on the onboarding + trial→paid email sequence for real signups." },
+        { "owner": "analyst", "action": "T-76 — define the weekly metrics review + take the first snapshot." },
+        { "owner": "founder", "action": "Log into Supabase once so DevOps can deploy the ₹1 test function — the one step the office can't self-serve." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -138,7 +186,7 @@
     { "id": 2, "name": "Lock Down the Database", "goal": "Production on real auth + RLS — close the critical DM/PII access-control vuln", "status": "done" },
     { "id": 3, "name": "Make It Chargeable (M0)", "goal": "A test purchase flips a user to Pro server-side; features gate correctly", "status": "done" },
     { "id": 4, "name": "First Customers", "goal": "Real people pay; the funnel is measured (M1→M2)", "status": "active" },
-    { "id": 5, "name": "Growth Engine", "goal": "A working near-zero-CAC growth loop toward $1k MRR (M3)", "status": "planned" },
+    { "id": 5, "name": "First 10 Customers & the Funnel", "goal": "M1→M2: land the first 10 paying customers, measure the full funnel, start first-week retention (re-scoped from '$1k MRR Growth Engine' at sprint-planning M-002 — unrealistic before customer #1)", "status": "planned" },
     { "id": 6, "name": "Scale", "goal": "$10k MRR path: native rebuilds, stores, marketplace", "status": "planned" },
     { "id": 7, "name": "Premium Experience", "goal": "Every screen feels premium, not basic — one cohesive, designed, high-end product users are proud to show off", "status": "active" }
   ],
@@ -513,7 +561,15 @@
     { "id": "T-63", "title": "Download banner + 'iOS soon' polish", "role": "devops", "sprint": 7, "status": "done", "priority": "P3", "note": "DONE (v143) — the dead 'iOS soon' button (which just alerted 'coming soon') is now an 'Install' button that gives iOS users the REAL path: a clear Add-to-Home-Screen guide (Share → Add to Home Screen) so they can install the PWA full-screen NOW, no App Store needed. The banner already had clean SVG icons + dismiss." },
     { "id": "T-64", "title": "Quality-signal delight features (will customers love it?)", "role": "product", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE (v148) — added a tasteful WIN-MOMENT celebration: finishing a workout now fires App.celebrate() (a 16-piece confetti burst in brand colors, body-appended + self-removing like the proven _heartBurst, with a haptic) plus a specific success toast ('Workout saved 💪 N exercises logged') — only for NEW workouts, not edits. This was the app's biggest emotional moment and it was previously SILENT. HONEST SCOPE: the app is already rich in micro-interactions (viewIn/cardIn/fadeUp transitions, :active press-scales on every control, heart-burst likes, shimmer, animated toasts), and the feed renders synchronously from in-memory data (no async gap), so skeleton loaders were deliberately SKIPPED as low-payoff/high-risk-to-hook. Verified live: 16 confetti pieces, z-index 9998, self-removes, zero errors. Scoped CSS (.confetti)." },
     { "id": "T-65", "title": "Forgot / reset password flow", "role": "eng", "sprint": 7, "status": "done", "priority": "P0", "note": "GAP THE FOUNDER CAUGHT (a real miss — a login screen with NO password recovery). SHIPPED v138: a 'Forgot your password?' link on login → enter email → Supabase sends a reset link (SupaAuth.recover → /auth/v1/recover, returns 200 even for unknown emails = no user-enumeration) → the link redirects back to the app which detects #type=recovery on boot (App._checkRecovery) → a 'set a new password' view → SupaAuth.setPasswordWithToken (PUT /auth/v1/user with the recovery token) updates the password + logs the user in. Reuses existing field/button styles (no new CSS). ONE Supabase config still needed for the emailed link to land on the app: Auth → URL Configuration → Site URL = the app URL (Management API token expired ~1hr so I couldn't set it this session — founder re-login Supabase or set it in the dashboard). Deliverability caveat: Supabase's built-in sender is rate-limited on free tier; reliable delivery comes with custom SMTP once a domain exists (T-56)." },
-    { "id": "T-66", "title": "Auth UX completeness — show/hide password, strength meter, optional phone, inline validation", "role": "design", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE (v139-v140) — SHIPPED: a show/hide password toggle (eye icon) on all 5 password fields (login / signup×2 / reset×2); a live password-STRENGTH meter (Weak→Fair→Good→Strong bar) on the new-password fields; the signup phone field is now OPTIONAL (relabeled + validation relaxed); + email/tel autocomplete hints. All inline-styled (ZERO new CSS) reusing App.ic(). TESTED live: toggle flips password↔text, meter scales (abc→Weak, Abcdef12→Good, Abcdef12!@#x→Strong), phone optional, zero errors. REMAINING (minor non-user-facing tech-debt, deferred): removing the dead 'google'/'phone' legacy auth views." }
+    { "id": "T-66", "title": "Auth UX completeness — show/hide password, strength meter, optional phone, inline validation", "role": "design", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE (v139-v140) — SHIPPED: a show/hide password toggle (eye icon) on all 5 password fields (login / signup×2 / reset×2); a live password-STRENGTH meter (Weak→Fair→Good→Strong bar) on the new-password fields; the signup phone field is now OPTIONAL (relabeled + validation relaxed); + email/tel autocomplete hints. All inline-styled (ZERO new CSS) reusing App.ic(). TESTED live: toggle flips password↔text, meter scales (abc→Weak, Abcdef12→Good, Abcdef12!@#x→Strong), phone optional, zero errors. REMAINING (minor non-user-facing tech-debt, deferred): removing the dead 'google'/'phone' legacy auth views." },
+    { "id": "T-69", "title": "Verify + wire the PostHog conversion funnel (landing→signup→paywall→checkout→paid)", "role": "bi", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002. Confirm each funnel event fires on the live app; add the missing paywall-view→checkout-start events. Acceptance: all 5 stages visible in a PostHog funnel." },
+    { "id": "T-70", "title": "Reduce paywall friction — plain 'Go Pro' CTA on the overview", "role": "design", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002 (from M-001). Add a plain, obvious 'Go Pro' button on the overview path; keep slide-to-confirm for workout commits. Acceptance: ≤2 taps from interested → checkout." },
+    { "id": "T-71", "title": "'Try Formora free' CTA atop every live SEO guide", "role": "content", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Give organic traffic a front door. Acceptance: each /guides/ page has a top CTA linking into the app." },
+    { "id": "T-72", "title": "First-customer outreach kit — 5 WhatsApp scripts + referral/trial link", "role": "growth", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002. Ready-to-send personal messages the founder can DM warm contacts. Acceptance: 5 scripts + the link saved in board.assets." },
+    { "id": "T-73", "title": "Deploy the ₹1 test edge fn + verify pay→webhook→unlock on a real device", "role": "devops", "sprint": 5, "status": "blocked", "priority": "P0", "blocker": "Needs the founder's Supabase login — the office cannot deploy edge functions without their session (no CLI token / no auto-deploy).", "note": "Sprint-planning M-002. The razorpay-create-order source is already set to ₹1 (100 paise) for both tiers. Once deployed, verify a real ₹1 UPI payment grants Pro server-side. UNTIL deployed + verified, do NOT display ₹1 (would overcharge). Restore ₹699/₹1699 after the test." },
+    { "id": "T-74", "title": "First-customer support playbook — welcome DM, refund policy, bug-intake", "role": "support", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002 — the new hire's first task. Acceptance: a short playbook in board.assets (welcome message, refund line, bug-intake template)." },
+    { "id": "T-75", "title": "Turn on onboarding + trial→paid lifecycle emails for real signups", "role": "lifecycle", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Sequences already drafted (board.assets.lifecycleMessaging). Wire them to real signups. Caveat: free-tier EmailJS deliverability until a domain exists (T-56)." },
+    { "id": "T-76", "title": "Weekly metrics review — activation, paywall→pay %, D1/D7 retention", "role": "analyst", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Define the weekly readout + take the first snapshot so the sprint is judged on numbers. Acceptance: a repeatable metrics list + first values." }
   ],
   "readiness": {
     "date": "2026-08-25",
