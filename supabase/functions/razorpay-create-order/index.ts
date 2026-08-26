@@ -8,7 +8,7 @@
 // Secrets: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET  (Settings → API Keys; test or live).
 // ============================================================
 
-const PRICE_PAISE: Record<string, number> = { pro: 69900, elite: 169900 }; // ₹699 / ₹1699
+const PRICE_PAISE: Record<string, number> = { pro: 100, elite: 100 }; // TEST: ₹1 each (real-payment test). Restore { pro: 69900, elite: 169900 } (₹699/₹1699) after the test.
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
