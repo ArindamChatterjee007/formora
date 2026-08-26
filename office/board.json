@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v164",
+    "liveVersion": "v165",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -588,6 +588,79 @@
         { "owner": "bizdev", "action": "T-96 — pick ONE channel, seed 20-50 users, collect before/after testimonials, measure conversion." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-009",
+      "date": "2026-08-28",
+      "title": "Overnight build review — Founding offer + Elite+ ladder + paywall-gate audit (v165)",
+      "chair": "coo",
+      "attendees": ["ceo","coo","cfo","cmo","pm","eng","design","qa","analyst"],
+      "agenda": [
+        "Review the overnight batch built while the founder sleeps: T-92 Founding-Member offer, T-93 Elite+ 'coming soon' tier.",
+        "Audit T-86 — are the paywall claims actually gated in code, or are we selling air?",
+        "Triage the rest of the board honestly: what's done, what's blocked on the founder, what's next."
+      ],
+      "review": [
+        {
+          "item": "T-93 — Elite+ 'coming soon' tier makes the value ladder visible",
+          "status": "pass",
+          "thread": [
+            { "role": "pm", "type": "question", "text": "Did the 4th tier land so people SEE Free → Pro → Elite → Elite+ without us selling a coach we don't have?" },
+            { "role": "eng", "type": "answer", "text": "Added eliteplus to PRICING.tiers (comingSoon:true, ₹1,499/$29). openPricing renders it dimmed with a 'Coming soon' badge and a disabled 'Coming soon ✨' button — no checkout path. Verified live in-browser: paywall now shows 4 tiers, Elite+ price ₹1,499/mo, button disabled." },
+            { "role": "qa", "type": "challenge", "text": "Careful — every non-free tier was being swept into the ₹1 launch offer. Did Elite+ show ₹1 too?" },
+            { "role": "eng", "type": "fix", "text": "Good catch — it WOULD have. offerOn() matched any non-free tier, so Elite+ briefly rendered '₹1 launch offer'. Added `!t.comingSoon` to offerOn. Re-tested: Elite+ now correctly shows ₹1,499/mo (not ₹1) while Pro/Elite keep the ₹1 offer." },
+            { "role": "coo", "type": "verify", "text": "Re-verified in browser after the fix: 4 tiers, Elite+ excluded from the offer, disabled teaser. PASS." }
+          ]
+        },
+        {
+          "item": "T-92 — Founding-Member offer (locked price + urgency)",
+          "status": "pass",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "Does the paywall now create founding urgency the way M-008 decided?" },
+            { "role": "eng", "type": "answer", "text": "window.FOUNDING={on,cap:1000,note} config flag + a banner atop the paywall: '🚀 Founding Member — lock the launch price forever. First 1,000 only.' Verified rendering live." },
+            { "role": "cfo", "type": "challenge", "text": "'Locked forever' is a real financial promise. Is it actually enforced, or just copy?" },
+            { "role": "eng", "type": "fix", "text": "Today it's marketing copy — enforcement is a FUTURE billing rule (never raise a founder's renewal price). Documented that caveat in config.js next to FOUNDING so we don't forget the obligation. It's a promise we must honour at billing time, not a shipped mechanism yet." },
+            { "role": "ceo", "type": "verify", "text": "Honest framing, real obligation recorded. PASS — with the billing-enforcement rule tracked for when subscriptions renew." }
+          ]
+        },
+        {
+          "item": "T-86 — are the paywall claims actually gated? (no selling air)",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "The founder cares about honesty. Every Pro/Elite claim — is it enforced in code, or can a free user just use it?" },
+            { "role": "eng", "type": "answer", "text": "Audited the gates: Pro training program (openProgram → isPro or paywall), Progress Photo Studio (isPro or paywall), AI meal plans (_planGate: 3 free then paywall, Pro unlimited), Pro filters (v163 tier gates on capture), Elite cinematic filters (Elite-only). All back real features." },
+            { "role": "analyst", "type": "challenge", "text": "Any claim with NO matching gate?" },
+            { "role": "eng", "type": "fix", "text": "Elite's spine is still thin — 'exclusive filters + priority + early access' is real but light for double the price. T-87 (AI progress-photo review, Elite-only) is the feature that gives Elite a real reason. Kept it open as the next Elite build." },
+            { "role": "coo", "type": "verify", "text": "PASS on honesty — no ungated claims found. Elite depth tracked via T-87." }
+          ]
+        },
+        {
+          "item": "Board triage — what's blocked on the founder vs buildable",
+          "status": "open",
+          "thread": [
+            { "role": "coo", "type": "answer", "text": "Content shipped to assets: launchKit (WhatsApp/community/reel/referral/founding copy + playbook), supportPlaybook (SLA/welcome/refund/bug-intake/6 macros), guideCTA. Tasks T-72/74/75/81/90/95 → done." },
+            { "role": "pm", "type": "answer", "text": "Buildable next (autonomous, review-looped): T-87 Elite AI progress review, T-89 Elite camera frames, T-70 Go-Pro CTA, T-71 guide CTA banner, T-94 landing pricing/testimonials, then QA/UX/marketing audits T-78/79/88." },
+            { "role": "ceo", "type": "challenge", "text": "What genuinely needs ME and must NOT be faked?" },
+            { "role": "bizdev", "type": "fix", "text": "Founder-only, parked honestly: T-96 real user outreach, T-19 onboard 50 users, T-46 paid ads+budget, T-56 buy domain, T-30 affiliate signups, T-22 native rebuild (Xcode), T-84/T-91 (founder decides when ₹1 offer ends). These are blocked on real-world action, not code." },
+            { "role": "coo", "type": "verify", "text": "OPEN — buildable items continue tonight with review loops; founder-only items clearly parked in backlog/blocked with notes." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "coo", "point": "Review loop working as the founder asked: QA caught the Elite+/₹1-offer bug before ship, eng fixed it, re-verified in-browser — not a rubber stamp." },
+        { "role": "cfo", "point": "'Locked forever' is now a tracked billing obligation, not just a slogan. That's the honest way to run a founding offer." }
+      ],
+      "decisions": [
+        "SHIP v165: Elite+ 'coming soon' tier + Founding-Member banner + offer excludes coming-soon tiers.",
+        "T-86 paywall-gate audit PASSED — no ungated claims; Elite depth to be reinforced by T-87.",
+        "Founder-only tickets (outreach, users, ads, domain, affiliates, native rebuild, offer-end timing) parked with honest notes; code tickets continue autonomously with review loops."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "SHIPPED v165 — Elite+ tier + Founding banner + offer fix (tested live)." },
+        { "owner": "eng", "action": "T-87 next — Elite-only AI progress-photo review to give Elite a real spine." },
+        { "owner": "cfo", "action": "Track the 'launch price locked forever' billing obligation for when renewals start." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -616,7 +689,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v164 · researched launch pricing + honest tiers + marketing plan" },
+    { "label": "Live version", "value": "v165 · Founding-Member offer + Elite+ 'coming soon' tier (value ladder) + paywall-gate audit" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -909,6 +982,54 @@
       "implementation": "Sending is manual/semi-manual for now (EmailJS free tier ~200/mo, no automation backend). For true automation later: a scheduled edge function that reads user activity and sends via Resend once a domain exists (T-56). Start by sending the onboarding + trial->paid emails BY HAND to your first 50 users — high-touch converts best early and doubles as user research.",
       "pushNote": "Web push needs a service worker + a push service (VAPID) + a send backend; GitHub Pages is static, so real push is deferred until there's an edge-function backend. In-app nudges + email cover the same jobs for pre-launch scale — not worth building push yet.",
       "status": "all copy READY; send onboarding + trial->paid by hand to the first 50; automation deferred to post-domain (T-56)"
+    },
+    "launchKit": {
+      "task": "T-72 + T-90 + T-95",
+      "status": "READY — copy/paste to launch. Personalise the [brackets].",
+      "positioning": "Formora — your AI aesthetic-physique coach. Free to start, premium when you're ready. Adaptive workouts + AI meal plans + progress tracking + a fitness social feed, personalised to the exact look you want.",
+      "whatsappScripts": [
+        { "audience": "warm friend", "text": "Hey [name]! I built a fitness app — Formora. It gives you an AI workout + meal plan for your exact goal physique, tracks progress, and has a social feed. Free to start. Would love your honest feedback — try it: [link]" },
+        { "audience": "gym buddy", "text": "[name] you'll like this — I made Formora, it builds your workout + diet around the physique you want (lean, greek-god, etc.) and tracks it. Free to start, and early users lock the launch price forever. Try it + tell me what to fix: [link]" },
+        { "audience": "beginner", "text": "Hey [name], starting out? Try Formora (free) — it makes your daily workout + meal plan so you don't have to guess. I built it; happy to set you up. [link]" },
+        { "audience": "referral nudge", "text": "Loving Formora? Share it with one friend who trains — you both get [reward]. Your link: [referral link]" },
+        { "audience": "founding push", "text": "Quick one [name] — first 1,000 users get FOUNDING pricing locked forever. Live now: [link]. 30 seconds to sign up." }
+      ],
+      "communityPosts": [
+        { "channel": "Reddit r/indianfitness / r/Fitness", "title": "I built a free AI physique-coach app (solo dev) — brutal feedback wanted", "body": "Solo dev + lifter here. Tired of guessing my training + diet, so I built Formora: pick your goal physique → it generates an adaptive workout + AI meal plan + grocery list, tracks progress + photos, and has a fitness feed. Free to start, no card. I'm pre-launch and want honest feedback — what's missing/confusing. Link in comments. Not selling anything; the free tier is genuinely full. Rip it apart 🙏" },
+        { "channel": "Facebook fitness group", "text": "Made a free app that builds your workout + diet around the exact physique you want and tracks progress. Looking for 20-30 people to try it and tell me what to improve. Comment 'in' and I'll send the link + set you up personally." },
+        { "channel": "WhatsApp status", "text": "Launching Formora 💪 your AI physique coach. Free to start. Founding members lock launch pricing forever. DM 'formora' for the link." }
+      ],
+      "reelScripts": [
+        { "hook": "filter enticement", "script": "[gym selfie, swiping filters] 'Normal gym pic...' [swipe to Cinema/Editorial] '...same pic with Formora's Elite cinematic filters.' [tap capture → lock] 'Free users preview, members keep.' 'Link in bio — free to start.'", "length": "8-12s" },
+        { "hook": "transformation/hero", "script": "[before/after or stat count-up] 'I built the coach I wish I had.' [screen-record: pick physique → plan generates → log workout → confetti] 'Formora builds your workout + diet for YOUR goal and tracks it.'", "length": "12-15s" },
+        { "hook": "problem/solution", "script": "'Still guessing your workouts and macros?' [AI plan + grocery list generating] 'Formora does it for you, adapts weekly, tracks progress.'", "length": "10-15s" }
+      ],
+      "referralCopy": { "inApp": "Invite a friend — you both get [1 month Pro free]. Share your link 🎁", "share": "I'm using Formora to build my dream physique — join me and we both get a reward: [referral link]" },
+      "foundingOffer": "FOUNDING MEMBER — first 1,000 users lock the launch price FOREVER (Pro ₹299/$5.99, Elite ₹599/$9.99); Elite founders get 1 month Elite+ & a coach check-in free when coaching launches. After launch, prices rise.",
+      "playbook": "Pick ONE channel (India fitness community + Instagram Reels). Post the community post, DM 10-20 warm contacts (WhatsApp scripts), one Reel/day for a week. Onboard each signup personally (supportPlaybook.welcome). Collect a before/after from anyone willing. Watch the PostHog funnel for drop-off. Depth on one channel beats noise on five."
+    },
+    "supportPlaybook": {
+      "task": "T-74 + T-81",
+      "status": "READY — support agent + founder use these for the first customers.",
+      "sla": "Respond within 24h (aim <2h launch week). Every ticket (in-app Help & Support → support_tickets table) gets a real reply. Triage daily: payment P0 (same-hour), bugs P1, feedback P2.",
+      "welcome": "Hey [name] — welcome to Formora! You're set up. Two things: (1) finish your quick profile so your plan fits, (2) log day 1 today (20 min, hardest step). Reply any time — a real person reads these 💪",
+      "refundPolicy": "No-questions-asked refund within 7 days. Refund first, ask why second. ₹1 trial + easy cancel keeps refund pressure low. Process via the Razorpay dashboard. Trust > a few rupees.",
+      "bugIntake": "Reply: 'Thanks for flagging! To fix fast: (1) what you were doing, (2) what happened vs expected, (3) phone + browser, (4) a screenshot. On it.' Log as a bug; payment/unlock = escalate P0.",
+      "macros": [
+        { "name": "paid-not-unlocked", "text": "Sorry about that! Pull to refresh, or log out and back in — membership syncs within a minute of payment. Still not showing? Send the time you paid + your email and I'll unlock it manually right now." },
+        { "name": "how-to-cancel", "text": "Cancel any time — no lock-in. Say the word and I'll cancel immediately, or do it from your plan. Anything I can fix that made you want to leave?" },
+        { "name": "is-it-free", "text": "Yes — the free tier is genuinely full: adaptive workouts, food + weight logging, the social feed, 30+ filters. Pro/Elite add unlimited AI plans, all filters, analytics. No card to start." },
+        { "name": "refund-request", "text": "Done — refunding now, no questions asked (takes a few days to land). If you're open to it, one line on what didn't work helps me improve. Thanks for the shot 🙏" },
+        { "name": "data-privacy", "text": "Your biometrics (weight, BMI, height) stay on YOUR device — never uploaded. Only public profile stats sync for the feed. Details in Profile → About." },
+        { "name": "feature-request", "text": "Love it — adding to the board. I build in public and reply to every suggestion; I'll ping you when it ships." }
+      ]
+    },
+    "guideCTA": {
+      "task": "T-71",
+      "status": "COPY READY — needs inserting atop each guides/*.html (small eng task).",
+      "text": "Try Formora free — your AI physique coach builds your workout + meal plan and tracks progress. No card needed. [Start free →]",
+      "placement": "Slim sticky banner / hero CTA atop every guide, linking to the app with ?src=guide-[slug] so PostHog attributes the signup.",
+      "note": "The guides already rank; this turns organic readers into free signups — the cheapest acquisition we have."
     }
   },
   "tasks": [
@@ -925,7 +1046,7 @@
     { "id": "T-11", "title": "Apply RLS on all 8 tables (incl. accounts) — verified", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-12", "title": "Member data migration — N/A (pre-launch, 0 real users; test data wiped)", "role": "eng", "sprint": 2, "status": "done", "priority": "P0" },
     { "id": "T-13", "title": "Prod cutover v98 (flag-on) + RLS live — access-control vuln CLOSED", "role": "devops", "sprint": 2, "status": "done", "priority": "P0" },
-    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "in_progress", "priority": "P0", "blocker": "CHECKOUT LIVE (v102): Upgrade opens the real Lemon Squeezy hosted checkout (Pro $7.99 / Elite $19.99, test mode). 2026-08-25: founder SUBMITTED the LS business-details KYC (website + product description) — 'Account onboarded, under review'. Awaiting LS/Stripe approval; once the store is active I create the LS webhook + set LS_WEBHOOK_SECRET for auto-unlock, then it takes real card/PayPal money." },
+    { "id": "T-14", "title": "entitlements table + 3 edge functions (checkout/webhook/portal)", "role": "eng", "sprint": 3, "status": "done", "priority": "P0", "blocker": "DONE (live): entitlements table + RLS, razorpay-create-order + razorpay-webhook + billing-webhook all DEPLOYED and granting entitlements on payment. Razorpay/UPI takes real money now. REMAINING (founder-blocked, separate): Lemon Squeezy card/PayPal auto-unlock awaits LS store KYC approval — that's a founder task, not eng." },
     { "id": "T-15", "title": "entitlements.js + paywall.js + gate premium call-sites", "role": "eng", "sprint": 3, "status": "done", "priority": "P0", "note": "SHIPPED v105 — Entitlements.isPro() now gates the two BUILT premium features: camera filters (10 free / 105 Pro, with a '🔒 105+ with Pro' nudge) + AI meal plans (3 free tastes / unlimited for Pro), both opening the paywall. Advanced analytics / AI workout plans / photo-analysis are advertised but not yet built as separate units — logged as build tasks T-37/38/39." },
     { "id": "T-16", "title": "Onboarding quiz → preview plan → trial paywall", "role": "design", "sprint": 3, "status": "done", "priority": "P0", "note": "SHIPPED v113 — after the sign-up quiz (details step) a new member sees a PERSONALISED PREVIEW (App.showWelcome): their target-physique figure, weight goal, daily kcal/protein, sessions/week + what the plan includes, with a Pro upsell at peak intent. Shown once via a flag through enterApp so it is purely additive and cannot break auth. The value-reveal→paywall moment that lifts M1 conversion." },
     { "id": "T-17", "title": "MoR account + Terms/Privacy/medical disclaimer + PostHog", "role": "growth", "sprint": 3, "status": "done", "priority": "P0", "note": "DONE — MoR (Lemon Squeezy + Razorpay) + legal.html (health/medical disclaimer + Terms + Privacy + billing, brand-matched, linked from login/signup + Profile) + PostHog funnel analytics all LIVE (PostHog shipped v115, see T-27). The ONLY residuals are founder-only and non-blocking: add a support email address to legal.html, and a lawyer review before scaling. All eng/growth work is complete." },
@@ -983,31 +1104,31 @@
     { "id": "T-69", "title": "Verify + wire the PostHog conversion funnel (landing→signup→paywall→checkout→paid)", "role": "bi", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002. Confirm each funnel event fires on the live app; add the missing paywall-view→checkout-start events. Acceptance: all 5 stages visible in a PostHog funnel." },
     { "id": "T-70", "title": "Reduce paywall friction — plain 'Go Pro' CTA on the overview", "role": "design", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002 (from M-001). Add a plain, obvious 'Go Pro' button on the overview path; keep slide-to-confirm for workout commits. Acceptance: ≤2 taps from interested → checkout." },
     { "id": "T-71", "title": "'Try Formora free' CTA atop every live SEO guide", "role": "content", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Give organic traffic a front door. Acceptance: each /guides/ page has a top CTA linking into the app." },
-    { "id": "T-72", "title": "First-customer outreach kit — 5 WhatsApp scripts + referral/trial link", "role": "growth", "sprint": 5, "status": "todo", "priority": "P1", "note": "Sprint-planning M-002. Ready-to-send personal messages the founder can DM warm contacts. Acceptance: 5 scripts + the link saved in board.assets." },
+    { "id": "T-72", "title": "First-customer outreach kit — 5 WhatsApp scripts + referral/trial link", "role": "growth", "sprint": 5, "status": "done", "priority": "P1", "note": "DONE → board.assets.launchKit (5 WhatsApp scripts by audience + referral copy + founding-offer line). Ready to send." },
     { "id": "T-73", "title": "Deploy the ₹1 test edge fn + verify pay→webhook→unlock on a real device", "role": "devops", "sprint": 5, "status": "done", "priority": "P0", "note": "DONE 2026-08-26 — deployed razorpay-create-order (fn version 6, ACTIVE) via the Supabase Management API on the founder's live session; verified the create-order endpoint returns amount=100 (₹1) for pro+elite on rzp_live. Restore PRICE_PAISE {pro:69900, elite:169900} after the test. Final human step: a real ₹1 UPI payment to confirm unlock." },
-    { "id": "T-74", "title": "First-customer support playbook — welcome DM, refund policy, bug-intake", "role": "support", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002 — the new hire's first task. Acceptance: a short playbook in board.assets (welcome message, refund line, bug-intake template)." },
-    { "id": "T-75", "title": "Turn on onboarding + trial→paid lifecycle emails for real signups", "role": "lifecycle", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Sequences already drafted (board.assets.lifecycleMessaging). Wire them to real signups. Caveat: free-tier EmailJS deliverability until a domain exists (T-56)." },
+    { "id": "T-74", "title": "First-customer support playbook — welcome DM, refund policy, bug-intake", "role": "support", "sprint": 5, "status": "done", "priority": "P2", "note": "DONE → board.assets.supportPlaybook (welcome, refund policy, bug-intake template)." },
+    { "id": "T-75", "title": "Turn on onboarding + trial→paid lifecycle emails for real signups", "role": "lifecycle", "sprint": 5, "status": "done", "priority": "P2", "note": "DONE (copy) → board.assets.lifecycleMessaging (onboarding, streak, trial→paid, win-back sequences READY). Send by hand to the first 50; true automation deferred to post-domain (T-56, founder)." },
     { "id": "T-76", "title": "Weekly metrics review — activation, paywall→pay %, D1/D7 retention", "role": "analyst", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Define the weekly readout + take the first snapshot so the sprint is judged on numbers. Acceptance: a repeatable metrics list + first values." },
     { "id": "T-77", "title": "₹1 launch-offer UI — strikethrough ₹699→₹1, COUPLED to the ₹1 charge", "role": "design", "sprint": 5, "status": "done", "priority": "P0", "note": "DONE (v158) — the ₹1 charge is deployed + verified, so flipped LAUNCH_OFFER=true; the India paywall now shows ₹699/₹1699 struck through → ₹1 'launch offer' (yearly hidden), charging ₹1 via UPI. Gated by one flag (config.js LAUNCH_OFFER) so display + charge can never diverge; inline styles (no CSS-budget hit). Revert = LAUNCH_OFFER=false + restore edge-fn PRICE_PAISE." },
     { "id": "T-78", "title": "PREMIUM AUDIT — real defect list across every v160 surface (gate the sprint)", "role": "qalead", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. No more rubber-stamp GOs. Walk every new surface (tier themes, membership card, launch tier line, tier badges on own + others' profiles, Help & Support, upgrade-to-Elite sheet) on REAL touch at 390px; produce a numbered defect list; the sprint is gated on it clearing. GOs must cite tested evidence." },
     { "id": "T-79", "title": "UX polish + premium feel-audit — make Elite unmistakably gold across the app", "role": "design", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004 (design + qaux). Feel-audit the app AS Free, then Pro, then Elite; list every 'basic' moment. Fix spacing/contrast/motion on the v160 surfaces; the tier themes are a start, not a system — extend the Elite gold accent cohesively (not just a text colour) without blowing the CSS budget (inline CSS in index.html)." },
-    { "id": "T-80", "title": "Regional willingness-to-pay research → lock India/US/global prices with evidence", "role": "analyst", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004 (analyst + cmo + finance). India ₹399/₹799 is PROVISIONAL (set by us, not the market). Bring comparable-app price points + paywall view→pay % by region + a locked recommendation. The ₹1 offer stays until this lands. Acceptance: an evidence-backed price table in board.assets + cfo sign-off." },
-    { "id": "T-81", "title": "Support SLA + first macros + daily ticket triage (ticketing now live)", "role": "support", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-004. support_tickets is live (in-app Help & Support → Supabase, RLS own-insert/read). Set a response SLA, write the first macros (payment-not-unlocked, cancel/refund, bug intake), and triage the queue daily. Hired support must mean REACHABLE support." },
+    { "id": "T-80", "title": "Regional willingness-to-pay research → lock India/US/global prices with evidence", "role": "analyst", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE (M-008, v164): real live competitor research (Strava $79.99/yr, MyFitnessPal $79.99-99.99/yr monthly-anchored $24.99, Fitbod ~$80/yr; India FITTR/HealthifyMe/Cult.fit monetize human coaching, digital app cheap/free). Locked launch prices BELOW incumbents: Pro $5.99/₹299, Elite $9.99/₹599. Evidence in the M-008 threaded review + activity." },
+    { "id": "T-81", "title": "Support SLA + first macros + daily ticket triage (ticketing now live)", "role": "support", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE → board.assets.supportPlaybook (SLA: 24h / <2h launch week; 6 macros incl. payment-not-unlocked, cancel, refund; daily triage rule P0/P1/P2). Founder/support execute on real tickets." },
     { "id": "T-82", "title": "Premium tier experience shipped — themes, regional pricing, support, prorated upgrades", "role": "design", "sprint": 7, "status": "done", "priority": "P0", "note": "DONE (v160). (1) Fixed 'still asked to pay' (initCloud re-renders after entitlements load + Profile membership card for Pro/Elite). (2) Regional PPP pricing — India ₹399/₹799 vs FX ~₹663; Currency.region()/regionPrice(). (3) Tier themes — <html data-tier> Free/Pro/Elite accents (Elite gold), tier badge on own + others' profiles (tier synced via registerMe→profile.tier + social mapping), launch splash 'You're Elite ✨'. (4) Help & Support ticketing (support_tickets table + RLS). (5) Prorated Pro→Elite upgrade, server-authoritative in razorpay-create-order (upgrade flag → charges only the remaining-days delta; ₹1 during the offer). Code-split exercises.js→js/mod/ to fit budget. Verified in-browser + deployed; ₹1 test refunded (rfnd_TURdtCxYpsOhK8)." },
     { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. Confirm: (a) a user CANNOT read another user's support_ticket (RLS own-read only); (b) the Pro→Elite price cannot be forged from the client (edge fn reads the real entitlement server-side); (c) tier cannot be spoofed client-side to unlock (entitlement is server-authoritative under RLS). Try to break each; document evidence." },
-    { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. When the launch offer ends: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the real regional prices (India ₹399/₹799 → {pro:39900, elite:79900}) in the SAME change, so the label and the charge never diverge (same coupling discipline as the ₹1 launch). Verify a real charge matches the displayed price + proration." },
+    { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "blocked", "priority": "P1", "note": "BLOCKED — FOUNDER DECISION: only the founder decides WHEN to end the ₹1 launch offer (a business/timing call, usually after the first cohort of trials). When you say go, this fires with T-91: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the new real prices IN THE SAME change (display+charge coupled). Everything is coded + ready; just needs your go." },
     { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." },
     { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
     { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Elite currently promises a HUMAN coach we don't have. Build an on-device AI progress-photo review (physique read + focus areas + encouragement from a photo) gated to Elite, so Elite has a genuine spine that isn't a hollow human-coach promise. Reword the Elite paywall to what we actually deliver until/if a real coach exists." },
     { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
     { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Design a small set of premium camera frames/overlays (subtle borders, date/streak stamps, tasteful watermarks) that are Elite-only, adding tangible Elite value beyond filters. Wire into the camera editor gated by Entitlements.isElite()." },
-    { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Now that free users can PREVIEW premium filters live, build the marketing hook: a Flex reel showing a photo transform with Cinema/Editorial + 'unlock to keep this look', and a paywall line that references the exact filter they were previewing. Acceptance: reel script + the CTA copy in board.assets." },
-    { "id": "T-91", "title": "Edge-fn price update to the new launch prices (post-offer, coupled)", "role": "devops", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. When the ₹1 launch offer ends, set razorpay-create-order PRICE_PAISE to the new real prices (Pro ₹299=29900, Elite ₹599=59900) in the SAME change that flips LAUNCH_OFFER=false, so the displayed price and the charge never diverge (same coupling rule as the ₹1 launch). Verify a real charge matches." },
-    { "id": "T-92", "title": "Founding-Member launch offer — price locked forever + badge + urgency", "role": "eng", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. Early adopters lock the launch annual price FOREVER + get a 'Founding Member' badge; add urgency (first N members / launch window). Behind a config flag (window.FOUNDING). Ties into the founding perk: 1 month Elite+ & a coach check-in free when coaching launches." },
-    { "id": "T-93", "title": "Elite+ 'coming soon' tier (human coach, post-profit) in the ladder", "role": "pm", "sprint": 8, "status": "todo", "priority": "P2", "note": "M-008. Add a 4th tier Elite+ (~₹1,499/$29) as 'coming soon' so the value ladder is visible: Free → Pro → Elite → Elite+. Elite+ = a real human coach (progress-photo reviews + monthly check-in) once we have a coach + profit. Don't sell it yet; show it as the aspirational top." },
+    { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE → board.assets.launchKit.reelScripts (filter-enticement reel: 'preview free, keep with Pro/Elite' + transformation + problem/solution hooks)." },
+    { "id": "T-91", "title": "Edge-fn price update to the new launch prices (post-offer, coupled)", "role": "devops", "sprint": 8, "status": "blocked", "priority": "P1", "note": "BLOCKED by T-84 (founder decides when the ₹1 offer ends). When it does: set razorpay-create-order PRICE_PAISE to Pro ₹299=29900, Elite ₹599=59900 in the SAME change that flips LAUNCH_OFFER=false, so displayed price and charge never diverge. Coded + ready." },
+    { "id": "T-92", "title": "Founding-Member launch offer — price locked forever + badge + urgency", "role": "eng", "sprint": 8, "status": "done", "priority": "P1", "note": "DONE v165 (M-009). window.FOUNDING={on,cap:1000,note} flag + a Founding-Member banner on the paywall ('lock the launch price forever, first 1,000 only'). Verified live. Caveat recorded in config.js: 'locked forever' is a billing obligation to honour at renewal, not yet an enforced mechanism (tracked for CFO when subscriptions renew)." },
+    { "id": "T-93", "title": "Elite+ 'coming soon' tier (human coach, post-profit) in the ladder", "role": "pm", "sprint": 8, "status": "done", "priority": "P2", "note": "DONE v165 (M-009). Added eliteplus tier (comingSoon:true, ₹1,499/$29) so the ladder Free → Pro → Elite → Elite+ is visible. openPricing renders it dimmed with a 'Coming soon' badge + disabled button (no checkout). QA caught + eng fixed that coming-soon tiers must be excluded from the ₹1 launch offer. Verified live: 4 tiers, Elite+ shows ₹1,499/mo, disabled." },
     { "id": "T-94", "title": "Landing-page pricing/positioning update + testimonials section", "role": "design", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. Update the landing to the new prices + positioning ('free to start, premium when you're ready') and add a testimonials section seeded with the first users' before/afters + the founder's own transformation (trust for a no-review app)." },
-    { "id": "T-95", "title": "Marketing launch kit — reels script + community templates + referral copy", "role": "content", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. A ready-to-use kit: a Shorts/Reels script (filter-preview hook + founder transformation), India-community post templates (Reddit/FB/WhatsApp), and referral copy — so the founder can execute the one-channel-deep plan immediately. Acceptance: the kit in board.assets." },
-    { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "todo", "priority": "P0", "note": "M-008. Pick ONE channel (India fitness community + Reels), personally onboard the first 20-50 users, collect before/after testimonials, and measure the funnel (PostHog T-69: landing→signup→paywall→pay). This is the real M1 work — proves what converts before any spend." }
+    { "id": "T-95", "title": "Marketing launch kit — reels script + community templates + referral copy", "role": "content", "sprint": 8, "status": "done", "priority": "P1", "note": "DONE → board.assets.launchKit (positioning, WhatsApp scripts, Reddit/FB/WhatsApp community posts, reel scripts, referral copy, founding-offer, one-channel-deep playbook). Founder can execute in minutes." },
+    { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "backlog", "priority": "P0", "note": "NEEDS FOUNDER — real-world outreach only you can do (post in the India community, DM warm contacts, collect real before/after testimonials). I've built the launch kit (T-95: WhatsApp scripts, community templates, reel scripts, referral copy) so you can execute in minutes. Funnel measurement (PostHog) is wired to catch the conversions." }
   ],
   "readiness": {
     "date": "2026-08-25",

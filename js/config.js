@@ -81,6 +81,7 @@ window.PRICING = {
     { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "30+ camera filters (preview all)"] },
     { id: "pro",   name: "Pro",   price: "5.99",  period: "/mo", yearly: "$39.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "90+ Pro cinema filters", "Advanced analytics + progress photos", "No ads · unlimited Flex"] },
     { id: "elite", name: "Elite", price: "9.99", period: "/mo", yearly: "$69.99/yr",   features: ["Everything in Pro", "Exclusive Elite cinematic filters", "Priority support", "Early access to every new feature", "Founding member — launch price locked forever", "When we launch coaching: 1 month Elite+ & a coach check-in, free"] },
+    { id: "eliteplus", name: "Elite+", price: "29", period: "/mo", comingSoon: true, features: ["Everything in Elite", "Progress-photo reviews with a REAL coach", "Monthly 1:1 human-coach check-in", "Your plan tuned by a human", "Founding Elite members get the first month free"] },
   ],
 };
 
@@ -114,8 +115,13 @@ window.RAZORPAY = {
    ~₹663/mo an FX conversion of $7.99 would show. Other regions fall back to USD
    (Lemon Squeezy). Marketing owns refining these per willingness-to-pay research. ---- */
 window.REGIONAL = {
-  IN: { sym: "\u20b9", cur: "INR", pro: { mo: 299, yr: 1999 }, elite: { mo: 599, yr: 3999 } },
+  IN: { sym: "\u20b9", cur: "INR", pro: { mo: 299, yr: 1999 }, elite: { mo: 599, yr: 3999 }, eliteplus: { mo: 1499, yr: 14999 } },
 };
+
+/* ---- Founding-Member launch offer (T-92): the first cohort locks the launch price FOREVER +
+   Elite founders get 1 month of the future Elite+ (coach) free. Marketing framing only — the
+   'locked forever' promise is honoured at billing time (don't raise a founder's price). ---- */
+window.FOUNDING = { on: true, cap: 1000, note: "Founding Member — lock the launch price forever. Elite founders also get Elite+ (real coach) free for a month when it launches." };
 
 /* ---- ₹1 launch offer (T-77). SAFETY: set true ONLY when the razorpay-create-order edge fn
    actually charges ₹1 (PRICE_PAISE={pro:100,elite:100}) AND QA verified a real ₹1 payment on a
