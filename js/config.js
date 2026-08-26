@@ -112,7 +112,7 @@ window.RAZORPAY = {
 /* ---- ₹1 launch offer (T-77). SAFETY: set true ONLY when the razorpay-create-order edge fn
    actually charges ₹1 (PRICE_PAISE={pro:100,elite:100}) AND QA verified a real ₹1 payment on a
    device — otherwise the paywall shows ₹1 while the server still charges ₹699/₹1699 (overcharge). ---- */
-window.LAUNCH_OFFER = false;
+window.LAUNCH_OFFER = true; // LIVE: edge fn deployed charging ₹1 (verified amount=100, rzp_live) 2026-08-26
 
 /* ---- Auto local-currency display — every visitor sees prices in THEIR currency.
    country→currency via ipapi.co + USD→local rate via open.er-api.com (both free, no key),
