@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v167",
+    "liveVersion": "v168",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -774,6 +774,101 @@
         { "owner": "bi", "action": "T-69 — when PostHog lands, read ?src=guide-<slug> for per-guide conversion." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-012",
+      "date": "2026-08-28",
+      "title": "Sprint planning — Social & UX Standards epic (founder-flagged: non-standard destructive actions)",
+      "chair": "coo",
+      "attendees": ["ceo","coo","cto","pm","design","eng","qalead","qa","cmo"],
+      "agenda": [
+        "Founder: we're not following social-app standards. One-tap logout = accidental lockout. A stray tap on ✕ deletes a post. Others' posts have NO options (no save/report/hide/not-interested/follow). Own posts only a bare ✕.",
+        "Audit every one-tap destructive action + every missing standard option; plan the fix; break into tickets + subtasks; run the full gate loop (dev→release→beta QA → hierarchy+marketing approval → prod)."
+      ],
+      "review": [
+        {
+          "item": "Audit — where are we below standard?",
+          "status": "open",
+          "thread": [
+            { "role": "qalead", "type": "answer", "text": "Grepped every destructive handler. Findings: logout is one-tap in 3 places (onboarding, auth-switch, and the profile icon — the dangerous one). Others' posts render ZERO actions. Own posts only a bare ✕ (delete had a confirm, but a ✕ is not the standard affordance). removeFood deletes a food-log entry on one tap with no confirm." },
+            { "role": "design", "type": "challenge", "text": "IG/FB put post actions behind a ⋯ overflow and never destroy on a single stray tap. What's our premium equivalent?" },
+            { "role": "eng", "type": "fix", "text": "Build ONE reusable premium bottom-sheet (App.openSheet) and hang a ⋯ menu off every post. Others → Save, Not interested, Hide, Follow/Unfollow, Copy link, Report (reasons), Block. Own → Save, Edit caption, Copy link, Delete (confirm). Route all logout through a confirm sheet; add a confirm to food-delete." },
+            { "role": "pm", "type": "verify", "text": "Two tickets: T-97 (post ⋯ menu + feed curation state) and T-98 (destructive-action safety: logout + food). Both run the full gate loop. Planned — build starts now." }
+          ]
+        }
+      ],
+      "discussion": [
+        { "role": "cto", "point": "The sheet is reusable — it becomes the standard affordance for all future contextual actions (stories, chats, challenges), so we fix the pattern once." },
+        { "role": "ceo", "point": "This is exactly the 'follow the standard + never punish a stray tap' bar. Gate it properly; don't ship on my word alone." }
+      ],
+      "decisions": [
+        "Build T-97 (standard post ⋯ menu) + T-98 (no one-tap logout/delete) as v168.",
+        "Every destructive action must take 2 deliberate steps (open → confirm). Every others' post gets the standard IG/FB option set.",
+        "Run the full gate: Dev QA → Release QA → Beta QA → hierarchy (eng→qa→cto→coo→ceo) + marketing (cmo) approval → prod."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "T-97 + T-98 — build reusable sheet, post menu, feed curation, logout/food guards." },
+        { "owner": "qalead", "action": "Own the Dev/Release/Beta QA gates; no prod without a passed defect list." },
+        { "owner": "design", "action": "Sign off the sheet is premium (not a plain three-dots dump)." }
+      ],
+      "hires": []
+    },
+    {
+      "id": "M-013",
+      "date": "2026-08-28",
+      "title": "Build review + staged QA + hierarchy & marketing approval — Social UX Standards (v168)",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","design","cmo"],
+      "agenda": [
+        "Review T-97 (post ⋯ menu) + T-98 (destructive-action safety) through the staged gates, then take the hierarchy + marketing approval before prod."
+      ],
+      "review": [
+        {
+          "item": "Dev QA — does every menu action actually work, end to end?",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "Not just 'does it render' — do Save/Not-interested/Hide/Report/Block/Follow/Copy/Edit/Delete each DO the thing?" },
+            { "role": "eng", "type": "answer", "text": "Tested on localhost with a seeded feed: 3/3 posts show ⋯. Others' menu = Save, Not interested, Hide, Follow @handle, Copy link, Report, Block. Own = Save, Edit caption, Copy link, Delete. Hide/Report/Block each drop the post from the feed (count 3→2→1); Report opens the 6-reason sub-sheet then hides + records; Save toggles; Edit loads the caption; Delete removes. Only ONE sheet in the DOM at a time; it closes after each action." },
+            { "role": "qa", "type": "verify", "text": "Re-ran clean (cleared localStorage) — all counts and states correct. Logout: opening the confirm sheet does NOT log out; Cancel keeps you in; only confirm logs out. Food-delete now confirms. PASS." }
+          ]
+        },
+        {
+          "item": "Release QA — regression from moving social.js to js/mod/",
+          "status": "pass",
+          "thread": [
+            { "role": "qalead", "type": "question", "text": "social.js was moved off the JS budget into js/mod/. What breaks?" },
+            { "role": "eng", "type": "fix", "text": "Caught one: the CI security guard (ci.yml) greps js/social.js for unescaped src=\"${...}\" — after the move it would check a non-existent file and silently pass, dropping an XSS guard. Repointed it to js/mod/social.js and verified 0 unescaped src/href across all js. The <script> path in index.html updated; app boots and the feed renders from the new path with zero errors." },
+            { "role": "qalead", "type": "verify", "text": "Regression closed + the security guard is stronger (now actually guarding the file again). PASS." }
+          ]
+        },
+        {
+          "item": "Beta QA — mobile 390px, touch, premium feel",
+          "status": "pass",
+          "thread": [
+            { "role": "design", "type": "question", "text": "On a real phone, is the ⋯ reachable and does the sheet look premium (not a dev three-dots dump)?" },
+            { "role": "qa", "type": "verify", "text": "At 390px: the ⋯ sits top-right of every post header; the sheet slides up with a grab handle, author title, iconed rows, a separator, and Report/Block in red, plus a full-width Cancel — screenshot confirms it matches the IG/FB bar. Tier-independent (works for free/pro/elite). PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Built + self-tested every path; social.js off-budget; Cloud.editPost persists caption edits." },
+        { "role": "qalead", "status": "approved", "note": "All 3 QA gates passed; the one regression (ci.yml XSS path) was caught in Release QA and fixed + re-verified." },
+        { "role": "cto", "status": "approved", "note": "Reusable sheet is the right pattern; budget healthy (99KB free after the move); no new attack surface (curation is local, edit is author-scoped PATCH)." },
+        { "role": "coo", "status": "approved", "note": "Meets the standard the founder asked for — deliberate 2-step destruction, full option set on others' posts." },
+        { "role": "cmo", "status": "approved", "note": "Report/Block/Not-interested make the feed feel safe + credible — table stakes before we drive traffic. Approved from marketing." },
+        { "role": "ceo", "status": "approved", "note": "This is the bar. Shipped through real gates, not on my word. Approved for prod." }
+      ],
+      "decisions": [
+        "All gates passed + hierarchy and marketing approved → promote v168 to prod.",
+        "The bottom-sheet is now the standard contextual-action affordance for the app; reuse it for stories/chat/challenges next.",
+        "Follow-ups (own tickets, later sprints): server-side moderation store for reports; Archive/Pin for own posts; swipe-to-delete + Undo for list rows."
+      ],
+      "actions": [
+        { "owner": "eng", "action": "Promote v168 dev→release→beta→main after approvals; verify live." },
+        { "owner": "qalead", "action": "Add the post menu + logout confirm to the recurring premium audit (T-78)." },
+        { "owner": "pm", "action": "File the follow-ups (moderation store, archive/pin, swipe+undo) into the next sprint." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -802,7 +897,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v167 · acquisition funnel — plain Go-Pro CTA + guide front-door CTAs (on top of v166 Elite review)" },
+    { "label": "Live version", "value": "v168 · social UX standards — post ⋯ menu (save/report/hide/follow/block) + no one-tap logout/delete" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1241,7 +1336,9 @@
     { "id": "T-93", "title": "Elite+ 'coming soon' tier (human coach, post-profit) in the ladder", "role": "pm", "sprint": 8, "status": "done", "priority": "P2", "note": "DONE v165 (M-009). Added eliteplus tier (comingSoon:true, ₹1,499/$29) so the ladder Free → Pro → Elite → Elite+ is visible. openPricing renders it dimmed with a 'Coming soon' badge + disabled button (no checkout). QA caught + eng fixed that coming-soon tiers must be excluded from the ₹1 launch offer. Verified live: 4 tiers, Elite+ shows ₹1,499/mo, disabled." },
     { "id": "T-94", "title": "Landing-page pricing/positioning update + testimonials section", "role": "design", "sprint": 8, "status": "todo", "priority": "P1", "note": "M-008. Update the landing to the new prices + positioning ('free to start, premium when you're ready') and add a testimonials section seeded with the first users' before/afters + the founder's own transformation (trust for a no-review app)." },
     { "id": "T-95", "title": "Marketing launch kit — reels script + community templates + referral copy", "role": "content", "sprint": 8, "status": "done", "priority": "P1", "note": "DONE → board.assets.launchKit (positioning, WhatsApp scripts, Reddit/FB/WhatsApp community posts, reel scripts, referral copy, founding-offer, one-channel-deep playbook). Founder can execute in minutes." },
-    { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "backlog", "priority": "P0", "note": "NEEDS FOUNDER — real-world outreach only you can do (post in the India community, DM warm contacts, collect real before/after testimonials). I've built the launch kit (T-95: WhatsApp scripts, community templates, reel scripts, referral copy) so you can execute in minutes. Funnel measurement (PostHog) is wired to catch the conversions." }
+    { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "backlog", "priority": "P0", "note": "NEEDS FOUNDER — real-world outreach only you can do (post in the India community, DM warm contacts, collect real before/after testimonials). I've built the launch kit (T-95: WhatsApp scripts, community templates, reel scripts, referral copy) so you can execute in minutes. Funnel measurement (PostHog) is wired to catch the conversions." },
+    { "id": "T-97", "title": "Standard post overflow menu (⋯) — save/not-interested/hide/report/follow/copy + edit/delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (planned M-012, reviewed M-013). Founder: 'we don't follow social standards — others' posts need Save/Not-interested/Report/Hide/Follow like IG/FB; own posts a menu, not a bare ✕.' Built a reusable premium bottom-sheet (App.openSheet). Every post now has a ⋯ menu: OTHERS → Save, Not interested, Hide, Follow/Unfollow @handle, Copy link, Report (6-reason sub-sheet), Block; OWN → Save, Edit caption, Copy link, Delete (confirm). Hidden/blocked/reported filter the feed (cloud + demo via _canSeePost). Cloud.editPost added (PATCH posts.data). Dev-QA'd every action + premium look verified at 390px. social.js moved to js/mod/ (off JS budget)." },
+    { "id": "T-98", "title": "Destructive-action safety — no one-tap logout or delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (M-012/M-013). Founder: 'one click logs out → accidental lockout; one tap on ✕ deletes.' All 3 logout triggers now route through App.confirmLogout() (premium sheet: Log out / Cancel) — opening it does NOT log out. Post delete moved into the ⋯ menu behind a confirm (T-97). removeFood (food-log ✕) now confirms. Verified: opening the logout sheet keeps you signed in; Cancel keeps you in; only confirm logs out." }
   ],
   "readiness": {
     "date": "2026-08-25",
