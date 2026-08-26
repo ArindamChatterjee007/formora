@@ -1678,21 +1678,21 @@ const App = {
     window.Track && Track.event("paywall_opened");
     const P = (window.PRICING && window.PRICING.tiers) || [];
     const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
-    const offerOn = (t) => !!(window.LAUNCH_OFFER && t.id !== "free" && window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
+    const offerOn = (t) => !!(window.LAUNCH_OFFER && t.id !== "free" && !t.comingSoon && window.RAZORPAY && RAZORPAY.enabled && typeof Currency !== "undefined" && Currency.cur === "INR");
     // Regional (PPP) price for a tier, e.g. India → { sym:"₹", mo:399, yr:2999 }; null elsewhere (→ USD/FX).
     const reg = (t) => (t.id !== "free" && typeof Currency !== "undefined" && Currency.regionPrice) ? Currency.regionPrice(t.id) : null;
     const tiers = P.map((t) => `
-      <div class="ptier ${t.id === "pro" ? "featured" : ""}">
-        ${t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : ""}
+      <div class="ptier ${t.id === "pro" ? "featured" : ""}${t.comingSoon ? " pt-soon" : ""}">
+        ${t.comingSoon ? `<div class="pt-badge pt-badge-soon">Coming soon</div>` : (t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : "")}
         <div class="pt-name">${esc(t.name)}</div>
         <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">${reg(t) ? esc(reg(t).sym + reg(t).mo) : "₹" + ((RAZORPAY.inr && RAZORPAY.inr[t.id]) || "")}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : (reg(t) ? esc(reg(t).sym + reg(t).mo) : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))))}<small>${offerOn(t) ? " launch offer" : (reg(t) ? "/mo" : esc(t.period || ""))}</small></div>
         ${t.yearly && !offerOn(t) ? `<div class="pt-year">or ${reg(t) ? esc(reg(t).sym + reg(t).yr) + "/yr" : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)))}${(() => { const my = reg(t) ? reg(t).mo : parseFloat(t.price), yr = reg(t) ? reg(t).yr : parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
         <ul class="pt-feats">${(t.features || []).map((f) => `<li${/^Everything in /.test(f) ? ' class="pt-inc"' : ""}>${esc(f)}</li>`).join("")}</ul>
-        ${t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn ${t.id === "pro" ? "" : "ghost "}wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`)}
+        ${t.comingSoon ? `<button class="btn ghost wide" disabled>Coming soon ✨</button>` : (t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn ${t.id === "pro" ? "" : "ghost "}wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`))}
       </div>`).join("");
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
-       <div class="pricing"><div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
+       <div class="pricing">${window.FOUNDING && window.FOUNDING.on ? `<div class="pt-founding">🚀 <b>Founding Member</b> — lock the launch price <b>forever</b>. First ${(window.FOUNDING.cap || 1000).toLocaleString()} only.</div>` : ""}<div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
        <div class="ptiers">${tiers}</div>
        <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div>${typeof Currency !== "undefined" && Currency.isLocal() ? `<div class="pt-foot" style="opacity:.65;margin-top:6px">Prices shown in your local currency (${esc(Currency.cur)}). International cards are billed in USD.</div>` : ""}</div>`;
     document.getElementById("modal").classList.remove("hidden");
