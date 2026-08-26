@@ -20,7 +20,7 @@
   <meta property="og:title" content="Formora — Build your dream physique" />
   <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
-  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=160" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=161" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Formora — Build your dream physique" />
@@ -28,12 +28,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
   <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
-  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=160" />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=161" />
   <!-- Structured data for search engines -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
-  <link rel="manifest" href="manifest.webmanifest?v=160" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=160" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=160" />
+  <link rel="manifest" href="manifest.webmanifest?v=161" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=161" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=161" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -42,7 +42,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 160;
+      var V = 161;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=160" />
+  <link rel="stylesheet" href="css/styles.css?v=161" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -128,25 +128,66 @@
     .about-card .about-ver { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 13px; color: #9aa0aa; }
     .about-card .about-sub { margin-top: 8px; font-size: 13px; opacity: .75; }
 
-    /* ===== Premium tier theming (Free / Pro / Elite) — accents layer on top of the
-       brand gradient so upgrading feels different without breaking the design system. ===== */
+    /* ============================================================
+       PREMIUM TIER THEMING (Free / Pro / Elite)
+       The ENTIRE app re-themes by overriding --accent/--accent2 (which drive every
+       gradient, button, ring, nav accent + focus ring across styles.css). Bare
+       attribute selectors (not html-scoped) so a profile modal can also show ANOTHER
+       member's tier locally. Free = signature orange→pink · Pro = violet→magenta ·
+       Elite = champagne gold. ============================================================ */
     :root { --tier-accent: #ff9d4d; --tier-accent2: #ff3d7f; }
-    html[data-tier="elite"] { --tier-accent: #f6c66b; --tier-accent2: #e79b3c; }
+    [data-tier="pro"]   { --accent: #9b6bff; --accent2: #ff5aa0; --tier-accent: #b98cff; --tier-accent2: #ff5aa0; }
+    [data-tier="elite"] { --accent: #e7b23f; --accent2: #f6d67a; --tier-accent: #f6d67a; --tier-accent2: #e79b3c; }
+    /* Elite gold is light → filled accents get dark ink so text stays legible (white-on-gold fails contrast) */
+    html[data-tier="elite"] .btn:not(.ghost):not(.icon-btn),
+    html[data-tier="elite"] .btn-big.go, html[data-tier="elite"] .ut.active,
+    html[data-tier="elite"] .exp-chip.active, html[data-tier="elite"] .diet-toggle button.active,
+    html[data-tier="elite"] .cuisine-chip.active, html[data-tier="elite"] .ssub.active,
+    html[data-tier="elite"] .pw-tab.active, html[data-tier="elite"] .pt-badge,
+    html[data-tier="elite"] .pro-tag, html[data-tier="elite"] .sb-label,
+    .view-profile[data-tier="elite"] .btn:not(.ghost),
+    .member-card[data-tier="elite"] .btn:not(.ghost) { color: #2a1c05; }
+    html[data-tier="elite"] .sb-thumb { color: #b6841f; }
+    /* ambient background glow follows the tier */
+    html[data-tier="pro"] .bg-glow { background:
+      radial-gradient(600px 400px at 15% -5%, rgba(155,107,255,.20), transparent 60%),
+      radial-gradient(700px 500px at 100% 0%, rgba(61,139,255,.12), transparent 55%),
+      radial-gradient(600px 600px at 50% 120%, rgba(255,90,160,.14), transparent 60%); }
+    html[data-tier="elite"] .bg-glow { background:
+      radial-gradient(600px 400px at 15% -5%, rgba(231,178,63,.20), transparent 60%),
+      radial-gradient(700px 500px at 100% 0%, rgba(246,214,122,.12), transparent 55%),
+      radial-gradient(600px 600px at 50% 120%, rgba(231,155,60,.14), transparent 60%); }
+
+    /* ---- launch splash themes per tier (plays instantly from cached fm_tier) ---- */
     #launch .la-tier { margin-top: 12px; font-family: Outfit, sans-serif; font-weight: 800; font-size: 12px;
       letter-spacing: 2px; text-transform: uppercase; min-height: 15px; opacity: 0; animation: laFade .7s ease .7s forwards;
       background: linear-gradient(135deg, var(--tier-accent), var(--tier-accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    html[data-tier="pro"] #launch { background: radial-gradient(130% 120% at 50% 38%, #1d1533 0%, #120d1e 45%, #0e0f13 100%); }
+    html[data-tier="pro"] #launch .la-name span { background: linear-gradient(135deg,#b98cff,#ff5aa0); -webkit-background-clip: text; background-clip: text; }
+    html[data-tier="pro"] #launch .la-mark { filter: hue-rotate(212deg) saturate(1.15); }
+    html[data-tier="pro"] #launch .la-bar i { background: linear-gradient(90deg,#b98cff,#ff5aa0); }
+    html[data-tier="pro"] #launch .la-tag { color: #c8b4ff; }
+    html[data-tier="elite"] #launch { background: radial-gradient(130% 120% at 50% 38%, #2b2213 0%, #16120a 45%, #0e0f13 100%); }
+    html[data-tier="elite"] #launch .la-name span { background: linear-gradient(135deg,#f6d67a,#e79b3c); -webkit-background-clip: text; background-clip: text; }
+    html[data-tier="elite"] #launch .la-name { text-shadow: 0 2px 34px rgba(246,214,122,.35); }
+    html[data-tier="elite"] #launch .la-mark { filter: hue-rotate(18deg) saturate(1.25) brightness(1.08); }
+    html[data-tier="elite"] #launch .la-bar i { background: linear-gradient(90deg,#f6d67a,#e79b3c); }
+    html[data-tier="elite"] #launch .la-tag { color: #e8c98a; }
+
     .tier-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; vertical-align: middle;
       font-family: Outfit, sans-serif; font-weight: 800; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-      color: #fff; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); box-shadow: 0 4px 14px rgba(255,90,77,.3); }
+      color: #fff; background: linear-gradient(135deg, #9b6bff, #ff5aa0); box-shadow: 0 4px 14px rgba(155,107,255,.32); }
+    .tier-badge.tb-pro { background: linear-gradient(135deg,#9b6bff,#ff5aa0); }
     .tier-badge.tb-elite { background: linear-gradient(135deg,#f7d488,#e79b3c); color: #3a2708; box-shadow: 0 4px 16px rgba(230,155,60,.45); }
     .tier-badge.tb-free { background: rgba(255,255,255,.1); color: #c7ccd6; box-shadow: none; }
     .tier-badge svg { width: 11px; height: 11px; }
     html[data-tier="elite"] .about-card .about-brand,
-    .view-profile[data-tier="elite"] .vp-name { text-shadow: 0 2px 18px rgba(246,198,107,.4); }
+    .view-profile[data-tier="elite"] .vp-name { text-shadow: 0 2px 18px rgba(246,214,122,.4); }
 
     /* Current-plan (membership) card — shown instead of the upsell once a member is Pro/Elite */
     .member-card { position: relative; overflow: hidden; }
     .member-card[data-tier="elite"] { background: linear-gradient(160deg, rgba(246,198,107,.14), rgba(231,155,60,.06)); border-color: rgba(246,198,107,.4); }
+    .member-card[data-tier="pro"] { background: linear-gradient(160deg, rgba(155,107,255,.13), rgba(255,90,160,.05)); border-color: rgba(155,107,255,.36); }
     .member-card .mc-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .member-card .mc-status { font-size: 12px; color: #9aa0aa; }
     .member-card .mc-title { font-family: Outfit, sans-serif; font-weight: 800; font-size: 17px; margin-top: 10px; }
@@ -167,6 +208,20 @@
     .upgrade-elite .up-est { background: linear-gradient(160deg, rgba(246,198,107,.14), rgba(231,155,60,.05)); border: 1px solid rgba(246,198,107,.3); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
     .upgrade-elite .up-amt { font-family: Outfit, sans-serif; font-weight: 800; font-size: 30px; background: linear-gradient(135deg,#f7d488,#e79b3c); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .upgrade-elite .up-note { font-size: 12.5px; opacity: .78; margin-top: 6px; line-height: 1.5; }
+
+    /* ---- Profile header redesign: cover photo + upload, logout icon on the cover,
+       tier/level moved to their own chips row (fixes the logout↔level overlap) ---- */
+    .profile-hero .ph-cover { position: relative; height: 118px; }
+    .ph-cover-edit { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.42); color: #fff; font-size: 11px; font-weight: 700;
+      cursor: pointer; border: 1px solid rgba(255,255,255,.2); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    .ph-cover-edit:hover { background: rgba(0,0,0,.6); }
+    .ph-cover-edit svg { display: block; }
+    .ph-logout-ic { position: absolute; right: 10px; top: 10px; width: 34px; height: 34px; display: grid; place-items: center;
+      border-radius: 50%; background: rgba(0,0,0,.42); color: #fff; border: 1px solid rgba(255,255,255,.2); cursor: pointer;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: background .15s ease; }
+    .ph-logout-ic:hover { background: rgba(0,0,0,.6); }
+    .ph-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 18px 0; }
   </style>
 </head>
 <body>
@@ -292,18 +347,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=160"></script>
-  <script src="js/data.js?v=160"></script>
-  <script src="js/mod/exercises.js?v=160"></script>
-  <script src="js/storage.js?v=160"></script>
-  <script src="js/engine.js?v=160"></script>
-  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=160";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
-  <script src="js/nutrition.js?v=160"></script>
-  <script src="js/auth.js?v=160"></script>
-  <script src="js/social.js?v=160"></script>
-  <script src="js/cloud.js?v=160"></script>
-  <script src="js/entitlements.js?v=160"></script>
-  <script src="js/supaauth.js?v=160"></script>
+  <script src="js/config.js?v=161"></script>
+  <script src="js/data.js?v=161"></script>
+  <script src="js/mod/exercises.js?v=161"></script>
+  <script src="js/storage.js?v=161"></script>
+  <script src="js/engine.js?v=161"></script>
+  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=161";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
+  <script src="js/nutrition.js?v=161"></script>
+  <script src="js/auth.js?v=161"></script>
+  <script src="js/social.js?v=161"></script>
+  <script src="js/cloud.js?v=161"></script>
+  <script src="js/entitlements.js?v=161"></script>
+  <script src="js/supaauth.js?v=161"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -314,7 +369,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=160";
+          s.src = "js/mod/camera.js?v=161";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -326,7 +381,7 @@
       }
     };
   </script>
-  <script src="js/mailer.js?v=160"></script>
-  <script src="js/app.js?v=160"></script>
+  <script src="js/mod/mailer.js?v=161"></script>
+  <script src="js/app.js?v=161"></script>
 </body>
 </html>
