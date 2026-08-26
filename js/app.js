@@ -2444,6 +2444,7 @@ const App = {
   },
   renderPhotoStudio() {
     const arr = this.progressPhotos();
+    const isElite = typeof Entitlements !== "undefined" && Entitlements.isElite();
     let cmp = "";
     if (arr.length >= 2) {
       const a = arr[0], b = arr[arr.length - 1];
@@ -2464,6 +2465,9 @@ const App = {
       ${cmp}
       ${arr.length ? `<div class="pp-strip">${strip}</div>` : `<div class="chart-empty">Add your first progress photo — then one every 1–2 weeks to watch your body change.</div>`}
       <button class="btn wide" style="margin-top:12px" onclick="App.addProgressPhoto()">${this.ic("camera", { size: 16 })} Add progress photo</button>
+      ${isElite
+        ? `<button class="btn wide" style="margin-top:10px" onclick="EliteReview.open()">${this.ic("target", { size: 16 })} Get your AI Progress Review</button>`
+        : `<button class="btn ghost wide" style="margin-top:10px" onclick="App.openPricing()">${this.ic("target", { size: 16 })} AI Progress Review · <b>Elite ★</b></button>`}
     </div>`;
   },
 
