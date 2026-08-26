@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v156",
+    "liveVersion": "v157",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -170,6 +170,86 @@
         { "owner": "founder", "action": "Log into Supabase once so DevOps can deploy the ₹1 test function — the one step the office can't self-serve." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-003",
+      "date": "2026-08-26",
+      "title": "All-hands sprint planning (full session) — everyone's assignment for 'First 10 Customers'",
+      "chair": "ceo",
+      "attendees": ["ceo","coo","cfo","finance","bi","analyst","vpsales","sales","bizdev","cmo","growth","social","content","paid","influencer","lifecycle","pm","req","design","cto","architect","eng","qalead","qa","qaint","qaux","devops","support"],
+      "agenda": [
+        "Confirm the one sprint goal + give EVERY seat a job.",
+        "The ₹1 launch offer — how do we do it without overcharging?",
+        "What's the single blocker, and who owns clearing it?",
+        "Define 'done' for the first 10 customers."
+      ],
+      "discussion": [
+        { "role": "ceo", "point": "Whole company in one room. ONE goal this sprint: the first 10 paying customers. Everyone leaves with a job. Freeze anything that isn't conversion." },
+        { "role": "coo", "point": "I'll run a daily standup and keep the board honest. Our single hard blocker is the ₹1 charge deploy — it's top of my list until it's cleared." },
+        { "role": "cfo", "point": "Reality I verified today: the Razorpay rail is LIVE and charges ₹699 real money right now. A '₹1' label while we charge ₹699 overcharges our first customers — chargebacks and dead trust. The offer is smart, but the CHARGE must be ₹1 too." },
+        { "role": "architect", "point": "So we COUPLE them: the ₹1 strikethrough offer and the ₹1 server charge ship together, gated by one flag — display and charge can never diverge." },
+        { "role": "cto", "point": "The server charge is the one thing we can't deploy without Arindam's Supabase login. The function is already written for ₹1 — a 10-second deploy the moment he's signed in." },
+        { "role": "design", "point": "I'll build the offer UI: ₹699 struck through, a bold '₹1 launch offer' badge, a little urgency. It'll read as a real deal." },
+        { "role": "eng", "point": "I'll wire it behind a LAUNCH_OFFER flag, OFF until the ₹1 charge is verified live — so we physically can't show ₹1 while charging ₹699." },
+        { "role": "qaux", "point": "Before it goes public, I pay a real ₹1 on my own phone and confirm the unlock. Evidence first, traffic second." },
+        { "role": "qalead", "point": "I gate the release: no ₹1 offer goes public until QA signs off the real-payment E2E." },
+        { "role": "qaint", "point": "I'll run the full signup → ₹1 pay → unlock flow end-to-end the moment it's deployed." },
+        { "role": "qa", "point": "Security check: the price is server-authoritative (client can't set it) — good, the offer can't be gamed to ₹0." },
+        { "role": "bi", "point": "I'll wire the PostHog funnel — landing → signup → paywall → checkout → paid — so we SEE where the first 10 drop off." },
+        { "role": "analyst", "point": "Weekly readout — activation, paywall→pay %, D1/D7 retention — so we judge on numbers, not vibes." },
+        { "role": "cmo", "point": "I own the launch-offer GTM: the ₹1 deal is the hook across WhatsApp, one community, and Flex reels. Deep on one channel first." },
+        { "role": "growth", "point": "5 personal WhatsApp scripts + the referral/trial link ready today for Arindam to send warm contacts." },
+        { "role": "social", "point": "I'll cut 3 Flex reels from the app + a ₹1-offer teaser for Shorts/Reels." },
+        { "role": "content", "point": "A 'Try Formora free' CTA at the top of every SEO guide, funnelling organic readers to the offer." },
+        { "role": "vpsales", "point": "For the first 10, warm and personal beats scale. Sales and I onboard them by hand and log every objection." },
+        { "role": "sales", "point": "I'll personally welcome each signup and walk them to the ₹1 offer." },
+        { "role": "bizdev", "point": "I'll find 3 more fitness communities/partners where the ₹1 offer is welcome, not spammy." },
+        { "role": "influencer", "point": "I'll shortlist 5 micro-influencers to seed the ₹1 offer once the payment is verified." },
+        { "role": "lifecycle", "point": "Onboarding + trial→paid emails switched on for real signups; deliverability capped on free tier until a domain (T-56)." },
+        { "role": "paid", "point": "Holding ALL paid spend until the funnel converts (M2) — but I'll have the ₹1-offer ad creative ready to move fast when it's time." },
+        { "role": "finance", "point": "I'll model the ₹1-offer economics — it's a loss-leader; the number that matters is ₹1→₹699 renewal conversion, which I'll track from the first cohort." },
+        { "role": "pm", "point": "I own the sprint and groom daily. Scope stays ruthless: only work that moves someone toward paying." },
+        { "role": "req", "point": "I'll spec the ₹1 launch offer precisely — strikethrough, copy, the coupling rule — so Design and Eng build it once, right." },
+        { "role": "support", "point": "Welcome DM, a plain refund line, and a bug-intake template ready so the first customers feel handled from minute one." }
+      ],
+      "decisions": [
+        "Sprint goal locked: the first 10 paying customers (M1→M2). EVERY seat has an assignment (see action items).",
+        "₹1 LAUNCH OFFER approved — BUT the display (₹699 struck → ₹1) and the ₹1 server charge SHIP TOGETHER, gated by one flag. Verified today the rail is LIVE (₹699 real), so showing ₹1 alone would overcharge — hard NO.",
+        "The ₹1 charge deploy (edge fn, already written) is the single blocker; it needs Arindam's Supabase login (~10s). DevOps deploys the instant it's reachable; QA verifies a real ₹1 payment before anything goes public.",
+        "Freeze all non-conversion features. No paid ads until M2. Spend stays ~$0.",
+        "Daily standups until the first 10 land."
+      ],
+      "actions": [
+        { "owner": "ceo", "action": "Hold the line on the north star + unblock the team; freeze non-conversion work." },
+        { "owner": "coo", "action": "Run daily standups; chase the one blocker (Supabase deploy) to done." },
+        { "owner": "cfo", "action": "Keep spend ~$0; own the ₹1-offer loss-leader math + guardrails." },
+        { "owner": "finance", "action": "Model ₹1→₹699 renewal conversion; track the first rupees." },
+        { "owner": "bi", "action": "T-69 — wire the PostHog funnel landing→signup→paywall→checkout→paid." },
+        { "owner": "analyst", "action": "T-76 — weekly metrics readout + first snapshot." },
+        { "owner": "vpsales", "action": "Own the first-10 conversion play + objection scripts." },
+        { "owner": "sales", "action": "Personally onboard each signup; walk them to the offer." },
+        { "owner": "bizdev", "action": "Find 3 more communities/partners to place the offer." },
+        { "owner": "cmo", "action": "Own the ₹1-offer GTM; sequence WhatsApp → community → reels." },
+        { "owner": "growth", "action": "T-72 — 5 WhatsApp scripts + referral/trial link." },
+        { "owner": "social", "action": "Cut 3 Flex reels + a ₹1-offer teaser for Shorts/Reels." },
+        { "owner": "content", "action": "T-71 — 'Try Formora free' CTA atop each SEO guide." },
+        { "owner": "paid", "action": "Hold spend until M2; prep the ₹1-offer ad creative." },
+        { "owner": "influencer", "action": "Shortlist 5 micro-influencers to seed the offer post-verify." },
+        { "owner": "lifecycle", "action": "T-75 — turn on onboarding + trial→paid emails." },
+        { "owner": "pm", "action": "Own + groom the sprint daily; keep scope to conversion." },
+        { "owner": "req", "action": "Spec the ₹1 launch offer + the Go-Pro CTA." },
+        { "owner": "design", "action": "T-77 — build the ₹1 launch-offer UI (₹699 struck → ₹1) + T-70 Go-Pro CTA." },
+        { "owner": "cto", "action": "Deploy the ₹1 edge fn the instant Supabase is reachable; guard the coupling." },
+        { "owner": "architect", "action": "Design the one-flag coupling so ₹1 display can never ship without ₹1 charge." },
+        { "owner": "eng", "action": "T-77 build — wire the offer behind LAUNCH_OFFER, off until ₹1 charge is live." },
+        { "owner": "qalead", "action": "Write the offer + payment E2E test plan; own the release gate." },
+        { "owner": "qa", "action": "Security-check: price stays server-authoritative." },
+        { "owner": "qaint", "action": "E2E the signup→₹1 pay→unlock flow once deployed." },
+        { "owner": "qaux", "action": "T-73 — pay a real ₹1 on a real device + confirm unlock BEFORE public." },
+        { "owner": "devops", "action": "T-73 — deploy the ₹1 edge fn + verify amount=100 the moment Supabase is reachable." },
+        { "owner": "support", "action": "T-74 — first-customer support playbook (welcome DM, refund, bug-intake)." }
+      ],
+      "hires": []
     }
   ],
   "columns": [
@@ -198,7 +278,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v156 · premium slide-to-confirm + mode-switch animation" },
+    { "label": "Live version", "value": "v157 · ₹1 launch-offer built (gated, ready to flip)" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -569,7 +649,8 @@
     { "id": "T-73", "title": "Deploy the ₹1 test edge fn + verify pay→webhook→unlock on a real device", "role": "devops", "sprint": 5, "status": "blocked", "priority": "P0", "blocker": "Needs the founder's Supabase login — the office cannot deploy edge functions without their session (no CLI token / no auto-deploy).", "note": "Sprint-planning M-002. The razorpay-create-order source is already set to ₹1 (100 paise) for both tiers. Once deployed, verify a real ₹1 UPI payment grants Pro server-side. UNTIL deployed + verified, do NOT display ₹1 (would overcharge). Restore ₹699/₹1699 after the test." },
     { "id": "T-74", "title": "First-customer support playbook — welcome DM, refund policy, bug-intake", "role": "support", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002 — the new hire's first task. Acceptance: a short playbook in board.assets (welcome message, refund line, bug-intake template)." },
     { "id": "T-75", "title": "Turn on onboarding + trial→paid lifecycle emails for real signups", "role": "lifecycle", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Sequences already drafted (board.assets.lifecycleMessaging). Wire them to real signups. Caveat: free-tier EmailJS deliverability until a domain exists (T-56)." },
-    { "id": "T-76", "title": "Weekly metrics review — activation, paywall→pay %, D1/D7 retention", "role": "analyst", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Define the weekly readout + take the first snapshot so the sprint is judged on numbers. Acceptance: a repeatable metrics list + first values." }
+    { "id": "T-76", "title": "Weekly metrics review — activation, paywall→pay %, D1/D7 retention", "role": "analyst", "sprint": 5, "status": "todo", "priority": "P2", "note": "Sprint-planning M-002. Define the weekly readout + take the first snapshot so the sprint is judged on numbers. Acceptance: a repeatable metrics list + first values." },
+    { "id": "T-77", "title": "₹1 launch-offer UI — strikethrough ₹699→₹1, COUPLED to the ₹1 charge", "role": "design", "sprint": 5, "status": "blocked", "priority": "P0", "blocker": "Coupled to T-73 — must ship WITH the ₹1 edge-fn deploy (which needs the founder's Supabase login). The rail is LIVE (₹699 real money), so the ₹1 display must never ship before the ₹1 charge or it overcharges.", "note": "All-hands M-003. Build the paywall offer: ₹699 struck through + a bold '₹1 launch offer' badge, gated behind a single LAUNCH_OFFER flag that is ON only when the deployed edge fn charges ₹1. Design+Eng build it ready (flag OFF); DevOps deploys the ₹1 charge + QA verifies a real ₹1 payment on a device; then flip the flag — display + charge go live together." }
   ],
   "readiness": {
     "date": "2026-08-25",
