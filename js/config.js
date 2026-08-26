@@ -79,8 +79,8 @@ window.MUSIC = {
 window.PRICING = {
   tiers: [
     { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "30+ camera filters (preview all)"] },
-    { id: "pro",   name: "Pro",   price: "7.99",  period: "/mo", yearly: "$49.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "90+ Pro cinema filters", "Advanced analytics + progress photos", "No ads · unlimited Flex"] },
-    { id: "elite", name: "Elite", price: "19.99", period: "/mo", yearly: "$149/yr",   features: ["Everything in Pro", "Exclusive Elite cinematic filters", "Progress-photo reviews with your coach", "Monthly human-coach check-in", "Priority support", "Early access to new features"] },
+    { id: "pro",   name: "Pro",   price: "5.99",  period: "/mo", yearly: "$39.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "90+ Pro cinema filters", "Advanced analytics + progress photos", "No ads · unlimited Flex"] },
+    { id: "elite", name: "Elite", price: "9.99", period: "/mo", yearly: "$69.99/yr",   features: ["Everything in Pro", "Exclusive Elite cinematic filters", "Priority support", "Early access to every new feature", "Founding member — launch price locked forever", "When we launch coaching: 1 month Elite+ & a coach check-in, free"] },
   ],
 };
 
@@ -106,7 +106,7 @@ window.LEMONSQUEEZY = {
    the paywall shows only the global (Lemon Squeezy) card/PayPal option. ---- */
 window.RAZORPAY = {
   enabled: true, // UPI live (India). Test keys until KYC approves → swap to live keys, no code change.
-  inr: { pro: 399, elite: 799 }, // ₹ shown on the India rail (the edge function is authoritative)
+  inr: { pro: 299, elite: 599 }, // ₹ shown on the India rail (the edge function is authoritative)
 };
 
 /* ---- Regional pricing (PPP): people in each market see a price built for their
@@ -114,7 +114,7 @@ window.RAZORPAY = {
    ~₹663/mo an FX conversion of $7.99 would show. Other regions fall back to USD
    (Lemon Squeezy). Marketing owns refining these per willingness-to-pay research. ---- */
 window.REGIONAL = {
-  IN: { sym: "\u20b9", cur: "INR", pro: { mo: 399, yr: 2999 }, elite: { mo: 799, yr: 5999 } },
+  IN: { sym: "\u20b9", cur: "INR", pro: { mo: 299, yr: 1999 }, elite: { mo: 599, yr: 3999 } },
 };
 
 /* ---- ₹1 launch offer (T-77). SAFETY: set true ONLY when the razorpay-create-order edge fn
