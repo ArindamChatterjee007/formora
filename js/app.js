@@ -142,7 +142,7 @@ const App = {
       <h2>Account suspended</h2>
       <p>Your account has been suspended for violating Formora's community guidelines — impersonating another person.</p>
       <p class="susp-sub">If you believe this is a mistake, you can appeal by verifying your identity with our team.</p>
-      <button class="btn ghost wide" onclick="App.logout()">Log out</button>
+      <button class="btn ghost wide" onclick="App.confirmLogout()">Log out</button>
     </div>`;
   },
 
@@ -211,6 +211,11 @@ const App = {
     try { localStorage.removeItem("fm_tier"); document.documentElement.setAttribute("data-tier", "free"); } catch (_) {}
     document.getElementById("app-shell").classList.add("hidden");
     this.showAuth("login");
+  },
+  confirmLogout() {
+    this.openSheet("Log out of Formora?", [
+      { icon: "logout", label: "Log out", danger: true, fn: () => App.logout() },
+    ]);
   },
 
   // ---- Backup & Restore (move account + data across devices, no backend) ----
@@ -347,7 +352,7 @@ const App = {
         </div>
         ${err}
         <button class="btn wide" onclick="App.submitDetails()">${this.onboardMode === "login" ? "Save &amp; continue" : "Create my account"}</button>
-        <div class="auth-switch">${this.onboardMode === "login" ? `<a onclick="App.logout()">← Log out</a>` : `<a onclick="App.showAuth('signup')">← Back</a>`}</div>`;
+        <div class="auth-switch">${this.onboardMode === "login" ? `<a onclick="App.confirmLogout()">← Log out</a>` : `<a onclick="App.showAuth('signup')">← Back</a>`}</div>`;
     } else if (this.authView === "google") {
       body = `<div class="auth-sub">Choose your Google account</div>
         <div class="field"><label>Name</label><input id="g-name" placeholder="Your name"></div>
@@ -835,6 +840,11 @@ const App = {
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     chevronR: '<path d="M9 6l6 6-6 6"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    more: '<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>',
+    flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    minusCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
   },
   ic(name, opts) {
     opts = opts || {};
@@ -844,6 +854,32 @@ const App = {
   // reusable app-branded send button (gradient paper-plane) — comments, reels & DMs
   sendIcon(onclick, extra) {
     return `<button class="send-ico ${extra || ""}" onclick="${onclick}" aria-label="Send" title="Send">${this.ic("send", { size: 18, sw: 2 })}</button>`;
+  },
+  // ---- premium action sheet (bottom sheet) for contextual options; actions:[{icon,label,fn,danger,on,sep}] ----
+  openSheet(title, actions) {
+    const old = document.getElementById("sheet-wrap"); if (old && old.parentNode) old.parentNode.removeChild(old);
+    const list = actions || [];
+    const opts = list.map((a, i) => a.sep
+      ? `<div class="sheet-sep"></div>`
+      : `<button class="sheet-opt${a.danger ? " danger" : ""}${a.on ? " on" : ""}" data-i="${i}">${a.icon ? this.ic(a.icon, { size: 20 }) : ""}<span>${esc(a.label)}</span></button>`).join("");
+    const wrap = document.createElement("div");
+    wrap.className = "sheet-wrap"; wrap.id = "sheet-wrap";
+    wrap.innerHTML = `<div class="sheet-back" onclick="App.closeSheet()"></div>
+      <div class="sheet" role="dialog" aria-modal="true">
+        ${title ? `<div class="sheet-title">${esc(title)}</div>` : ""}
+        <div class="sheet-opts">${opts}</div>
+        <button class="sheet-cancel" onclick="App.closeSheet()">Cancel</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelectorAll(".sheet-opt").forEach((btn) => {
+      const a = list[+btn.getAttribute("data-i")];
+      btn.addEventListener("click", () => { App.closeSheet(); if (a && typeof a.fn === "function") setTimeout(a.fn, 10); });
+    });
+    requestAnimationFrame(() => wrap.classList.add("in"));
+  },
+  closeSheet() {
+    const w = document.getElementById("sheet-wrap");
+    if (w) { w.classList.remove("in"); setTimeout(() => { if (w.parentNode) w.parentNode.removeChild(w); }, 200); }
   },
   // slide-to-confirm control (iOS "slide to answer" feel) for commit moments. `action` is a live function.
   _slides: {},
@@ -2851,7 +2887,7 @@ const App = {
       </div>`).join("");
   },
 
-  removeFood(i) { Store.removeFood(todayISO(), i); this.renderNutrition(); },
+  removeFood(i) { if (!confirm("Remove this item from today's food?")) return; Store.removeFood(todayISO(), i); this.renderNutrition(); },
 
   /* ---------------- PROFILE ---------------- */
   renderProfile() {
@@ -2866,7 +2902,7 @@ const App = {
       <div class="card profile-hero" data-tier="${myTier}">
         <div class="ph-cover"${p.cover ? ` style="background-image:url('${esc(p.cover)}');background-size:cover;background-position:center"` : ""}>
           <label class="ph-cover-edit" title="Change cover photo"><input type="file" accept="image/*" onchange="App.uploadCover(event)" hidden>${this.ic("camera", { size: 14 })}<span>Cover</span></label>
-          <button class="ph-logout-ic" onclick="App.logout()" title="Log out" aria-label="Log out">${this.ic("logout", { size: 17 })}</button>
+          <button class="ph-logout-ic" onclick="App.confirmLogout()" title="Log out" aria-label="Log out">${this.ic("logout", { size: 17 })}</button>
         </div>
         <div class="ph-main">
           <label class="ph-avatar" title="Change photo">
