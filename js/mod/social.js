@@ -868,6 +868,7 @@ const Social = {
   },
   closeStory() { clearTimeout(this._storyTimer); const ov = document.getElementById("story-viewer"); if (ov) ov.remove(); },
   deleteStory(id) {
+    if (typeof window !== "undefined" && window.confirm && !window.confirm("Delete this story?")) return;
     if (typeof Cloud !== "undefined" && Cloud.deleteStory) Cloud.deleteStory(id);
     this.cloud.stories = (this.cloud.stories || []).filter((s) => s.id !== id);
     this.closeStory();
