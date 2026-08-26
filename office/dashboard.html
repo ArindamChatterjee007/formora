@@ -143,6 +143,17 @@
   .mdec{ font-size:13px; line-height:1.4; padding:7px 0 7px 22px; border-bottom:1px solid var(--line); position:relative } .mdec:last-child{ border-bottom:none } .mdec:before{ content:'✓'; position:absolute; left:0; color:var(--ok); font-weight:800 }
   .meet-hire{ margin-top:14px; font-size:13px; font-weight:600; background:rgba(255,206,84,.10); border:1px solid rgba(255,206,84,.35); border-radius:10px; padding:10px 14px }
   .hire-row{ display:flex; gap:9px; padding:9px 0; border-bottom:1px solid var(--line) } .hire-row:last-child{ border-bottom:none } .hire-row .pe{ font-size:19px; width:26px; text-align:center; flex:none }
+  .meet-review{ margin-bottom:16px }
+  .revitem{ border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px; background:rgba(255,255,255,.02) }
+  .rev-t{ font-weight:800; font-size:13.5px; margin-bottom:8px }
+  .rev-st{ font-size:10px; font-weight:800; letter-spacing:.04em; padding:2px 7px; border-radius:6px; margin-left:6px; text-transform:uppercase }
+  .rev-pass{ background:rgba(34,197,94,.18); color:#4ade80 } .rev-fail{ background:rgba(239,68,68,.18); color:#f87171 } .rev-open{ background:rgba(255,206,84,.16); color:#f5b301 }
+  .trow{ display:flex; gap:9px; padding:7px 0; border-top:1px dashed var(--line) } .trow:first-of-type{ border-top:none }
+  .trow .pe{ font-size:16px; width:22px; text-align:center; flex:none }
+  .ttag{ font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:1px 6px; border-radius:5px; margin-right:4px }
+  .tt-question{ background:rgba(255,206,84,.16); color:#f5b301 } .tt-challenge{ background:rgba(239,68,68,.16); color:#f87171 }
+  .tt-answer{ background:rgba(61,139,255,.16); color:#7ab0ff } .tt-fix{ background:rgba(168,85,247,.16); color:#c99bff }
+  .tt-verify{ background:rgba(34,197,94,.14); color:#6ee7a0 } .tt-verified{ background:rgba(34,197,94,.2); color:#4ade80 }
   @media(max-width:1100px){ .meet-grid{ grid-template-columns:1fr } }
 </style>
 </head>
@@ -341,11 +352,16 @@
       const att=(mt.attendees||[]).map(k=>`<span class="matt" title="${esc(nm(k))}">${em(k)}</span>`).join('');
       const agenda=(mt.agenda||[]).map(x=>`<li>${esc(x)}</li>`).join('');
       const disc=(mt.discussion||[]).map(d=>`<div class="mrow"><span class="pe" title="${esc(nm(d.role))}">${em(d.role)}</span><div class="mtx"><b>${esc(nm(d.role))}:</b> ${esc(d.point)}</div></div>`).join('');
+      const review=(mt.review||[]).map(r=>{
+        const thread=(r.thread||[]).map(t=>`<div class="trow"><span class="pe" title="${esc(nm(t.role))}">${em(t.role)}</span><div class="mtx"><b>${esc(nm(t.role))}</b> <span class="ttag tt-${esc(t.type)}">${esc(t.type)}</span> ${esc(t.text)}</div></div>`).join('');
+        return `<div class="revitem"><div class="rev-t">🔎 ${esc(r.item)}${r.status?` <span class="rev-st rev-${esc(r.status)}">${esc(r.status)}</span>`:''}</div>${thread}</div>`;
+      }).join('');
       const decs=(mt.decisions||[]).map(x=>`<div class="mdec">${esc(x)}</div>`).join('');
       const acts=(mt.actions||[]).map(a=>`<div class="mrow"><span class="pe" title="${esc(nm(a.owner))}">${em(a.owner)}</span><div class="mtx"><b>${esc(nm(a.owner))}</b> — ${esc(a.action)}</div></div>`).join('');
       const hires=(mt.hires||[]).map(k=>{ const h=(b.agents.proposedHires||[]).find(p=>p.key===k); return h?`${h.emoji} ${esc(h.title)}`:esc(k); }).join(' · ');
       return `<div class="panel meetc"><div class="meet-h"><div><div class="meet-t">${esc(mt.id)} · ${esc(mt.title)}</div><div class="meet-d">${esc(mt.date)} · chaired by ${em(mt.chair)} ${esc(nm(mt.chair))} · ${(mt.attendees||[]).length} attendees</div></div><div class="meet-att">${att}</div></div>`+
         (agenda?`<div class="meet-agenda"><b>Agenda</b><ul>${agenda}</ul></div>`:'')+
+        (review?`<div class="meet-review"><div class="ph">Review — cross-questioned &amp; verified</div>${review}</div>`:'')+
         `<div class="meet-grid"><div><div class="ph">Discussion &amp; feedback</div>${disc}</div><div><div class="ph">Decisions</div>${decs}<div class="ph" style="margin-top:14px">Action items</div>${acts}</div></div>`+
         (hires?`<div class="meet-hire">🆕 Proposed hire: ${hires} <span style="color:var(--sub);font-weight:500">— awaiting founder sign-off (see AI Agents tab)</span></div>`:'')+
       `</div>`;
