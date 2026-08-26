@@ -1709,7 +1709,7 @@ const App = {
     // uid+tier in notes; the razorpay-webhook grants the entitlement on payment.captured.
     if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled) {
       const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
-      const meR = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
+      const meR = ((typeof SupaAuth !== "undefined" && SupaAuth.active && SupaAuth.active() && SupaAuth.uid()) || ((typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : ""));
       const emailR = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
       if (!base || !meR) { this.toast("Please log in first"); return; }
       this.toast("Opening UPI checkout…");
@@ -1725,7 +1725,7 @@ const App = {
           key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency || "INR",
           name: "Formora", description: (tier === "elite" ? "Elite" : "Pro") + " membership",
           prefill: { email: emailR }, notes: { uid: meR, tier }, theme: { color: "#ff5a4d" },
-          handler: function () { App.closeModal(); App.toast("Payment received — unlocking your plan ✨"); setTimeout(function () { if (typeof Entitlements !== "undefined") Entitlements.load(); }, 3000); },
+          handler: function () { App.closeModal(); App._afterUpgrade(tier); },
         });
         this.closeModal();
         rzp.open();
@@ -1754,6 +1754,36 @@ const App = {
     try { const d = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); d[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(d)); } catch (_) {}
     this.closeModal();
     this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " ✨");
+  },
+
+  // After a successful payment: the webhook grants the entitlement server-side, which can
+  // lag a few seconds — so poll, then celebrate + re-render the current view so gates re-open.
+  _afterUpgrade(tier) {
+    const label = tier === "elite" ? "Elite" : "Pro";
+    this._upgradeCelebrated = false;
+    this.toast("Payment received — unlocking " + label + " …");
+    let tries = 0;
+    const poll = () => {
+      tries++;
+      if (typeof Entitlements === "undefined") return;
+      Entitlements.load().then(() => {
+        const ok = tier === "elite" ? Entitlements.isElite() : Entitlements.isPro();
+        if (ok) { this._celebrateUpgrade(label); }
+        else if (tries < 8) { setTimeout(poll, 3500); }
+        else { this.toast("Payment received. If " + label + " doesn't show, reopen the app — it'll sync."); }
+      });
+    };
+    setTimeout(poll, 2500);
+  },
+  _celebrateUpgrade(label) {
+    if (this._upgradeCelebrated) return;
+    this._upgradeCelebrated = true;
+    try { navigator.vibrate && navigator.vibrate([20, 40, 20]); } catch (_) {}
+    const done = () => { try { if (this.curTab) this.selectTab(this.curTab); } catch (_) {} };
+    if (typeof this._modeTransition === "function") this._modeTransition({ label: "Welcome to " + label, icon: "target", sub: "UNLOCKED" }, done);
+    else done();
+    if (typeof this.celebrate === "function") this.celebrate();
+    this.toast(label + " unlocked — enjoy 🎉");
   },
 
   // open a licensed (SFW) photo search for an outfit — no scraping/embedding
