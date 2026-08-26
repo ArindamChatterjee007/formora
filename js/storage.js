@@ -94,6 +94,8 @@ const Store = {
     const put = () => localStorage.setItem(this.key, JSON.stringify(this.state));
     try { put(); return; } catch (e) {}
     // out of space: protect the user's LOGS by shedding heavy on-device images, then retry
+    try { if (this.state.profile) this.state.profile.cover = null; put();
+      alert("Your device storage was full, so your cover photo couldn't be saved on-device — but all your logs are safe."); return; } catch (e) {}
     try { if (this.state.profile) this.state.profile.avatar = null; put();
       alert("Your device storage was full, so your profile photo couldn't be saved on-device — but all your logs are safe. (Online photos are coming.)"); return; } catch (e) {}
     try { if (this.state.profile) this.state.profile.lookPhotos = {}; put();
