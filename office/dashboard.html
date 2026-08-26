@@ -130,6 +130,20 @@
   @keyframes paneIn{ from{opacity:0; transform:translateY(9px)} to{opacity:1; transform:none} }
   .tabpane > .section-h:first-child{ margin-top:4px }
   @media(max-width:640px){ body{padding:16px 16px 50px} header{margin-bottom:14px} .tabs{margin:0 -16px 18px; padding:10px 16px} .tab{font-size:13px; padding:8px 13px} .goals{grid-template-columns:1fr} .tiers{grid-template-columns:1fr} h1{font-size:21px} h1 span{font-size:13px} }
+  /* ===== meetings ===== */
+  .meetc{ margin-bottom:16px }
+  .meet-h{ display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px }
+  .meet-t{ font-weight:800; font-size:16px } .meet-d{ color:var(--sub); font-size:12.5px; margin-top:3px }
+  .meet-att{ margin-left:auto; display:flex; gap:3px; flex-wrap:wrap; font-size:18px }
+  .meet-agenda{ font-size:12.5px; color:var(--sub); background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:14px }
+  .meet-agenda b{ color:var(--ink) } .meet-agenda ul{ margin:6px 0 0 18px } .meet-agenda li{ margin:3px 0 }
+  .meet-grid{ display:grid; grid-template-columns:1.15fr 1fr; gap:20px; align-items:start }
+  .mrow{ display:flex; gap:9px; padding:7px 0; border-bottom:1px solid var(--line) } .mrow:last-child{ border-bottom:none }
+  .mrow .pe{ font-size:17px; width:22px; text-align:center; flex:none } .mtx{ font-size:13px; line-height:1.45 }
+  .mdec{ font-size:13px; line-height:1.4; padding:7px 0 7px 22px; border-bottom:1px solid var(--line); position:relative } .mdec:last-child{ border-bottom:none } .mdec:before{ content:'✓'; position:absolute; left:0; color:var(--ok); font-weight:800 }
+  .meet-hire{ margin-top:14px; font-size:13px; font-weight:600; background:rgba(255,206,84,.10); border:1px solid rgba(255,206,84,.35); border-radius:10px; padding:10px 14px }
+  .hire-row{ display:flex; gap:9px; padding:9px 0; border-bottom:1px solid var(--line) } .hire-row:last-child{ border-bottom:none } .hire-row .pe{ font-size:19px; width:26px; text-align:center; flex:none }
+  @media(max-width:1100px){ .meet-grid{ grid-template-columns:1fr } }
 </style>
 </head>
 <body>
@@ -142,6 +156,7 @@
     </header>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="overview">📊 Overview</button>
+      <button class="tab" data-tab="meetings">🗓️ Meetings <span class="cnt"></span></button>
       <button class="tab" data-tab="finance">💰 Finance</button>
       <button class="tab" data-tab="marketing">📣 Marketing</button>
       <button class="tab" data-tab="board">🗂️ Board <span class="cnt"></span></button>
@@ -155,6 +170,11 @@
       <div class="sprintbar" id="sprintbar"></div>
       <div class="section-h">🎯 Distance to goal — the road to $10k MRR</div>
       <div id="goals"></div>
+    </section>
+
+    <section class="tabpane" data-pane="meetings">
+      <div class="section-h">🗓️ Daily meetings — the office discusses, gives feedback &amp; decides together</div>
+      <div id="meetings"></div>
     </section>
 
     <section class="tabpane" data-pane="finance">
@@ -273,6 +293,8 @@
     const counts=R.reduce((a,x)=>{a[x.tier]=(a[x.tier]||0)+1;return a},{});
     const legend=Object.keys(A.tiers||{}).map(t=>`<span class="st" style="background:${tc[t]}22;color:${tc[t]};border:1px solid ${tc[t]}66;margin:0 6px 4px 0;display:inline-block">${t} ×${counts[t]||0} — ${esc(A.tiers[t])}</span>`).join('');
     const head=`<div class="panel" style="margin-bottom:12px"><div style="font-size:12.5px;color:var(--sub);line-height:1.55">${esc(A.engine)}</div><div style="margin-top:10px;font-size:11px">${legend}</div></div>`;
+    const hires=(A.proposedHires||[]).map(h=>`<div class="hire-row"><span class="pe">${h.emoji}</span><div><div class="pn">${esc(h.title)} <span class="st building">proposed hire</span></div><div class="pd">Proposed by ${esc(roleOf(b,h.proposedBy).title||h.proposedBy)} · ${esc(h.reason)}</div></div></div>`).join('');
+    const hiresBlock=hires?`<div class="panel" style="margin-bottom:12px;border-color:rgba(255,206,84,.4)"><div class="ph">🆕 Open roles — proposed by the team, awaiting your sign-off</div>${hires}</div>`:'';
     const order=['Executive','Finance','Business Intelligence','Sales & Partnerships','Marketing & Growth','Product','Engineering'];
     const teams=Array.from(new Set(R.map(x=>roleOf(b,x.key).team||'Other'))).sort((a,c)=>(order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(c)<0?99:order.indexOf(c)));
     const depts='<div class="depts">'+teams.map(tm=>{
@@ -281,7 +303,7 @@
         const st=x.status==='working'?'● working':x.status==='blocked'?'⛔ blocked':'idle';
         return `<div class="person"><span class="pe">${r.emoji}</span><div><div class="pn">${esc(r.title)} <span style="color:${c};font-size:10px;border:1px solid ${c}66;border-radius:6px;padding:1px 5px">${x.tier}</span></div><div class="pd">${x.task?esc(x.task):esc(r.does)}</div><div style="font-size:10.5px;color:var(--sub);margin-top:2px">${st}${x.grounds?' · grounds: '+x.grounds.map(esc).join(', '):''}</div></div></div>`;
       }).join('')+`</div>`; }).join('')+'</div>';
-    el.innerHTML=head+depts;
+    el.innerHTML=head+hiresBlock+depts;
   }
   let _tabsInit=false;
   function initTabs(){
@@ -307,6 +329,27 @@
     const set=(n,v)=>{ const el=document.querySelector('.tab[data-tab="'+n+'"] .cnt'); if(el) el.textContent=v; };
     set('board', b.tasks.length);
     set('agents', (b.agents&&b.agents.roster&&b.agents.roster.length)||'');
+    set('meetings', (b.meetings&&b.meetings.length)||'');
+  }
+  function renderMeetings(b){
+    const el=document.getElementById('meetings'); if(!el) return;
+    const M=b.meetings||[];
+    if(!M.length){ el.innerHTML='<div class="panel" style="color:var(--sub)">No meetings yet. Say “run the daily meeting” in Copilot chat and the office will convene, debate, and record decisions here.</div>'; return; }
+    const em=k=> k==='founder'?'👤':(roleOf(b,k).emoji||'•');
+    const nm=k=> k==='founder'?'Founder':(roleOf(b,k).title||k);
+    el.innerHTML=M.slice().reverse().map(mt=>{
+      const att=(mt.attendees||[]).map(k=>`<span class="matt" title="${esc(nm(k))}">${em(k)}</span>`).join('');
+      const agenda=(mt.agenda||[]).map(x=>`<li>${esc(x)}</li>`).join('');
+      const disc=(mt.discussion||[]).map(d=>`<div class="mrow"><span class="pe" title="${esc(nm(d.role))}">${em(d.role)}</span><div class="mtx"><b>${esc(nm(d.role))}:</b> ${esc(d.point)}</div></div>`).join('');
+      const decs=(mt.decisions||[]).map(x=>`<div class="mdec">${esc(x)}</div>`).join('');
+      const acts=(mt.actions||[]).map(a=>`<div class="mrow"><span class="pe" title="${esc(nm(a.owner))}">${em(a.owner)}</span><div class="mtx"><b>${esc(nm(a.owner))}</b> — ${esc(a.action)}</div></div>`).join('');
+      const hires=(mt.hires||[]).map(k=>{ const h=(b.agents.proposedHires||[]).find(p=>p.key===k); return h?`${h.emoji} ${esc(h.title)}`:esc(k); }).join(' · ');
+      return `<div class="panel meetc"><div class="meet-h"><div><div class="meet-t">${esc(mt.id)} · ${esc(mt.title)}</div><div class="meet-d">${esc(mt.date)} · chaired by ${em(mt.chair)} ${esc(nm(mt.chair))} · ${(mt.attendees||[]).length} attendees</div></div><div class="meet-att">${att}</div></div>`+
+        (agenda?`<div class="meet-agenda"><b>Agenda</b><ul>${agenda}</ul></div>`:'')+
+        `<div class="meet-grid"><div><div class="ph">Discussion &amp; feedback</div>${disc}</div><div><div class="ph">Decisions</div>${decs}<div class="ph" style="margin-top:14px">Action items</div>${acts}</div></div>`+
+        (hires?`<div class="meet-hire">🆕 Proposed hire: ${hires} <span style="color:var(--sub);font-weight:500">— awaiting founder sign-off (see AI Agents tab)</span></div>`:'')+
+      `</div>`;
+    }).join('');
   }
   function render(b){
     document.getElementById('loading').style.display='none';
@@ -333,7 +376,7 @@
       return `<div class="col ${esc(col.key)}"><h3>${esc(col.title)}<span class="n">${items.length}</span></h3>${cards}</div>`;
     }).join('');
     // goals + finance + org
-    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderAgents(b); renderOrg(b); initTabs(); setTabCounts(b);
+    renderGoals(b); renderFinance(b); renderBudget(b); renderAssets(b); renderAgents(b); renderOrg(b); renderMeetings(b); initTabs(); setTabCounts(b);
     // milestones
     document.getElementById('milestones').innerHTML = b.milestones.map(m=>`<div class="ms ${m.done?'done':''}"><span class="dot"></span><span class="id grad">${esc(m.id)}</span><span class="nm">${esc(m.name)}</span><span class="s">Sprint ${esc(m.sprint)}</span></div>`).join('');
     // feed
