@@ -32,10 +32,17 @@ The founder's operating model: **every day the whole office meets**, the agents 
 2. **Round-robin the RELEVANT leads only** (not all 27 — that's noise). Each gives ONE grounded point from their data (board / analytics / repo / live app). Roles actively **challenge each other** (CTO pushes back on Growth, CFO on spend, QA on "ship it") — real critique, no rubber-stamps.
 3. **Decide.** The chair converts the debate into concrete `decisions[]` and owned `actions[]` (owner = a role key, or `founder` for human-only steps).
 4. **Hiring.** If a real capability gap surfaces that no current seat covers, any agent proposes a hire → add to `agents.proposedHires[]`. It stays **proposed until the founder signs off**.
-5. **Record + ship.** Append the meeting to `office/board.json` → `meetings[]` (id `M-00N`, date, chair, attendees, agenda, discussion[{role,point}], decisions[], actions[{owner,action}], hires[]), append an `activity` entry, commit + push. It renders on the dashboard's **Meetings** tab.
+5. **Record + ship.** Append the meeting to `office/board.json` → `meetings[]` (id `M-00N`, date, chair, attendees, agenda, discussion[{role,point}], optional `review[]` (threaded — see below), decisions[], actions[{owner,action}], hires[]), append an `activity` entry, commit + push. It renders on the dashboard's **Meetings** tab.
 
-## Command: "feedback round on <thing>" (peer review)
-The relevant reviewers each raise ONE genuine issue (QA a bug/edge case, Design a UX flaw, CTO a risk, CFO a cost, CMO a positioning gap). No approval without at least one real critique per reviewer. Output = the issues + the fix decision.
+## Command: "review <thing>" / "feedback round on <thing>" (THREADED peer review — the real thing)
+The founder's bar: **NOT one line per role.** A review is a back-and-forth that FINDS and FIXES mistakes. Run each finding as a **thread**:
+1. A reviewer **questions** a specific claim or element (QA a contrast/edge case, Design a UX flaw, CTO a risk, CFO a cost).
+2. The owner **answers** — and if they were wrong, they SAY SO plainly ("my mistake — I did X wrong"), not defend.
+3. Someone **cross-questions** ("so we passed a screen we never actually read — why did the check miss it?").
+4. The owner posts the **fix**.
+5. A reviewer **re-verifies** on the REAL artifact (live app / render / test) and marks the item **PASS / FAIL** (or `open` if unresolved).
+Record it in `office/board.json` → `meetings[].review[]` = `[{ item, status: pass|fail|open, thread: [{ role, type: question|answer|challenge|fix|verify|verified, text }] }]`. It renders on the dashboard Meetings tab as a colour-coded thread.
+**RULES:** (a) no "GO" without a per-item thread + a re-verify; (b) check contrast/behaviour **per-element on its ACTUAL background/state**, never a representative sample (this is how the v161 invisible-slide-text bug shipped — see M-006); (c) find your OWN mistakes before the founder does.
 
 ## Command: "hire <role>" / approve a proposed hire
 - **Propose:** add to `office/board.json` → `agents.proposedHires[]` with a grounded `reason` (status `proposed`).
@@ -44,7 +51,7 @@ The relevant reviewers each raise ONE genuine issue (QA a bug/edge case, Design 
 ## Other commands
 - **standup** — read the board; report yesterday(done) / today(actionable) / blockers. No code changes.
 - **daily meeting** — convene the office → discuss + give feedback + decide + record to `meetings[]` (see above).
-- **feedback round on <thing>** — peer review; each reviewer raises a real issue (see above).
+- **feedback round on <thing>** / **review <thing>** — THREADED peer review: question → answer → cross-question → fix → re-verify (PASS/FAIL), recorded in `meetings[].review[]` (see above).
 - **plan sprint N** — as PM, define/refine the sprint's tasks in `board.json`.
 - **as <role>, <task>** — adopt that single role for a scoped request.
 - **hire <role>** — propose or approve a new agent (see the hire command above).
