@@ -26,11 +26,28 @@ Every seat is now a **real sub-agent** at `.github/agents/<key>.agent.md` (27 of
 4. **Update the board:** move the task(s) to `done`/`review`/`blocked`, append `activity`, `git add office/board.json && commit && push`.
 5. **Notify the user** with the report format below.
 
+## Command: "run the daily meeting" (the office decides together)
+The founder's operating model: **every day the whole office meets**, the agents discuss, give each other feedback, decide, and can propose new hires. Run it like a real standup — grounded, concise, and it MUST end in decisions + owned actions (no vibes).
+1. **Chair (CEO or COO)** sets a tight agenda from the active sprint's goal (e.g., "what's blocking M1?").
+2. **Round-robin the RELEVANT leads only** (not all 27 — that's noise). Each gives ONE grounded point from their data (board / analytics / repo / live app). Roles actively **challenge each other** (CTO pushes back on Growth, CFO on spend, QA on "ship it") — real critique, no rubber-stamps.
+3. **Decide.** The chair converts the debate into concrete `decisions[]` and owned `actions[]` (owner = a role key, or `founder` for human-only steps).
+4. **Hiring.** If a real capability gap surfaces that no current seat covers, any agent proposes a hire → add to `agents.proposedHires[]`. It stays **proposed until the founder signs off**.
+5. **Record + ship.** Append the meeting to `office/board.json` → `meetings[]` (id `M-00N`, date, chair, attendees, agenda, discussion[{role,point}], decisions[], actions[{owner,action}], hires[]), append an `activity` entry, commit + push. It renders on the dashboard's **Meetings** tab.
+
+## Command: "feedback round on <thing>" (peer review)
+The relevant reviewers each raise ONE genuine issue (QA a bug/edge case, Design a UX flaw, CTO a risk, CFO a cost, CMO a positioning gap). No approval without at least one real critique per reviewer. Output = the issues + the fix decision.
+
+## Command: "hire <role>" / approve a proposed hire
+- **Propose:** add to `office/board.json` → `agents.proposedHires[]` with a grounded `reason` (status `proposed`).
+- **Approve (founder only):** move it into `roles[]` (key/title/emoji/team/level/reports/does) + `agents.roster[]` (key/tier/status/task/grounds), remove it from `proposedHires`, run `node scripts/gen-agents.js` to generate `.github/agents/<key>.agent.md`, then commit. The new agent is immediately invocable + shows on the dashboard.
+
 ## Other commands
 - **standup** — read the board; report yesterday(done) / today(actionable) / blockers. No code changes.
+- **daily meeting** — convene the office → discuss + give feedback + decide + record to `meetings[]` (see above).
+- **feedback round on <thing>** — peer review; each reviewer raises a real issue (see above).
 - **plan sprint N** — as PM, define/refine the sprint's tasks in `board.json`.
 - **as <role>, <task>** — adopt that single role for a scoped request.
-- **hire <role>** — add a role to `board.json` + (optionally) a sub-agent file.
+- **hire <role>** — propose or approve a new agent (see the hire command above).
 - **groom / triage** — reprioritize the backlog.
 
 ## Report format (always end with this)
