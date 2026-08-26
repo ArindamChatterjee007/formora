@@ -1583,6 +1583,7 @@ const App = {
     reader.readAsDataURL(file);
   },
   removeLookPhoto(i) {
+    if (!confirm("Remove this reference photo?")) return;
     const p = Store.state.profile;
     p.lookPhotos[this.pickId].splice(i, 1);
     Store.save();

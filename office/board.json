@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v168",
+    "liveVersion": "v169",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -869,6 +869,36 @@
         { "owner": "pm", "action": "File the follow-ups (moderation store, archive/pin, swipe+undo) into the next sprint." }
       ],
       "hires": []
+    },
+    {
+      "id": "M-014",
+      "date": "2026-08-28",
+      "title": "Build review — destructive-action safety sweep completion (story + reference photo) v169",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","design","cmo"],
+      "agenda": ["Finish the destructive-action sweep started in v168: any remaining one-tap deletes of saved content across the whole app."],
+      "review": [
+        {
+          "item": "Any remaining one-tap deletes of saved content?",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "v168 guarded logout + post-delete + food. What else destroys saved content on a single tap?" },
+            { "role": "eng", "type": "answer", "text": "Swept every destructive handler. Two were still unguarded: deleteStory (🗑️ on a posted story) and removeLookPhoto (✕ on a reference photo). removeItem, removeProgressPhoto and clearMyMessages already confirm; removeSet is transient active-editing (keeps ≥1 set). Added confirms to the two." },
+            { "role": "qa", "type": "verify", "text": "Verified both now prompt before deleting, and no other saved-content delete fires on one tap. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Two remaining unguarded deletes now confirm; tiny contained change, no budget impact." },
+        { "role": "qalead", "status": "approved", "note": "Destructive-action sweep (v168 + v169) is now complete across the app." },
+        { "role": "cto", "status": "approved", "note": "No new surface or dependencies." },
+        { "role": "coo", "status": "approved", "note": "Meets the founder's 'never destroy on a stray tap' bar everywhere." },
+        { "role": "cmo", "status": "approved", "note": "Safe-by-default builds trust before we drive traffic." },
+        { "role": "ceo", "status": "approved", "note": "Approved for prod." }
+      ],
+      "decisions": ["Ship v169: story + reference-photo deletes now confirm.", "Destructive-action safety sweep complete (logout, post, food, story, reference photo)."],
+      "actions": [{ "owner": "eng", "action": "Promote v169 through the gates to prod after approvals; verify live." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -897,7 +927,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v168 · social UX standards — post ⋯ menu (save/report/hide/follow/block) + no one-tap logout/delete" },
+    { "label": "Live version", "value": "v169 · destructive-action safety sweep complete (story + reference-photo deletes now confirm) + post ⋯ menu" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
