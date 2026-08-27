@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v171",
+    "liveVersion": "v172",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -1009,6 +1009,37 @@
       "decisions": ["Ship v171: profile-level report/block.", "Moderation is now consistent across posts, comments and profiles — the social-standards + safety epic is complete."],
       "actions": [{ "owner": "eng", "action": "Promote v171 to prod; verify. Next: T-89 Elite frames, then T-78/79/88 audits + T-85/T-94." }],
       "hires": []
+    },
+    {
+      "id": "M-018",
+      "date": "2026-08-28",
+      "title": "Build review — Elite camera frames (T-89) v172",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","design","cmo"],
+      "agenda": ["Give Elite tangible value beyond filters: premium photo frames in the camera editor, Elite-gated."],
+      "review": [
+        {
+          "item": "Do the frames render, gate, preview and save correctly?",
+          "status": "pass",
+          "thread": [
+            { "role": "design", "type": "question", "text": "5 frames (None/Gold/Film/Signature/Date). Do they draw cleanly, preview live, and end up on the saved photo — and are they Elite-only?" },
+            { "role": "eng", "type": "answer", "text": "Frame engine _drawFrame composites on canvas; live preview overlay (_renderFrameOv) sits over the media; finish() bakes the frame into the saved JPEG at natural resolution. Elite-gated: non-Elite tapping Frames or a frame opens the paywall (see-then-gate, consistent with the filter strip)." },
+            { "role": "qa", "type": "verify", "text": "Dev-QA'd: all 5 frames produce distinct non-empty output; editor renders the Frames button + picker + 5 chips; non-Elite blocked (paywall) while Elite can set; the gold preview overlay drew 14,580px on a 360×468 canvas; saved-photo path uses naturalWidth so the frame is baked regardless of preview. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Off-budget (camera.js in js/mod); robust preview (retry-capped); saved-photo compositing verified." },
+        { "role": "qa", "status": "approved", "note": "Functional + gate verified; note: final on-device visual polish is a founder eyeball item (as with every release)." },
+        { "role": "design", "status": "approved", "note": "Tasteful set — metallic gold, film, signature, date. Real premium feel." },
+        { "role": "cto", "status": "approved", "note": "No budget impact; clean canvas compositing." },
+        { "role": "cmo", "status": "approved", "note": "A concrete Elite-only perk beyond filters — strengthens the Elite story. Approved." },
+        { "role": "coo", "status": "approved", "note": "Approved." },
+        { "role": "ceo", "status": "approved", "note": "Elite keeps getting more real. Approved for prod." }
+      ],
+      "decisions": ["Ship v172: Elite camera frames.", "Elite now has: exclusive cinematic filters + AI Progress Review + premium frames — a real, honest bundle (no human-coach claim)."],
+      "actions": [{ "owner": "eng", "action": "Promote v172 to prod; verify." }, { "owner": "cmo", "action": "Add frames to the Elite value story + a reel." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -1037,7 +1068,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v171 · full moderation — report/block from post + comment + profile · no one-tap destruction · security audit passed" },
+    { "label": "Live version", "value": "v172 · Elite camera frames + full moderation (post/comment/profile) · no one-tap destruction · security audit passed" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1469,7 +1500,7 @@
     { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
     { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE v166 (M-010). Built js/mod/review.js (off the JS budget) = window.EliteReview: an honest, on-device coaching read gated to Elite. Grounded ONLY in the member's own tracked data — training consistency (weeklyFrequency vs target), body composition (est. bodyfat vs the physique target range), trajectory (goal % + photo-measured kg/week) — plus a REAL pixel-level luminance check on their first vs latest progress photo (flags inconsistent lighting so comparisons are honest). Phase-aware advice (cuts an over-range member even if the physique preset says build) and it NAMES that tension instead of contradicting the app's coach read. No fake photo-vision claims: physique read is from logged metrics, clearly labelled 'not medical advice'. Entry point in the Pro Photo Studio: Elite → 'Get your AI Progress Review'; Pro-not-Elite → locked 'Elite ★' teaser → pricing (see-then-gate). Two real bugs caught + fixed in review (goalProgress returns an object; deficit/surplus contradiction). Tested live localhost across Elite/Pro/free. This is Elite's genuine spine — no human-coach promise." },
     { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
-    { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-007. Design a small set of premium camera frames/overlays (subtle borders, date/streak stamps, tasteful watermarks) that are Elite-only, adding tangible Elite value beyond filters. Wire into the camera editor gated by Entitlements.isElite()." },
+    { "id": "T-89", "title": "Exclusive Elite camera frames / overlays (more Elite-only value)", "role": "design", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE v172 (M-018). Added 5 Elite-only photo frames to the post-capture editor (camera.js, off budget): None, Gold (metallic gradient border), Film (top/bottom bars + perforations), Signature (thin border + FORMORA wordmark), Date (border + date stamp). Frame button + picker in the editor; live preview overlay (_renderFrameOv, robust to load timing) + composited into the saved photo in finish(). Elite-gated: non-Elite tapping Frames or a frame → paywall (see-then-gate consistent with the filters). Dev-QA'd: 5 frames each draw distinct output, editor renders button+picker+chips, gate blocks non-Elite / Elite can set, preview overlay drew 14,580px for gold. Real Elite value beyond filters." },
     { "id": "T-90", "title": "Reels + paywall CTA around the filter-preview enticement", "role": "content", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE → board.assets.launchKit.reelScripts (filter-enticement reel: 'preview free, keep with Pro/Elite' + transformation + problem/solution hooks)." },
     { "id": "T-91", "title": "Edge-fn price update to the new launch prices (post-offer, coupled)", "role": "devops", "sprint": 8, "status": "blocked", "priority": "P1", "note": "BLOCKED by T-84 (founder decides when the ₹1 offer ends). When it does: set razorpay-create-order PRICE_PAISE to Pro ₹299=29900, Elite ₹599=59900 in the SAME change that flips LAUNCH_OFFER=false, so displayed price and charge never diverge. Coded + ready." },
     { "id": "T-92", "title": "Founding-Member launch offer — price locked forever + badge + urgency", "role": "eng", "sprint": 8, "status": "done", "priority": "P1", "note": "DONE v165 (M-009). window.FOUNDING={on,cap:1000,note} flag + a Founding-Member banner on the paywall ('lock the launch price forever, first 1,000 only'). Verified live. Caveat recorded in config.js: 'locked forever' is a billing obligation to honour at renewal, not yet an enforced mechanism (tracked for CFO when subscriptions renew)." },

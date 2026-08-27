@@ -160,6 +160,48 @@ const Camera = {
   maxFilters() { return this.FILTERS.length; },
   unlockFilters() { this.close(); if (typeof App !== "undefined" && App.openPricing) setTimeout(() => App.openPricing(), 120); },
   _captureGate() { const t = this.filterTier(this.filterIdx); if (this.tierLocked(t)) { if (typeof App !== "undefined" && App.toast) App.toast((t === "elite" ? "Elite" : "Pro") + " filter — upgrade to capture ✨"); this.unlockFilters(); return true; } return false; },
+  // ---- Elite-only photo frames (post-capture editor): tasteful borders + signature/date ----
+  _frame: "none",
+  _FRAMES: [{ id: "none", name: "None" }, { id: "gold", name: "Gold" }, { id: "film", name: "Film" }, { id: "sig", name: "Signature" }, { id: "date", name: "Date" }],
+  _drawFrame(ctx, w, h, id) {
+    if (!id || id === "none") return;
+    const u = Math.min(w, h); ctx.save();
+    if (id === "gold") {
+      const bw = Math.max(3, Math.round(u * 0.024)); const g = ctx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, "#8a5a12"); g.addColorStop(.5, "#f6d67a"); g.addColorStop(1, "#b9821f");
+      ctx.strokeStyle = g; ctx.lineWidth = bw; ctx.strokeRect(bw / 2, bw / 2, w - bw, h - bw);
+    } else if (id === "film") {
+      const bar = Math.round(h * 0.07); ctx.fillStyle = "#0b0b0d"; ctx.fillRect(0, 0, w, bar); ctx.fillRect(0, h - bar, w, bar);
+      ctx.fillStyle = "rgba(255,255,255,.85)"; const sq = Math.round(bar * 0.34), gap = sq * 1.7, y1 = (bar - sq) / 2, y2 = h - bar + (bar - sq) / 2;
+      for (let x = gap * 0.4; x < w - sq; x += gap) { ctx.fillRect(x, y1, sq, sq); ctx.fillRect(x, y2, sq, sq); }
+    } else if (id === "sig" || id === "date") {
+      const bw = Math.max(2, Math.round(u * 0.011)); ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = bw;
+      const m = Math.round(u * 0.045); ctx.strokeRect(m, m, w - 2 * m, h - 2 * m);
+      const fs = Math.round(u * 0.045); ctx.font = "800 " + fs + "px -apple-system,Segoe UI,Roboto,sans-serif";
+      ctx.textBaseline = "alphabetic"; ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = fs * 0.35; ctx.fillStyle = "rgba(255,255,255,.94)";
+      if (id === "sig") { ctx.textAlign = "right"; ctx.fillText("FORMORA", w - m - fs * 0.4, h - m - fs * 0.5); }
+      else { ctx.textAlign = "left"; const d = new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); ctx.fillText(d, m + fs * 0.4, h - m - fs * 0.5); }
+    }
+    ctx.restore();
+  },
+  _renderFrameOv(_try) {
+    const img = document.getElementById("cam-edit-media"), cv = document.getElementById("cam-frame-ov");
+    if (!img || !cv) return; const r = img.getBoundingClientRect();
+    const w = Math.round(r.width) || img.clientWidth || img.naturalWidth || 0;
+    const h = Math.round(r.height) || img.clientHeight || img.naturalHeight || 0;
+    if (!w || !h) { if ((_try || 0) < 20) requestAnimationFrame(() => this._renderFrameOv((_try || 0) + 1)); return; }
+    cv.width = w; cv.height = h; cv.style.width = w + "px"; cv.style.height = h + "px";
+    const ctx = cv.getContext("2d"); ctx.clearRect(0, 0, w, h); this._drawFrame(ctx, w, h, this._frame);
+  },
+  toggleFrames() {
+    if (!this._isElite()) { if (typeof App !== "undefined" && App.toast) App.toast("Elite frames ✨"); this.unlockFilters(); return; }
+    const row = document.getElementById("cam-frames"); if (row) row.classList.toggle("hidden");
+  },
+  setFrame(id) {
+    if (id !== "none" && !this._isElite()) { this.unlockFilters(); return; }
+    this._frame = id; this._renderFrameOv();
+    const row = document.getElementById("cam-frames"); if (row) row.querySelectorAll(".cam-frame-chip").forEach((c) => c.classList.toggle("on", c.getAttribute("data-f") === id));
+  },
   // clean line-icons (no emoji) for a professional camera UI
   ic(n) {
     const p = {
@@ -167,6 +209,7 @@ const Camera = {
       flip: '<path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
       paint: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
       undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v3"/>',
+      frame: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/>',
     }[n] || "";
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   },
@@ -382,9 +425,10 @@ const Camera = {
     const ov = document.getElementById("camera-ov");
     if (!ov) return;
     const shareLabel = this.target === "story" ? "Next → Story" : "Use " + (isVid ? "Flex" : "photo") + " →";
+    this._frame = "none";
     const media = isVid
       ? `<video id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" playsinline autoplay loop></video>`
-      : `<img id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" alt="capture" draggable="false"><canvas id="paint-canvas" class="paint-canvas"></canvas>`;
+      : `<img id="cam-edit-media" class="cam-edit-media" src="${this._draft.url}" alt="capture" draggable="false"><canvas id="paint-canvas" class="paint-canvas"></canvas><canvas id="cam-frame-ov" class="cam-frame-ov"></canvas>`;
     ov.innerHTML = `<div class="cam-stage">
       ${media}
       <div class="cam-scrim cam-scrim-top"></div>
@@ -392,14 +436,16 @@ const Camera = {
       <div class="cam-top">
         <button class="cam-ic" aria-label="Retake" onclick="Camera.retake()">${this.ic("undo")}</button>
         ${isVid ? "" : `<button class="cam-ic" id="paint-toggle" aria-label="Draw" onclick="Camera.togglePaint()">${this.ic("paint")}</button>`}
+        ${isVid ? "" : `<button class="cam-ic frame-toggle" id="frame-toggle" aria-label="Frames" onclick="Camera.toggleFrames()">${this.ic("frame")}${this._isElite() ? "" : '<span class="cam-star">★</span>'}</button>`}
         <button class="cam-ic" aria-label="Close" onclick="Camera.close()">${this.ic("close")}</button>
       </div>
       ${isVid ? "" : `<div class="paint-colors hidden" id="paint-colors">${this.PAINT_COLORS.map((c) => `<button class="paint-color" style="background:${c}" onclick="Camera.setPaint('${c}')"></button>`).join("")}<button class="paint-undo" aria-label="Undo" onclick="Camera.undoPaint()">${this.ic("undo")}</button></div>`}
+      ${isVid ? "" : `<div class="cam-frames hidden" id="cam-frames">${this._FRAMES.map((f) => `<button class="cam-frame-chip ${f.id === this._frame ? "on" : ""}" data-f="${f.id}" onclick="Camera.setFrame('${f.id}')">${f.name}</button>`).join("")}</div>`}
       <div class="cam-bottom">
         <button class="btn cam-share" onclick="Camera.finish()">${shareLabel}</button>
       </div>
     </div>`;
-    if (!isVid) this.setupPaint();
+    if (!isVid) { this.setupPaint(); const im = document.getElementById("cam-edit-media"); const rz = () => this._renderFrameOv(); if (im) { if (im.complete) rz(); else im.addEventListener("load", rz); } }
   },
   retake() { if (this._draft && this._draft.url) URL.revokeObjectURL(this._draft.url); this._draft = null; this.open(this.target); },
 
@@ -441,6 +487,7 @@ const Camera = {
       const ctx = out.getContext("2d");
       ctx.drawImage(img, 0, 0, out.width, out.height);
       if (pcvs && pcvs.width) ctx.drawImage(pcvs, 0, 0, out.width, out.height);
+      this._drawFrame(ctx, out.width, out.height, this._frame);
       finalBlob = await new Promise((r) => out.toBlob(r, "image/jpeg", 0.95)) || d.blob;
     }
     const isVid = d.isVid;
