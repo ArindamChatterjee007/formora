@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v173",
+    "liveVersion": "v174",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -1098,6 +1098,37 @@
       "decisions": ["Ship v173: sheet max-height + scroll, Escape-to-close, bigger comment tap target.", "T-78 + T-79 closed with tested evidence."],
       "actions": [{ "owner": "eng", "action": "Promote v173 to prod; verify. Next: T-85 cover→public profile, T-94 landing, T-88 marketing audit." }],
       "hires": []
+    },
+    {
+      "id": "M-020",
+      "date": "2026-08-28",
+      "title": "Build review — public cover photos (T-85) v174",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","design","cmo"],
+      "agenda": ["Cover photos were local-only. Let others see a member's cover on their profile — without bloating the shared row."],
+      "review": [
+        {
+          "item": "Cover syncs to others, URL-only (no base64 in the shared row)?",
+          "status": "pass",
+          "thread": [
+            { "role": "cto", "type": "question", "text": "The concern from M-005 was bloating the profile row with a ~900px base64. Is only the URL stored?" },
+            { "role": "eng", "type": "answer", "text": "Yes. uploadCover keeps the local base64 for instant own display, but uploads to Storage (the existing authenticated 'media' bucket, 'covers' folder — same path videos/stories already use) and stores ONLY coverUrl in the public profile. registerMe writes data.cover = coverUrl; cloudUser maps u.cover; vp-hero renders it with a readability scrim." },
+            { "role": "qa", "type": "verify", "text": "Dev-QA'd the visible path: cloudUser maps the cover, another member's vp-hero shows the cover background, own profile shows the local cover, uploadCover wires the Storage sync, registerMe carries coverUrl. Render path fully verified; the upload reuses the proven media-bucket path. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "URL-only in the shared row; reuses proven uploadMedia; local base64 kept for instant own display." },
+        { "role": "qa", "status": "approved", "note": "Render + mapping verified; upload path is the same one videos/stories use." },
+        { "role": "cto", "status": "approved", "note": "No row bloat (URL only); Storage RLS is the existing authenticated policy." },
+        { "role": "design", "status": "approved", "note": "Cover + scrim keeps the name/avatar readable. Premium touch." },
+        { "role": "cmo", "status": "approved", "note": "Richer profiles = more shareable. Approved." },
+        { "role": "coo", "status": "approved", "note": "Approved." },
+        { "role": "ceo", "status": "approved", "note": "Approved for prod." }
+      ],
+      "decisions": ["Ship v174: public cover photos (URL-only sync, rendered with a scrim)."],
+      "actions": [{ "owner": "eng", "action": "Promote v174 to prod; verify. Next: T-88 marketing audit, T-94 landing pricing." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -1126,7 +1157,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v173 · QA/UX audit fixes (sheet a11y — Escape/cap/scroll, tap targets) · Elite frames · full moderation · security passed" },
+    { "label": "Live version", "value": "v174 · profile cover photos (others see them) · QA/UX audit fixes · Elite frames · full moderation · security passed" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1554,7 +1585,7 @@
     { "id": "T-82", "title": "Premium tier experience shipped — themes, regional pricing, support, prorated upgrades", "role": "design", "sprint": 7, "status": "done", "priority": "P0", "note": "DONE (v160). (1) Fixed 'still asked to pay' (initCloud re-renders after entitlements load + Profile membership card for Pro/Elite). (2) Regional PPP pricing — India ₹399/₹799 vs FX ~₹663; Currency.region()/regionPrice(). (3) Tier themes — <html data-tier> Free/Pro/Elite accents (Elite gold), tier badge on own + others' profiles (tier synced via registerMe→profile.tier + social mapping), launch splash 'You're Elite ✨'. (4) Help & Support ticketing (support_tickets table + RLS). (5) Prorated Pro→Elite upgrade, server-authoritative in razorpay-create-order (upgrade flag → charges only the remaining-days delta; ₹1 during the offer). Code-split exercises.js→js/mod/ to fit budget. Verified in-browser + deployed; ₹1 test refunded (rfnd_TURdtCxYpsOhK8)." },
     { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE (M-015). LIVE break-attempt audit via the anon key (RLS-enforcing): (a) read ALL support_tickets → [] (own-read only: uid=auth.uid() OR email-slug); (b/c) FORGE elite entitlement + read entitlements → 'permission denied' (entitlements has NO user INSERT/UPDATE policy + no anon grant → tier is 100% service-role-authoritative, cannot be forged/spoofed); edit another's post → 'permission denied' (posts UPDATE/DELETE author-only); read DMs → 'permission denied' (messages SELECT = from_uid OR to_uid, participant-only); read billing_events → 'permission denied' (service-role only). ALL 11 public tables have relrowsecurity=true (no table without RLS). accounts own-only; comments author-delete/no-update. Razorpay webhook verifies RAZORPAY_WEBHOOK_SECRET so a fake payment.captured can't grant entitlement. HARDENING NOTES (accepted, by design, low-risk): profiles + requests have public SELECT (needed for the social graph — names/avatars/connection state; email + private fields live in accounts = own-only); writes are owner-scoped. No vulnerabilities found." },
     { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "blocked", "priority": "P1", "note": "BLOCKED — FOUNDER DECISION: only the founder decides WHEN to end the ₹1 launch offer (a business/timing call, usually after the first cohort of trials). When you say go, this fires with T-91: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the new real prices IN THE SAME change (display+charge coupled). Everything is coded + ready; just needs your go." },
-    { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." },
+    { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE v174 (M-020). uploadCover now, after saving the local base64 for instant own-profile display, uploads the cover to Storage (Cloud.uploadMedia → 'media' bucket, 'covers' folder — same proven path as videos/stories) and stores ONLY the URL in profile.coverUrl; registerMe includes data.cover = coverUrl (URL-only, never a base64 blob in the shared row); cloudUser maps u.cover; viewProfile's vp-hero renders the cover as a background with a readability scrim (own = local base64, others = Storage URL). Dev-QA'd: cloudUser maps cover, others' vp-hero shows the cover bg, own profile shows local cover, uploadCover wires the Storage sync, registerMe carries coverUrl. (Live Storage upload uses the existing authenticated media-bucket path.)" },
     { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
     { "id": "T-87", "title": "Elite AI progress-photo review — a real Elite-only feature (backs Elite's value)", "role": "eng", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE v166 (M-010). Built js/mod/review.js (off the JS budget) = window.EliteReview: an honest, on-device coaching read gated to Elite. Grounded ONLY in the member's own tracked data — training consistency (weeklyFrequency vs target), body composition (est. bodyfat vs the physique target range), trajectory (goal % + photo-measured kg/week) — plus a REAL pixel-level luminance check on their first vs latest progress photo (flags inconsistent lighting so comparisons are honest). Phase-aware advice (cuts an over-range member even if the physique preset says build) and it NAMES that tension instead of contradicting the app's coach read. No fake photo-vision claims: physique read is from logged metrics, clearly labelled 'not medical advice'. Entry point in the Pro Photo Studio: Elite → 'Get your AI Progress Review'; Pro-not-Elite → locked 'Elite ★' teaser → pricing (see-then-gate). Two real bugs caught + fixed in review (goalProgress returns an object; deficit/surplus contradiction). Tested live localhost across Elite/Pro/free. This is Elite's genuine spine — no human-coach promise." },
     { "id": "T-88", "title": "Marketing full-app premium-value audit (walk as free/pro/elite)", "role": "cmo", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-007. Recurring: marketing USES the app as a free, then pro, then elite member and lists (a) every moment that would make someone pay, (b) every hollow/over-promised claim. Recorded as a threaded review. Feeds T-80 willingness-to-pay. Acceptance: the first audit on the board with concrete conversion levers + fixes." },
