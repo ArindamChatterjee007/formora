@@ -89,6 +89,7 @@ const Cloud = {
       bio: p.bio || "", streak: (typeof Engine !== "undefined" && Engine.streak) ? Engine.streak() : 0,
       socials: p.socials || {}, privacy: p.privacy || "public", following: p.following || [],
       verified: !!p.verified, score, workouts, seen: Date.now(), tier: p.tier || "free",
+      cover: p.coverUrl || "",
     };
     return this._write("/profiles", { uid: this.me, data, updated_at: new Date().toISOString() }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   },
