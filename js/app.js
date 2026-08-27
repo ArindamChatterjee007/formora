@@ -875,9 +875,12 @@ const App = {
       const a = list[+btn.getAttribute("data-i")];
       btn.addEventListener("click", () => { App.closeSheet(); if (a && typeof a.fn === "function") setTimeout(a.fn, 10); });
     });
+    this._sheetKey = (e) => { if (e.key === "Escape") App.closeSheet(); };
+    document.addEventListener("keydown", this._sheetKey);
     requestAnimationFrame(() => wrap.classList.add("in"));
   },
   closeSheet() {
+    if (this._sheetKey) { document.removeEventListener("keydown", this._sheetKey); this._sheetKey = null; }
     const w = document.getElementById("sheet-wrap");
     if (w) { w.classList.remove("in"); setTimeout(() => { if (w.parentNode) w.parentNode.removeChild(w); }, 200); }
   },

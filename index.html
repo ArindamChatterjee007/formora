@@ -20,7 +20,7 @@
   <meta property="og:title" content="Formora — Build your dream physique" />
   <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
-  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=172" />
+  <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=173" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Formora — Build your dream physique" />
@@ -28,12 +28,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
   <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
-  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=172" />
+  <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=173" />
   <!-- Structured data for search engines -->
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
-  <link rel="manifest" href="manifest.webmanifest?v=172" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=172" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=172" />
+  <link rel="manifest" href="manifest.webmanifest?v=173" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=173" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=173" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -42,7 +42,7 @@
   <script>
     // auto-update: force a fresh load when a newer version is deployed (defeats stale mobile caches)
     (function () {
-      var V = 172;
+      var V = 173;
       try {
         fetch("version.txt?t=" + Date.now(), { cache: "no-store" })
           .then(function (r) { return r.ok ? r.text() : ""; })
@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=172" />
+  <link rel="stylesheet" href="css/styles.css?v=173" />
   <style>
     .dl-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; background: linear-gradient(135deg, #ff9d4d, #ff3d7f); color: #fff;
@@ -265,7 +265,7 @@
     .sheet-wrap { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: flex-end; justify-content: center; }
     .sheet-back { position: absolute; inset: 0; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .2s; }
     .sheet-wrap.in .sheet-back { opacity: 1; }
-    .sheet { position: relative; width: 100%; max-width: 520px; background: var(--card,#171922); border: 1px solid var(--line,#262a36); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); transform: translateY(101%); transition: transform .24s cubic-bezier(.22,1,.36,1); box-shadow: 0 -10px 40px rgba(0,0,0,.42); }
+    .sheet { position: relative; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--card,#171922); border: 1px solid var(--line,#262a36); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); transform: translateY(101%); transition: transform .24s cubic-bezier(.22,1,.36,1); box-shadow: 0 -10px 40px rgba(0,0,0,.42); }
     .sheet-wrap.in .sheet { transform: translateY(0); }
     .sheet::before { content: ""; display: block; width: 38px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.22); margin: 4px auto 10px; }
     .sheet-title { font-weight: 800; font-size: 13.5px; padding: 2px 12px 10px; color: var(--sub,#9aa3b2); }
@@ -277,7 +277,7 @@
     .sheet-sep { height: 1px; background: var(--line,#262a36); margin: 6px 12px; }
     .sheet-cancel { width: 100%; background: rgba(255,255,255,.06); border: 0; color: var(--text,#eef1f7); font-size: 15px; font-weight: 800; padding: 14px; border-radius: 12px; margin-top: 6px; cursor: pointer; }
     .post-more { margin-left: auto; opacity: .75; }
-    .cmt2-more { background: none; border: 0; color: var(--sub, #9aa3b2); cursor: pointer; padding: 0 2px; margin-left: 4px; vertical-align: middle; opacity: .6; }
+    .cmt2-more { background: none; border: 0; color: var(--sub, #9aa3b2); cursor: pointer; padding: 5px 7px; margin-left: 2px; vertical-align: middle; opacity: .6; line-height: 0; }
     .cmt2-more:active { opacity: 1; }
 
     /* Elite photo frames (camera editor) */
@@ -413,18 +413,18 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/config.js?v=172"></script>
-  <script src="js/data.js?v=172"></script>
-  <script src="js/mod/exercises.js?v=172"></script>
-  <script src="js/storage.js?v=172"></script>
-  <script src="js/engine.js?v=172"></script>
-  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=172";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
-  <script src="js/nutrition.js?v=172"></script>
-  <script src="js/auth.js?v=172"></script>
-  <script src="js/mod/social.js?v=172"></script>
-  <script src="js/cloud.js?v=172"></script>
-  <script src="js/entitlements.js?v=172"></script>
-  <script src="js/supaauth.js?v=172"></script>
+  <script src="js/config.js?v=173"></script>
+  <script src="js/data.js?v=173"></script>
+  <script src="js/mod/exercises.js?v=173"></script>
+  <script src="js/storage.js?v=173"></script>
+  <script src="js/engine.js?v=173"></script>
+  <script>window.ChartsLoader={_p:null,ensure:function(){if(typeof Charts!=="undefined")return Promise.resolve();if(this._p)return this._p;this._p=new Promise(function(res,rej){var s=document.createElement("script");s.src="js/mod/charts.js?v=173";s.onload=res;s.onerror=rej;document.head.appendChild(s);});return this._p;}};</script>
+  <script src="js/nutrition.js?v=173"></script>
+  <script src="js/auth.js?v=173"></script>
+  <script src="js/mod/social.js?v=173"></script>
+  <script src="js/cloud.js?v=173"></script>
+  <script src="js/entitlements.js?v=173"></script>
+  <script src="js/supaauth.js?v=173"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {
@@ -435,7 +435,7 @@
         if (this._p) return this._p;
         this._p = new Promise(function (res, rej) {
           var s = document.createElement("script");
-          s.src = "js/mod/camera.js?v=172";
+          s.src = "js/mod/camera.js?v=173";
           s.onload = res; s.onerror = rej;
           document.head.appendChild(s);
         });
@@ -447,8 +447,8 @@
       }
     };
   </script>
-  <script src="js/mod/mailer.js?v=172"></script>
-  <script src="js/mod/review.js?v=172"></script>
-  <script src="js/app.js?v=172"></script>
+  <script src="js/mod/mailer.js?v=173"></script>
+  <script src="js/mod/review.js?v=173"></script>
+  <script src="js/app.js?v=173"></script>
 </body>
 </html>
