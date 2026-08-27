@@ -3186,6 +3186,11 @@ const App = {
       Store.state.profile.cover = data;
       Store.save();
       this.renderProfile();
+      // Sync to the public profile so others see it — upload to Storage + store the URL only (never the base64 blob).
+      if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.uploadMedia) {
+        fetch(data).then((r) => r.blob()).then((blob) => Cloud.uploadMedia(new File([blob], "cover.jpg", { type: "image/jpeg" }), "covers"))
+          .then((url) => { if (url) { Store.state.profile.coverUrl = url; Store.save(); if (Cloud.registerMe) Cloud.registerMe(Store.state.profile); } }).catch(() => {});
+      }
     }).catch(() => alert("Couldn't read that image. Try another one."));
   },
   async saveSocialProfile() {
