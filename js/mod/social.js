@@ -1000,7 +1000,7 @@ const Social = {
   },
   toggleComments(id) { const c = document.getElementById("cmts-" + id); if (c) { const show = c.style.display === "none"; c.style.display = show ? "block" : "none"; this._openCmt = show ? id : null; } },
   // ---- cloud comments: threaded + @mentions ----
-  commentsFor(postId) { return (this.cloud.comments || []).filter((c) => c.post_id === postId).sort((a, b) => (a.ts || 0) - (b.ts || 0)); },
+  commentsFor(postId) { const hid = this._list("fm_hidden_cmt"); return (this.cloud.comments || []).filter((c) => c.post_id === postId && !hid.includes(c.id) && !this.isBlocked(c.author)).sort((a, b) => (a.ts || 0) - (b.ts || 0)); },
   commentCount(postId) { return this.commentsFor(postId).length; },
   _commenter(uid) { return (typeof Cloud !== "undefined" && uid === Cloud.me) ? this.me() : (this.cloudUser(uid) || { id: uid, name: "Member", handle: "member", avatar: null, colors: ["#8b93a7", "#262c3a"] }); },
   _renderMentions(body) { return esc(body || "").replace(/@([a-z0-9._]+)/gi, (m, h) => `<span class="mention">@${esc(h)}</span>`); },
@@ -1019,8 +1019,8 @@ const Social = {
   commentNode(c, all) {
     const replies = all.filter((r) => r.parent_id === c.id);
     const who = this._commenter(c.author);
-    const rep = replies.map((r) => { const rw = this._commenter(r.author); return `<div class="cmt2 reply"><span class="cmt2-av" onclick="Social.viewProfile('${r.author}')">${this.avatar(rw, 26)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${r.author}')">${esc(rw.name)}</b> ${this._renderMentions(r.body)} <span class="cmt2-time">${this.timeAgo(r.ts)}</span></div></div>`; }).join("");
-    return `<div class="cmt2"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button></div>${rep}</div>`;
+    const rep = replies.map((r) => { const rw = this._commenter(r.author); return `<div class="cmt2 reply"><span class="cmt2-av" onclick="Social.viewProfile('${r.author}')">${this.avatar(rw, 26)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${r.author}')">${esc(rw.name)}</b> ${this._renderMentions(r.body)} <span class="cmt2-time">${this.timeAgo(r.ts)}</span>${this._cmtMore(r)}</div></div>`; }).join("");
+    return `<div class="cmt2"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button>${this._cmtMore(c)}</div>${rep}</div>`;
   },
   startReply(postId, parentId, parentAuthor) {
     this._replyTo = { postId, parentId, parentAuthor };
@@ -1044,6 +1044,37 @@ const Social = {
     }
     this.addComment(id, i.value); this._openCmt = id; this.render();
     const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
+  },
+  // ---- comment options (standard: own→delete, others→report/block, copy) ----
+  _cmtMore(c) { return `<button class="cmt2-more" onclick="Social.commentMenu('${c.id}')" title="More" aria-label="More options">${App.ic("more", { size: 15 })}</button>`; },
+  _commentById(id) { return (this.cloud.comments || []).find((c) => c.id === id); },
+  commentMenu(id) {
+    const c = this._commentById(id); if (!c) return;
+    const mine = (typeof Cloud !== "undefined" && c.author === Cloud.me);
+    const who = this._commenter(c.author);
+    const acts = [{ icon: "copy", label: "Copy text", fn: () => this.copyText(c.body) }];
+    if (mine) {
+      acts.push({ sep: true });
+      acts.push({ icon: "trash", label: "Delete comment", danger: true, fn: () => this.deleteComment(id) });
+    } else {
+      acts.push({ sep: true });
+      acts.push({ icon: "flag", label: "Report comment", danger: true, fn: () => this.reportComment(id) });
+      acts.push({ icon: "ban", label: "Block @" + (who.handle || "user"), danger: true, fn: () => this.blockUser(c.author) });
+    }
+    App.openSheet(mine ? "Your comment" : (who.name || "Comment"), acts);
+  },
+  deleteComment(id) {
+    if (!confirm("Delete this comment?")) return;
+    if (typeof Cloud !== "undefined" && Cloud.deleteComment) Cloud.deleteComment(id);
+    this.cloud.comments = (this.cloud.comments || []).filter((c) => c.id !== id && c.parent_id !== id);
+    this.haptic(12); if (App.toast) App.toast("Comment deleted"); this.render();
+  },
+  reportComment(id) {
+    this._addTo("fm_hidden_cmt", id); this.haptic(12); if (App.toast) App.toast("Reported — hidden from your view"); this.render();
+  },
+  copyText(t) {
+    const ok = () => { if (App.toast) App.toast("Copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t || "").then(ok).catch(() => {}); else if (App.toast) App.toast("Copied");
   },
   resharePost(id) {
     if (this.cloudActive()) {
