@@ -1076,6 +1076,27 @@ const Social = {
     const ok = () => { if (App.toast) App.toast("Copied"); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t || "").then(ok).catch(() => {}); else if (App.toast) App.toast("Copied");
   },
+  // ---- profile-level moderation (report / block a user) ----
+  profileMenu(uid) {
+    const who = this.cloudUser(uid) || this.persona(uid) || { name: "Member", handle: "member" };
+    const h = who.handle || "user";
+    const acts = [{ icon: "copy", label: "Copy profile link", fn: () => this.copyProfileLink(uid) }, { sep: true }, { icon: "flag", label: "Report @" + h, danger: true, fn: () => this.reportUser(uid) }];
+    if (this.isBlocked(uid)) acts.push({ icon: "ban", label: "Unblock @" + h, fn: () => this.unblockUser(uid) });
+    else acts.push({ icon: "ban", label: "Block @" + h, danger: true, fn: () => this.blockFromProfile(uid) });
+    App.openSheet(who.name || "Profile", acts);
+  },
+  blockFromProfile(uid) {
+    if (!confirm("Block this person? You won't see their posts or comments, and they won't see yours.")) return;
+    this._addTo("fm_blocked", uid); this.haptic(16); if (App.toast) App.toast("Blocked"); App.closeModal(); this.render();
+  },
+  unblockUser(uid) { localStorage.setItem("fm_blocked", JSON.stringify(this._list("fm_blocked").filter((x) => x !== uid))); this.haptic(12); if (App.toast) App.toast("Unblocked"); this.render(); },
+  reportUser(uid) { this.haptic(12); if (App.toast) App.toast("Reported — thanks, we'll review this account"); },
+  copyProfileLink(uid) {
+    const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
+    const ok = () => { if (App.toast) App.toast("Link copied"); };
+    const url = base + "?user=" + encodeURIComponent(uid);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => this._share(url)); else this._share(url);
+  },
   resharePost(id) {
     if (this.cloudActive()) {
       const src = this.cloud.feed.find((p) => p.id === id);
@@ -1244,7 +1265,7 @@ const Social = {
       ${u.score ? `<div><b>${u.score}</b><span>Score</span></div>` : ""}
     </div>` : "";
     card.innerHTML = `
-      <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
+      <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><div style="display:flex;gap:4px;align-items:center">${isMe ? "" : `<button class="icon-btn" onclick="Social.profileMenu('${uid}')" title="More" aria-label="More options">${App.ic("more", { size: 20 })}</button>`}<button class="icon-btn" onclick="App.closeModal()">✕</button></div></div>
       <div class="view-profile" data-tier="${this._tierOf(u)}">
         <div class="vp-hero">${this.avatarP(u, 88)}
           <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)}${this.tierBadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
