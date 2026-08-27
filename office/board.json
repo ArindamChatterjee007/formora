@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v170",
+    "liveVersion": "v171",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -979,6 +979,36 @@
       "decisions": ["Ship v170: standard comment options.", "Social-standards epic (posts + comments + destructive safety) is now complete; security audit passed alongside."],
       "actions": [{ "owner": "eng", "action": "Promote v170 through the gates to prod; verify live." }],
       "hires": []
+    },
+    {
+      "id": "M-017",
+      "date": "2026-08-28",
+      "title": "Build review — profile-level moderation (T-100) v171",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","cmo"],
+      "agenda": ["Complete the moderation story: you can report/block from a post and a comment — now from a profile too."],
+      "review": [
+        {
+          "item": "Report/block from a profile — works + scoped?",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "Does another user's profile get a ⋯ with report/block, does blocking actually hide them, and is your OWN profile safe from it?" },
+            { "role": "eng", "type": "answer", "text": "Others' profile → ⋯ with Copy link, Report, Block. Blocking closes the profile and filters their posts + comments (shared isBlocked). Reopening shows Unblock (toggle). Own profile has no ⋯. Dev-QA'd all of it." },
+            { "role": "qa", "type": "verify", "text": "Verified: otherHasMore=true, ownHasMore=false, block→hidden+modal closed, unblock restores. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Reuses the block infra + openSheet; one consistent moderation model across post/comment/profile." },
+        { "role": "qa", "status": "approved", "note": "Toggle + own-profile exclusion verified." },
+        { "role": "cto", "status": "approved", "note": "No new surface; off-budget." },
+        { "role": "coo", "status": "approved", "note": "Moderation now reachable everywhere a user appears." },
+        { "role": "cmo", "status": "approved", "note": "Safer community; approved." },
+        { "role": "ceo", "status": "approved", "note": "Approved for prod." }
+      ],
+      "decisions": ["Ship v171: profile-level report/block.", "Moderation is now consistent across posts, comments and profiles — the social-standards + safety epic is complete."],
+      "actions": [{ "owner": "eng", "action": "Promote v171 to prod; verify. Next: T-89 Elite frames, then T-78/79/88 audits + T-85/T-94." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -1007,7 +1037,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v170 · social standards — post + comment ⋯ menus (save/report/hide/block/delete) · no one-tap destruction · security audit passed" },
+    { "label": "Live version", "value": "v171 · full moderation — report/block from post + comment + profile · no one-tap destruction · security audit passed" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1449,7 +1479,8 @@
     { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "backlog", "priority": "P0", "note": "NEEDS FOUNDER — real-world outreach only you can do (post in the India community, DM warm contacts, collect real before/after testimonials). I've built the launch kit (T-95: WhatsApp scripts, community templates, reel scripts, referral copy) so you can execute in minutes. Funnel measurement (PostHog) is wired to catch the conversions." },
     { "id": "T-97", "title": "Standard post overflow menu (⋯) — save/not-interested/hide/report/follow/copy + edit/delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (planned M-012, reviewed M-013). Founder: 'we don't follow social standards — others' posts need Save/Not-interested/Report/Hide/Follow like IG/FB; own posts a menu, not a bare ✕.' Built a reusable premium bottom-sheet (App.openSheet). Every post now has a ⋯ menu: OTHERS → Save, Not interested, Hide, Follow/Unfollow @handle, Copy link, Report (6-reason sub-sheet), Block; OWN → Save, Edit caption, Copy link, Delete (confirm). Hidden/blocked/reported filter the feed (cloud + demo via _canSeePost). Cloud.editPost added (PATCH posts.data). Dev-QA'd every action + premium look verified at 390px. social.js moved to js/mod/ (off JS budget)." },
     { "id": "T-98", "title": "Destructive-action safety — no one-tap logout or delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (M-012/M-013). Founder: 'one click logs out → accidental lockout; one tap on ✕ deletes.' All 3 logout triggers now route through App.confirmLogout() (premium sheet: Log out / Cancel) — opening it does NOT log out. Post delete moved into the ⋯ menu behind a confirm (T-97). removeFood (food-log ✕) now confirms. Verified: opening the logout sheet keeps you signed in; Cancel keeps you in; only confirm logs out." },
-    { "id": "T-99", "title": "Standard comment options (⋯) — delete own / report + block others' / copy", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v170 (M-016). Comments had a Reply button but no options. Added a ⋯ on every comment (top-level + replies): OWN → Copy text, Delete comment (confirm → Cloud.deleteComment, RLS author-only, also removes its replies); OTHERS → Copy text, Report comment (hides locally), Block @handle. commentsFor now filters hidden (fm_hidden_cmt) + blocked authors so reporting/blocking cleans the thread. Reuses App.openSheet. Dev-QA'd all actions." }
+    { "id": "T-99", "title": "Standard comment options (⋯) — delete own / report + block others' / copy", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v170 (M-016). Comments had a Reply button but no options. Added a ⋯ on every comment (top-level + replies): OWN → Copy text, Delete comment (confirm → Cloud.deleteComment, RLS author-only, also removes its replies); OTHERS → Copy text, Report comment (hides locally), Block @handle. commentsFor now filters hidden (fm_hidden_cmt) + blocked authors so reporting/blocking cleans the thread. Reuses App.openSheet. Dev-QA'd all actions." },
+    { "id": "T-100", "title": "Profile-level moderation (⋯) — report / block / unblock / copy from a profile", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v171 (M-017). Another user's profile modal now has a ⋯: Copy profile link, Report @handle, Block/Unblock @handle. Blocking closes the profile + filters their posts AND comments (isBlocked in _canSeePost + commentsFor). Own profile has no ⋯. Completes the moderation story — report/block from a post, a comment, OR a profile. Dev-QA'd: menu correct, block/unblock toggle, own profile excluded." }
   ],
   "readiness": {
     "date": "2026-08-25",
