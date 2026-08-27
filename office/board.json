@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v169",
+    "liveVersion": "v170",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -899,6 +899,86 @@
       "decisions": ["Ship v169: story + reference-photo deletes now confirm.", "Destructive-action safety sweep complete (logout, post, food, story, reference photo)."],
       "actions": [{ "owner": "eng", "action": "Promote v169 through the gates to prod after approvals; verify live." }],
       "hires": []
+    },
+    {
+      "id": "M-015",
+      "date": "2026-08-28",
+      "title": "Security pass (T-83) — live RLS break-attempts on the money + private-data paths",
+      "chair": "cto",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","cfo"],
+      "agenda": ["Founder: work the security paths. Actually try to BREAK the money path (tier/price forging) and private data (tickets, DMs, payments, accounts); document evidence, don't just assert."],
+      "review": [
+        {
+          "item": "Can a client forge a paid tier or a discounted upgrade?",
+          "status": "pass",
+          "thread": [
+            { "role": "cfo", "type": "question", "text": "The business depends on this: can someone give themselves Elite without paying, or forge a cheaper upgrade?" },
+            { "role": "qa", "type": "answer", "text": "Tried live: INSERT/UPDATE on entitlements via the API → 'permission denied'. entitlements has NO user-facing write policy — only the service-role webhook writes it. Tier is 100% server-authoritative; the client literally cannot write its own tier." },
+            { "role": "eng", "type": "answer", "text": "The Pro→Elite proration price is computed in the edge fn from the entitlement it reads via service role — and since the client can't fake having Pro, it can't forge a discount either. The Razorpay webhook verifies RAZORPAY_WEBHOOK_SECRET, so a spoofed payment.captured can't grant access." },
+            { "role": "cto", "type": "verify", "text": "Money path is sound. PASS." }
+          ]
+        },
+        {
+          "item": "Can a user read someone else's private data (tickets, DMs, payments, account)?",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "answer", "text": "Live probes all denied: support_tickets → [] (own-read only); messages → 'permission denied' (RLS = participant-only from_uid/to_uid); billing_events → 'permission denied' (service-role only); accounts → own-only. Editing/deleting another user's post or comment → author-only, denied." },
+            { "role": "qalead", "type": "challenge", "text": "Any table missing RLS entirely — the classic Supabase hole?" },
+            { "role": "qa", "type": "verify", "text": "Checked pg_class: all 11 public tables have relrowsecurity=true. None unprotected. PASS." }
+          ]
+        },
+        {
+          "item": "Anything public that shouldn't be?",
+          "status": "pass",
+          "thread": [
+            { "role": "cto", "type": "question", "text": "profiles and requests have SELECT=true. Is that a leak?" },
+            { "role": "eng", "type": "answer", "text": "By design: a social feed must show names/avatars/handles/connection state. The public profile row carries only social data (name/handle/avatar/physique/tier) — email + private fields live in accounts (own-only). Writes to both are owner-scoped." },
+            { "role": "cto", "type": "verify", "text": "Accepted as intended, low-risk. Optional future hardening: scope requests SELECT to participants. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "No client-writable tier/price; author-scoped content writes." },
+        { "role": "qa", "status": "approved", "note": "Every break attempt denied with live evidence; all tables RLS-on." },
+        { "role": "cfo", "status": "approved", "note": "Revenue path can't be forged — critical for a real-money app. Approved." },
+        { "role": "cto", "status": "approved", "note": "Solid posture; one optional low-risk hardening noted (requests SELECT)." },
+        { "role": "coo", "status": "approved", "note": "Private data stays private. Approved." },
+        { "role": "ceo", "status": "approved", "note": "This is the security bar. Approved." }
+      ],
+      "decisions": ["T-83 PASS — no vulnerabilities; money path + private data both secure with live evidence.", "Optional future hardening (low priority): scope requests SELECT to participants."],
+      "actions": [{ "owner": "eng", "action": "Keep entitlements write-locked to service role forever; never add a user INSERT/UPDATE policy." }],
+      "hires": []
+    },
+    {
+      "id": "M-016",
+      "date": "2026-08-28",
+      "title": "Build review — standard comment options (T-99) v170",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","design","cmo"],
+      "agenda": ["Comments only had Reply — no delete/report/block. Bring them to the IG/FB standard; gate + approve before prod."],
+      "review": [
+        {
+          "item": "Do comment options work + stay safe?",
+          "status": "pass",
+          "thread": [
+            { "role": "qa", "type": "question", "text": "Every comment now needs options. Own → delete; others → report/block. Does each work, and can you delete someone else's comment?" },
+            { "role": "eng", "type": "answer", "text": "Added a ⋯ to every comment (top + replies). Own → Copy, Delete (confirm → Cloud.deleteComment, and it also drops orphaned replies); others → Copy, Report (hides locally), Block. Dev-QA'd: own menu [Copy, Delete], others [Copy, Report, Block], delete removes, report+block filter the thread." },
+            { "role": "qa", "type": "verify", "text": "Security-checked against the T-83 audit: comments DELETE is RLS author-only, so Cloud.deleteComment can't delete another user's comment even if the id is forged. No UPDATE policy = comments can't be tampered. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Reuses the openSheet pattern; RLS backs the delete." },
+        { "role": "qa", "status": "approved", "note": "All actions verified; delete is author-scoped server-side." },
+        { "role": "cto", "status": "approved", "note": "No new surface; off-budget (social.js in js/mod)." },
+        { "role": "design", "status": "approved", "note": "Subtle ⋯ on comments, consistent with the post menu." },
+        { "role": "coo", "status": "approved", "note": "Comments now meet the standard." },
+        { "role": "cmo", "status": "approved", "note": "Report/block on comments = safer community. Approved." },
+        { "role": "ceo", "status": "approved", "note": "Approved for prod." }
+      ],
+      "decisions": ["Ship v170: standard comment options.", "Social-standards epic (posts + comments + destructive safety) is now complete; security audit passed alongside."],
+      "actions": [{ "owner": "eng", "action": "Promote v170 through the gates to prod; verify live." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -927,7 +1007,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v169 · destructive-action safety sweep complete (story + reference-photo deletes now confirm) + post ⋯ menu" },
+    { "label": "Live version", "value": "v170 · social standards — post + comment ⋯ menus (save/report/hide/block/delete) · no one-tap destruction · security audit passed" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1353,7 +1433,7 @@
     { "id": "T-80", "title": "Regional willingness-to-pay research → lock India/US/global prices with evidence", "role": "analyst", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE (M-008, v164): real live competitor research (Strava $79.99/yr, MyFitnessPal $79.99-99.99/yr monthly-anchored $24.99, Fitbod ~$80/yr; India FITTR/HealthifyMe/Cult.fit monetize human coaching, digital app cheap/free). Locked launch prices BELOW incumbents: Pro $5.99/₹299, Elite $9.99/₹599. Evidence in the M-008 threaded review + activity." },
     { "id": "T-81", "title": "Support SLA + first macros + daily ticket triage (ticketing now live)", "role": "support", "sprint": 7, "status": "done", "priority": "P2", "note": "DONE → board.assets.supportPlaybook (SLA: 24h / <2h launch week; 6 macros incl. payment-not-unlocked, cancel, refund; daily triage rule P0/P1/P2). Founder/support execute on real tickets." },
     { "id": "T-82", "title": "Premium tier experience shipped — themes, regional pricing, support, prorated upgrades", "role": "design", "sprint": 7, "status": "done", "priority": "P0", "note": "DONE (v160). (1) Fixed 'still asked to pay' (initCloud re-renders after entitlements load + Profile membership card for Pro/Elite). (2) Regional PPP pricing — India ₹399/₹799 vs FX ~₹663; Currency.region()/regionPrice(). (3) Tier themes — <html data-tier> Free/Pro/Elite accents (Elite gold), tier badge on own + others' profiles (tier synced via registerMe→profile.tier + social mapping), launch splash 'You're Elite ✨'. (4) Help & Support ticketing (support_tickets table + RLS). (5) Prorated Pro→Elite upgrade, server-authoritative in razorpay-create-order (upgrade flag → charges only the remaining-days delta; ₹1 during the offer). Code-split exercises.js→js/mod/ to fit budget. Verified in-browser + deployed; ₹1 test refunded (rfnd_TURdtCxYpsOhK8)." },
-    { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "todo", "priority": "P1", "note": "M-004. Confirm: (a) a user CANNOT read another user's support_ticket (RLS own-read only); (b) the Pro→Elite price cannot be forged from the client (edge fn reads the real entitlement server-side); (c) tier cannot be spoofed client-side to unlock (entitlement is server-authoritative under RLS). Try to break each; document evidence." },
+    { "id": "T-83", "title": "Security pass on v160 surfaces — ticket RLS, upgrade-price forging, tier spoofing", "role": "qa", "sprint": 7, "status": "done", "priority": "P1", "note": "DONE (M-015). LIVE break-attempt audit via the anon key (RLS-enforcing): (a) read ALL support_tickets → [] (own-read only: uid=auth.uid() OR email-slug); (b/c) FORGE elite entitlement + read entitlements → 'permission denied' (entitlements has NO user INSERT/UPDATE policy + no anon grant → tier is 100% service-role-authoritative, cannot be forged/spoofed); edit another's post → 'permission denied' (posts UPDATE/DELETE author-only); read DMs → 'permission denied' (messages SELECT = from_uid OR to_uid, participant-only); read billing_events → 'permission denied' (service-role only). ALL 11 public tables have relrowsecurity=true (no table without RLS). accounts own-only; comments author-delete/no-update. Razorpay webhook verifies RAZORPAY_WEBHOOK_SECRET so a fake payment.captured can't grant entitlement. HARDENING NOTES (accepted, by design, low-risk): profiles + requests have public SELECT (needed for the social graph — names/avatars/connection state; email + private fields live in accounts = own-only); writes are owner-scoped. No vulnerabilities found." },
     { "id": "T-84", "title": "₹1 offer wind-down — restore real PRICE_PAISE in lockstep with the display", "role": "devops", "sprint": 7, "status": "blocked", "priority": "P1", "note": "BLOCKED — FOUNDER DECISION: only the founder decides WHEN to end the ₹1 launch offer (a business/timing call, usually after the first cohort of trials). When you say go, this fires with T-91: set LAUNCH_OFFER=false AND restore edge-fn PRICE_PAISE to the new real prices IN THE SAME change (display+charge coupled). Everything is coded + ready; just needs your go." },
     { "id": "T-85", "title": "Sync a member's cover photo to their public profile (others see it)", "role": "eng", "sprint": 7, "status": "todo", "priority": "P2", "note": "M-005. The v161 cover photo is stored LOCALLY (own profile) to avoid bloating the get_state payload with a ~900px image per user. To show a member's cover when others open their profile, upload the cover to Storage (like uploadMedia) + store only the URL in the public profile, and render it in viewProfile's vp-hero. Keep it URL-only (never a base64 blob in the shared row)." },
     { "id": "T-86", "title": "Verify EVERY Pro/Elite paywall claim is actually gated + delivered", "role": "pm", "sprint": 7, "status": "todo", "priority": "P0", "note": "M-007. Walk each benefit on the pricing page and PROVE it: unlimited AI plans, full meal plans + grocery, 90+ Pro filters (done v163), advanced analytics + progress photos, no ads. Confirm each is enforced for Free and unlocked for Pro/Elite in the live app. Fix the paywall copy for anything hollow. Acceptance: a checklist with a live-verified pass per claim." },
@@ -1368,7 +1448,8 @@
     { "id": "T-95", "title": "Marketing launch kit — reels script + community templates + referral copy", "role": "content", "sprint": 8, "status": "done", "priority": "P1", "note": "DONE → board.assets.launchKit (positioning, WhatsApp scripts, Reddit/FB/WhatsApp community posts, reel scripts, referral copy, founding-offer, one-channel-deep playbook). Founder can execute in minutes." },
     { "id": "T-96", "title": "Seed the first 20-50 users on ONE channel + collect testimonials + measure", "role": "bizdev", "sprint": 8, "status": "backlog", "priority": "P0", "note": "NEEDS FOUNDER — real-world outreach only you can do (post in the India community, DM warm contacts, collect real before/after testimonials). I've built the launch kit (T-95: WhatsApp scripts, community templates, reel scripts, referral copy) so you can execute in minutes. Funnel measurement (PostHog) is wired to catch the conversions." },
     { "id": "T-97", "title": "Standard post overflow menu (⋯) — save/not-interested/hide/report/follow/copy + edit/delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (planned M-012, reviewed M-013). Founder: 'we don't follow social standards — others' posts need Save/Not-interested/Report/Hide/Follow like IG/FB; own posts a menu, not a bare ✕.' Built a reusable premium bottom-sheet (App.openSheet). Every post now has a ⋯ menu: OTHERS → Save, Not interested, Hide, Follow/Unfollow @handle, Copy link, Report (6-reason sub-sheet), Block; OWN → Save, Edit caption, Copy link, Delete (confirm). Hidden/blocked/reported filter the feed (cloud + demo via _canSeePost). Cloud.editPost added (PATCH posts.data). Dev-QA'd every action + premium look verified at 390px. social.js moved to js/mod/ (off JS budget)." },
-    { "id": "T-98", "title": "Destructive-action safety — no one-tap logout or delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (M-012/M-013). Founder: 'one click logs out → accidental lockout; one tap on ✕ deletes.' All 3 logout triggers now route through App.confirmLogout() (premium sheet: Log out / Cancel) — opening it does NOT log out. Post delete moved into the ⋯ menu behind a confirm (T-97). removeFood (food-log ✕) now confirms. Verified: opening the logout sheet keeps you signed in; Cancel keeps you in; only confirm logs out." }
+    { "id": "T-98", "title": "Destructive-action safety — no one-tap logout or delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (M-012/M-013). Founder: 'one click logs out → accidental lockout; one tap on ✕ deletes.' All 3 logout triggers now route through App.confirmLogout() (premium sheet: Log out / Cancel) — opening it does NOT log out. Post delete moved into the ⋯ menu behind a confirm (T-97). removeFood (food-log ✕) now confirms. Verified: opening the logout sheet keeps you signed in; Cancel keeps you in; only confirm logs out." },
+    { "id": "T-99", "title": "Standard comment options (⋯) — delete own / report + block others' / copy", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v170 (M-016). Comments had a Reply button but no options. Added a ⋯ on every comment (top-level + replies): OWN → Copy text, Delete comment (confirm → Cloud.deleteComment, RLS author-only, also removes its replies); OTHERS → Copy text, Report comment (hides locally), Block @handle. commentsFor now filters hidden (fm_hidden_cmt) + blocked authors so reporting/blocking cleans the thread. Reuses App.openSheet. Dev-QA'd all actions." }
   ],
   "readiness": {
     "date": "2026-08-25",
