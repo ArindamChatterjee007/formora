@@ -137,7 +137,7 @@ const Social = {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
     const st = u.streak || 0;
-    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), tier: u.tier || "free", colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified, heightCm: u.heightCm || 0, weightKg: u.weightKg || 0, bmi: u.bmi || 0, score: u.score || 0, workouts: u.workouts || 0, gender: u.gender || "", seen: u.seen || 0 };
+    return { id: u.uid, name: u.name || u.username || "Member", handle: u.username || "member", physique: u.physique || "", bio: u.bio || "", level: (st > 60 ? "Elite" : st > 30 ? "Pro" : st > 7 ? "Rising" : ""), tier: u.tier || "free", colors: ["#ff6b3d", "#3d8bff"], avatar: u.avatar || null, streak: st, socials: u.socials || {}, privacy: u.privacy || "public", following: u.following || [], verified: !!u.verified, heightCm: u.heightCm || 0, weightKg: u.weightKg || 0, bmi: u.bmi || 0, score: u.score || 0, workouts: u.workouts || 0, gender: u.gender || "", seen: u.seen || 0, cover: u.cover || "" };
   },
   // small ✓ shown next to a verified member's name (email confirmed or Google sign-in)
   vbadge(u) { return (u && u.verified) ? ` <span class="vbadge" title="Verified — email confirmed">✓</span>` : ""; },
@@ -1264,10 +1264,11 @@ const Social = {
       ${u.bmi ? `<div><b>${(u.bmi).toFixed(1)}</b><span>BMI</span></div>` : ""}
       ${u.score ? `<div><b>${u.score}</b><span>Score</span></div>` : ""}
     </div>` : "";
+    const coverImg = u.cover || (isMe && typeof Store !== "undefined" && Store.state && Store.state.profile ? (Store.state.profile.cover || "") : "");
     card.innerHTML = `
       <div class="modal-head"><h2>${isMe ? "Your profile" : "Profile"}</h2><div style="display:flex;gap:4px;align-items:center">${isMe ? "" : `<button class="icon-btn" onclick="Social.profileMenu('${uid}')" title="More" aria-label="More options">${App.ic("more", { size: 20 })}</button>`}<button class="icon-btn" onclick="App.closeModal()">✕</button></div></div>
       <div class="view-profile" data-tier="${this._tierOf(u)}">
-        <div class="vp-hero">${this.avatarP(u, 88)}
+        <div class="vp-hero${coverImg ? " has-cover" : ""}"${coverImg ? ` style="background-image:url('${esc(coverImg)}')"` : ""}>${this.avatarP(u, 88)}
           <div class="vp-id"><div class="vp-name">${esc(u.name)}${this.vbadge(u)}${this.tierBadge(u)} ${u.level ? `<span class="lvl">${esc(u.level)}</span>` : ""}</div>
             <div class="vp-handle">@${esc(u.handle)}</div>
             ${!isMe ? `<div class="vp-online ${this.isOnline(uid) ? "on" : ""}">${this.isOnline(uid) ? '<span class="online-dot"></span> Active now' : (this.lastSeenText(uid) || (u.physique ? "Training for " + esc(u.physique) : ""))}</div>` : (u.physique ? `<div class="vp-phys">Training for ${esc(u.physique)}</div>` : "")}
