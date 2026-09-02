@@ -1,7 +1,7 @@
 {
   "meta": {
     "product": "Formora",
-    "liveVersion": "v174",
+    "liveVersion": "v175",
     "updated": "2026-08-26",
     "liveUrl": "https://arindamchatterjee007.github.io/formora/",
     "repo": "ArindamChatterjee007/formora",
@@ -1129,6 +1129,37 @@
       "decisions": ["Ship v174: public cover photos (URL-only sync, rendered with a scrim)."],
       "actions": [{ "owner": "eng", "action": "Promote v174 to prod; verify. Next: T-88 marketing audit, T-94 landing pricing." }],
       "hires": []
+    },
+    {
+      "id": "M-021",
+      "date": "2026-09-02",
+      "title": "Build review — server-side moderation store (T-101) v175",
+      "chair": "qalead",
+      "attendees": ["ceo","coo","cto","qalead","qa","eng","cmo"],
+      "agenda": ["Report was local-hide-only (flagged as a follow-up in M-013). Make reports actually reach a moderation queue, securely."],
+      "review": [
+        {
+          "item": "Do reports persist, and is the queue secure?",
+          "status": "pass",
+          "thread": [
+            { "role": "cmo", "type": "question", "text": "We tell users 'we'll review it' — is that now true, or still just a local hide?" },
+            { "role": "eng", "type": "answer", "text": "Now true. New table content_reports (kind post/comment/user, target_id, reported_uid, reason, reporter, status). Cloud.report() writes to it; post/comment/user report flows all wired. Toasts updated to 'our team will review it'." },
+            { "role": "cto", "type": "challenge", "text": "Security: can a user spoof another reporter, or read the moderation queue (which would leak who reported whom)?" },
+            { "role": "qa", "type": "verify", "text": "RLS enabled; INSERT-only for authenticated with_check reporter=auth.uid() (can't spoof reporter); NO user SELECT policy (service-role-only queue). Probed live: anon insert → RLS denied; anon read → empty. Client POSTs the correct payload for all 3 kinds; a service-role insert of the exact shape succeeds (schema verified) and was cleaned up. PASS." }
+          ]
+        }
+      ],
+      "approvals": [
+        { "role": "eng", "status": "approved", "note": "Additive table, insert-only, honest toasts; reuses the proven _write path." },
+        { "role": "qa", "status": "approved", "note": "RLS + payload + schema all verified live; queue is private." },
+        { "role": "cto", "status": "approved", "note": "No impact on existing tables; reporter can't be spoofed; moderation is service-role-only." },
+        { "role": "cmo", "status": "approved", "note": "Now our 'we'll review it' promise is real. Approved." },
+        { "role": "coo", "status": "approved", "note": "Approved." },
+        { "role": "ceo", "status": "approved", "note": "Approved for prod." }
+      ],
+      "decisions": ["Ship v175: reports persist to content_reports (service-role moderation queue).", "Reports promise is now honest (there is a real queue)."],
+      "actions": [{ "owner": "eng", "action": "Promote v175 to prod; verify." }, { "owner": "coo", "action": "When there's a moderation need, read content_reports via service-role (Mgmt API) — no UI yet, by design." }],
+      "hires": []
     }
   ],
   "columns": [
@@ -1157,7 +1188,7 @@
     { "id": "M4", "name": "$10,000 MRR", "sprint": 6, "done": false }
   ],
   "kpis": [
-    { "label": "Live version", "value": "v174 · profile cover photos (others see them) · QA/UX audit fixes · Elite frames · full moderation · security passed" },
+    { "label": "Live version", "value": "v175 · reports reach a real moderation queue · cover photos · Elite frames · full moderation · security passed" },
     { "label": "MRR", "value": "$0 → $1k goal" },
     { "label": "Paying customers", "value": "0" },
     { "label": "Next milestone", "value": "M1 · First paying customer" },
@@ -1600,7 +1631,8 @@
     { "id": "T-97", "title": "Standard post overflow menu (⋯) — save/not-interested/hide/report/follow/copy + edit/delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (planned M-012, reviewed M-013). Founder: 'we don't follow social standards — others' posts need Save/Not-interested/Report/Hide/Follow like IG/FB; own posts a menu, not a bare ✕.' Built a reusable premium bottom-sheet (App.openSheet). Every post now has a ⋯ menu: OTHERS → Save, Not interested, Hide, Follow/Unfollow @handle, Copy link, Report (6-reason sub-sheet), Block; OWN → Save, Edit caption, Copy link, Delete (confirm). Hidden/blocked/reported filter the feed (cloud + demo via _canSeePost). Cloud.editPost added (PATCH posts.data). Dev-QA'd every action + premium look verified at 390px. social.js moved to js/mod/ (off JS budget)." },
     { "id": "T-98", "title": "Destructive-action safety — no one-tap logout or delete", "role": "eng", "sprint": 9, "status": "done", "priority": "P0", "note": "DONE v168 (M-012/M-013). Founder: 'one click logs out → accidental lockout; one tap on ✕ deletes.' All 3 logout triggers now route through App.confirmLogout() (premium sheet: Log out / Cancel) — opening it does NOT log out. Post delete moved into the ⋯ menu behind a confirm (T-97). removeFood (food-log ✕) now confirms. Verified: opening the logout sheet keeps you signed in; Cancel keeps you in; only confirm logs out." },
     { "id": "T-99", "title": "Standard comment options (⋯) — delete own / report + block others' / copy", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v170 (M-016). Comments had a Reply button but no options. Added a ⋯ on every comment (top-level + replies): OWN → Copy text, Delete comment (confirm → Cloud.deleteComment, RLS author-only, also removes its replies); OTHERS → Copy text, Report comment (hides locally), Block @handle. commentsFor now filters hidden (fm_hidden_cmt) + blocked authors so reporting/blocking cleans the thread. Reuses App.openSheet. Dev-QA'd all actions." },
-    { "id": "T-100", "title": "Profile-level moderation (⋯) — report / block / unblock / copy from a profile", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v171 (M-017). Another user's profile modal now has a ⋯: Copy profile link, Report @handle, Block/Unblock @handle. Blocking closes the profile + filters their posts AND comments (isBlocked in _canSeePost + commentsFor). Own profile has no ⋯. Completes the moderation story — report/block from a post, a comment, OR a profile. Dev-QA'd: menu correct, block/unblock toggle, own profile excluded." }
+    { "id": "T-100", "title": "Profile-level moderation (⋯) — report / block / unblock / copy from a profile", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v171 (M-017). Another user's profile modal now has a ⋯: Copy profile link, Report @handle, Block/Unblock @handle. Blocking closes the profile + filters their posts AND comments (isBlocked in _canSeePost + commentsFor). Own profile has no ⋯. Completes the moderation story — report/block from a post, a comment, OR a profile. Dev-QA'd: menu correct, block/unblock toggle, own profile excluded." },
+    { "id": "T-101", "title": "Server-side moderation store — reports actually reach a queue (not local-only)", "role": "eng", "sprint": 9, "status": "done", "priority": "P1", "note": "DONE v175 (M-021). Follow-up from M-013: Report was local-hide-only. Created Supabase table public.content_reports (id, kind post|comment|user, target_id, reported_uid, reason, reporter, status open, created_at) with RLS ENABLED + INSERT-only for authenticated (with_check reporter=auth.uid() — can't spoof reporter) + NO user SELECT (service-role-only moderation queue; a reporter can't read others' reports). Added Cloud.report(kind,targetId,reason,reportedUid) → _write /content_reports; wired _doReport/reportComment/reportUser. Toasts now honestly say 'our team will review it'. VERIFIED: anon insert→RLS denied, anon read→empty; client POSTs the correct payload for post/comment/user; service-role insert of the exact shape succeeds (schema OK), cleaned up. Report is now a genuine moderation feature." }
   ],
   "readiness": {
     "date": "2026-08-25",
