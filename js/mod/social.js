@@ -957,8 +957,8 @@ const Social = {
   },
   _doReport(id, reason) {
     this._addTo("fm_reported", id); this._addTo("fm_hidden", id);
-    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.reportPost) { try { Cloud.reportPost(id, reason); } catch (e) {} }
-    this.haptic(14); if (App.toast) App.toast("Reported — we've hidden it from your feed"); this.render();
+    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("post", id, reason, (this._postById(id) || {}).author); } catch (e) {} }
+    this.haptic(14); if (App.toast) App.toast("Reported — our team will review it, and it's hidden from your feed"); this.render();
   },
   copyPostLink(id) {
     const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
@@ -1070,7 +1070,10 @@ const Social = {
     this.haptic(12); if (App.toast) App.toast("Comment deleted"); this.render();
   },
   reportComment(id) {
-    this._addTo("fm_hidden_cmt", id); this.haptic(12); if (App.toast) App.toast("Reported — hidden from your view"); this.render();
+    const c = this._commentById(id);
+    this._addTo("fm_hidden_cmt", id);
+    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("comment", id, "reported", c && c.author); } catch (e) {} }
+    this.haptic(12); if (App.toast) App.toast("Reported — our team will review it; hidden from your view"); this.render();
   },
   copyText(t) {
     const ok = () => { if (App.toast) App.toast("Copied"); };
@@ -1090,7 +1093,7 @@ const Social = {
     this._addTo("fm_blocked", uid); this.haptic(16); if (App.toast) App.toast("Blocked"); App.closeModal(); this.render();
   },
   unblockUser(uid) { localStorage.setItem("fm_blocked", JSON.stringify(this._list("fm_blocked").filter((x) => x !== uid))); this.haptic(12); if (App.toast) App.toast("Unblocked"); this.render(); },
-  reportUser(uid) { this.haptic(12); if (App.toast) App.toast("Reported — thanks, we'll review this account"); },
+  reportUser(uid) { if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("user", uid, "reported", uid); } catch (e) {} } this.haptic(12); if (App.toast) App.toast("Reported — thanks, our team will review this account"); },
   copyProfileLink(uid) {
     const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
     const ok = () => { if (App.toast) App.toast("Link copied"); };
