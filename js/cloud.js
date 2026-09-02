@@ -117,6 +117,10 @@ const Cloud = {
     try { const r = await fetch(this.base + "/comments?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
     catch (e) { return false; }
   },
+  report(kind, targetId, reason, reportedUid) {
+    if (!this.active() || !targetId) return;
+    return this._write("/content_reports", { kind: kind, target_id: String(targetId), reported_uid: reportedUid || null, reason: reason || "", reporter: this.me, status: "open" }, { Prefer: "return=minimal" });
+  },
   likeCloud(postId) {
     if (!this.active()) return;
     return this._write("/rpc/like_post", { p_id: postId, p_uid: this.me });
