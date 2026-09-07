@@ -887,8 +887,11 @@ async function screenshot(testContext, page, name) {
   const capture = await page.screenshot({ path: filename, type: 'png', fullPage: false, animations: 'disabled' });
   assert.deepEqual([...capture.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.ok(capture.length > 1000, name + ' must contain a fresh rendered capture');
-  assert.ok(capture.readUInt32BE(16) >= page.viewportSize().width);
-  assert.ok(capture.readUInt32BE(20) >= page.viewportSize().height);
+  const dimensions = { name, png: { width: capture.readUInt32BE(16), height: capture.readUInt32BE(20) }, requested: page.viewportSize(),
+    rendered: await page.evaluate(() => ({ width: innerWidth, height: innerHeight, ratio: devicePixelRatio,
+      visualWidth: visualViewport.width, visualHeight: visualViewport.height, scale: visualViewport.scale })) };
+  assert.ok(dimensions.png.width >= dimensions.requested.width, JSON.stringify(dimensions));
+  assert.ok(dimensions.png.height >= dimensions.requested.height, JSON.stringify(dimensions));
   if (filename) testContext.diagnostic('Screenshot: ' + path.relative(root, filename));
 }
 
