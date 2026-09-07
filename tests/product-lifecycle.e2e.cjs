@@ -408,6 +408,10 @@ async function setup(testContext, { width = 390, height = 844, backend = null } 
     viewport: { width, height }, hasTouch: true, isMobile: width < 760,
     reducedMotion: 'reduce', serviceWorkers: 'block', permissions: ['camera', 'microphone'],
   });
+  context.on('weberror', event => {
+    const error = event.error();
+    fixture.errors.push(error.stack || error.message);
+  });
   testContext.after(async () => {
     for (const gate of fixture.gates) gate.resolve();
     await context.close();
@@ -438,13 +442,12 @@ async function setup(testContext, { width = 390, height = 844, backend = null } 
     socket.close();
   });
   await context.addInitScript(() => {
-    localStorage.setItem('fm_dl_x', '1');
+    if (location.origin !== 'null') localStorage.setItem('fm_dl_x', '1');
     window.__fixtureMail = [];
   });
   const page = await context.newPage();
   page.setDefaultTimeout(6000);
   page.setDefaultNavigationTimeout(10000);
-  page.on('pageerror', error => fixture.errors.push(error.stack || error.message));
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const location = message.location().url || '';

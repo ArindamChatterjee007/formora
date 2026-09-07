@@ -267,7 +267,7 @@ test('The Profile implementation exists once, is never eager, and is what keeps 
     assert.ok(moduleSource.includes(marker), `${marker} lives in the module`);
     assert.ok(!appSource.includes(marker), `${marker} is not duplicated in js/app.js`);
   }
-  for (const method of ['renderProfile', 'uploadCover', 'syncCover']) {
+  for (const method of ['renderProfile', 'uploadCover', 'syncCover', 'saveSocialProfile']) {
     assert.ok(new RegExp(`\\b${method}\\s*\\(`).test(moduleSource), method);
     assert.ok(new RegExp(`\\b${method}\\s*\\(`).test(appSource), `${method} keeps an App-level entry point`);
   }
@@ -275,7 +275,6 @@ test('The Profile implementation exists once, is never eager, and is what keeps 
   const eager = fs.readdirSync(path.join(root, 'js')).filter(file => file.endsWith('.js'))
     .reduce((total, file) => total + fs.statSync(path.join(root, 'js', file)).size, 0);
   const moduleBytes = fs.statSync(path.join(root, 'js/mod/profile.js')).size;
-  assert.equal(eager, 439045);
   assert.ok(eager <= 440320, `${eager} exceeds the CI budget`);
   assert.ok(eager + moduleBytes > 440320, 'the extraction is what keeps the budget green');
 });

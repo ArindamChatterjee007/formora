@@ -831,7 +831,10 @@ test('back navigation is retained after leaving each deep screen', { timeout: 12
   // Alerts → notification deep-links to Search → the Alerts tab still rebuilds its list.
   await page.evaluate(() => App.selectTab('alerts'));
   await page.locator('#view-alerts .notif-item').first().waitFor({ timeout: REQUEST_TIMEOUT });
-  await page.evaluate(() => App.openNotif(document.querySelector('#view-alerts .notif-item').getAttribute('onclick').split("'")[1], 'accept'));
+  // Rows carry data-notif-id and a bound click listener, so open the accepted request the way a member does.
+  const acceptRow = page.locator(`#view-alerts .notif-item[data-notif-id="${notifications.find(row => row.type === 'accept').id}"]`);
+  await acceptRow.waitFor({ state: 'visible', timeout: REQUEST_TIMEOUT });
+  await acceptRow.click();
   await page.locator('#member-search').waitFor({ timeout: REQUEST_TIMEOUT });
   await page.locator('#tabbar [data-tab="alerts"]').click();
   await page.locator('#view-alerts .notif-item').first().waitFor({ timeout: REQUEST_TIMEOUT });

@@ -462,7 +462,7 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 
 /* food */
 .food-add { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.food-add input { flex: 1; min-width: 120px; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 11px 12px; }
+.food-add input { flex: 1; min-width: 120px; min-height:44px; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 11px 12px; }
 .food-add input.small { max-width: 90px; flex: 0 0 auto; }
 
 /* form */

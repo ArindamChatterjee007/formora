@@ -35,6 +35,14 @@ const accountState = {
   foodLog: [], restDays: [], updatedAt: 1,
 };
 
+const alertOwner = '11111111-1111-4111-8111-111111111111';
+const alertPeer = '22222222-2222-4222-8222-222222222222';
+const keyboardActivity = {
+  users: { [alertPeer]: { uid: alertPeer, name: 'Other member', username: 'other_member', privacy: 'public', colors: ['#111', '#222'] } },
+  posts: { 'keyboard-post': { id: 'keyboard-post', author: alertOwner, text: 'Keyboard notification target', privacy: 'public', likes: {}, ts: 1 } },
+  notifs: [{ id: 'notif-1', uid: alertOwner, type: 'like', actor: alertPeer, post_id: 'keyboard-post', ts: '2026-09-05T12:00:00Z', read: false }],
+};
+
 before(async () => {
   server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -66,9 +74,9 @@ after(async () => {
   if (server) await new Promise(done => server.close(done));
 });
 
-async function setup(t, { signedIn = true, viewport = { width: 390, height: 844 } } = {}) {
+async function setup(t, { signedIn = true, viewport = { width: 390, height: 844 }, ownerUid = 'member-A', activity = null } = {}) {
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce', hasTouch: true });
-  const state = { authRequests: [], authStatus: 200, authGate: null, blocked: [] };
+  const state = { authRequests: [], authStatus: 200, authGate: null, blocked: [], notifWrites: [], activity: structuredClone(activity || { users: {}, posts: {}, notifs: [] }) };
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== origin) { state.blocked.push(url.href); await route.abort('blockedbyclient'); return; }
@@ -79,26 +87,38 @@ async function setup(t, { signedIn = true, viewport = { width: 390, height: 844 
         await route.fulfill({ status: state.authStatus, json: { error: state.authStatus === 401 ? 'Invalid credentials' : 'Service unavailable' } });
         return;
       }
-      await route.fulfill({ status: 200, json: { access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_in: 3600, user: { id: 'member-A', email: 'member@example.test' } } });
+      await route.fulfill({ status: 200, json: { access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_in: 3600, user: { id: ownerUid, email: 'member@example.test' } } });
       return;
     }
     if (url.pathname.startsWith('/rest/v1/')) {
       if (url.pathname.endsWith('/entitlements')) { await route.fulfill({ json: [{ tier: 'free', status: 'active', current_period_end: '2099-01-01T00:00:00Z' }] }); return; }
       if (url.pathname.endsWith('/accounts') && request.method() === 'GET') { await route.fulfill({ json: [{ data: accountState }] }); return; }
-      if (url.pathname.endsWith('/rpc/get_state')) { await route.fulfill({ json: { users: {}, posts: {}, requests: {}, comments: {}, stories: {} } }); return; }
+      if (url.pathname.endsWith('/rpc/get_state')) { await route.fulfill({ json: { users: state.activity.users, posts: state.activity.posts, requests: {}, comments: {}, stories: {} } }); return; }
+      if (url.pathname.endsWith('/notifications')) {
+        const rows = state.activity.notifs.filter(row => url.searchParams.get('uid') === 'eq.' + row.uid);
+        if (request.method() === 'GET') { await route.fulfill({ json: rows }); return; }
+        if (request.method() === 'PATCH') {
+          const body = request.postDataJSON();
+          state.notifWrites.push({ query: Object.fromEntries(url.searchParams), body, prefer: request.headers().prefer, authorization: request.headers().authorization });
+          const acknowledged = rows.filter(row => url.searchParams.get('id') === 'in.(' + row.id + ')' && body.read === true);
+          acknowledged.forEach(row => { row.read = true; });
+          await route.fulfill({ json: acknowledged.map(({ id, uid, read }) => ({ id, uid, read })) });
+          return;
+        }
+      }
       await route.fulfill({ json: [] });
       return;
     }
     await route.continue();
   });
-  await context.addInitScript(({ stored, signedIn }) => {
+  await context.addInitScript(({ stored, signedIn, ownerUid }) => {
     if (signedIn) {
-      localStorage.setItem('formora_supa_session', JSON.stringify({ uid: 'member-A', email: 'member@example.test', access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600 }));
+      localStorage.setItem('formora_supa_session', JSON.stringify({ uid: ownerUid, email: 'member@example.test', access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600 }));
       localStorage.setItem('gymcoach_auth', JSON.stringify({ accounts: [{ id: 'local-A', email: 'member@example.test', name: 'Saved Member', provider: 'supabase', emailVerified: true }], currentUserId: 'local-A' }));
       localStorage.setItem('gymcoach_v1_local-A', JSON.stringify(stored));
     }
     localStorage.setItem('fm_dl_x', '1');
-  }, { stored: accountState, signedIn });
+  }, { stored: accountState, signedIn, ownerUid });
   const page = await context.newPage(), errors = [];
   page.setDefaultTimeout(10000);
   page.on('pageerror', error => errors.push(error.message));
@@ -243,18 +263,13 @@ test('DEF-062: saving replaces the draft, and logging out discards it entirely',
 // ------------------------------------------------------------------ DEF-063
 
 test('DEF-063: an Alerts row can be focused and activated from the keyboard', async t => {
-  const { page } = await setup(t, { viewport: { width: 1366, height: 900 } });
-  await page.evaluate(() => {
-    App.pollNotifs = async () => {};   // the 12s cloud poll would replace the seeded fixture list
-    App._notifRequest = (App._notifRequest || 0) + 1;
-    Social.cloud.users = [{ uid: 'member-B', name: 'Other member', username: 'other_member', privacy: 'public', colors: ['#111', '#222'] }];
-    Social.cloud.notifs = [{ id: 'notif-1', uid: 'member-A', type: 'like', actor: 'member-B', ts: Date.now(), read: false }];
-    window.__activated = [];
-    App.openNotif = (actor, type) => window.__activated.push({ actor, type });
-    App.selectTab('alerts');
-  });
-  const row = page.locator('#view-alerts .notif-item').first();
+  const { page, state } = await setup(t, { viewport: { width: 1366, height: 900 }, ownerUid: alertOwner, activity: keyboardActivity });
+  await page.locator('#view-feed [data-saved-post="keyboard-post"]').waitFor();
+  await page.locator('#tabbar [data-tab="alerts"]').click();
+  await page.evaluate(() => App.pollNotifs());
+  const row = page.locator('#view-alerts .notif-item[data-notif-id="notif-1"]');
   await row.waitFor();
+  const initialOpen = await page.evaluate(() => App._notifOpen || 0);
 
   const semantics = await row.evaluate(element => ({ tag: element.tagName, role: element.getAttribute('role'), tabIndex: element.tabIndex, nestedLinks: element.querySelectorAll('a,button').length }));
   assert.equal(semantics.role, 'button', 'The clickable row exposes an action role');
@@ -263,11 +278,17 @@ test('DEF-063: an Alerts row can be focused and activated from the keyboard', as
 
   assert.ok(await row.evaluate(element => { element.focus(); return document.activeElement === element; }), 'The row actually receives focus');
   await page.keyboard.press('Enter');
-  assert.deepEqual(await page.evaluate(() => window.__activated), [{ actor: 'member-B', type: 'like' }], 'Enter runs the same action as a click');
+  await page.waitForFunction(() => App.curTab === 'home' && !App._notifReadPending && Social.cloud.notifs.some(notification => notification.id === 'notif-1' && notification.read));
+  assert.equal(await page.evaluate(() => document.activeElement?.querySelector('[data-saved-post]')?.dataset.savedPost), 'keyboard-post', 'Enter focuses the referenced post through the real notification action');
+  assert.equal(await page.evaluate(() => App._notifOpen), initialOpen + 1, 'Enter dispatches exactly once');
+  assert.deepEqual(state.notifWrites, [{ query: { uid: 'eq.' + alertOwner, id: 'in.(notif-1)', select: 'id,uid,read' }, body: { read: true }, prefer: 'return=representation', authorization: 'Bearer fixture-access' }]);
 
+  await page.locator('#tabbar [data-tab="alerts"]').click();
   await row.evaluate(element => element.focus());
   await page.keyboard.press(' ');
-  assert.equal((await page.evaluate(() => window.__activated)).length, 2, 'Space activates the row too');
+  await page.waitForFunction(() => App.curTab === 'home' && document.activeElement?.querySelector('[data-saved-post]')?.dataset.savedPost === 'keyboard-post');
+  assert.equal(await page.evaluate(() => App._notifOpen), initialOpen + 2, 'Space activates the real row too, exactly once');
+  assert.equal(state.notifWrites.length, 1, 'Reopening an acknowledged row does not issue another read write');
 });
 
 // ------------------------------------------------------------------ DEF-068

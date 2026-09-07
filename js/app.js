@@ -1481,42 +1481,39 @@ const App = {
           ${this.sendIcon(`App.submitReelComment('${id}')`)}
         </div>
       </div>`;
-    setTimeout(() => { const i = document.getElementById("rc-input"); if (i) i.focus(); }, 60);
+    const input = document.getElementById("rc-input"), entry = this._entry;
+    setTimeout(() => { if (input && entry === this._entry && this._reelCmtId === id && document.getElementById("rc-input") === input) input.focus(); }, 60);
   },
   _reelCommentsList(id) {
     if (!Social.cloudActive()) return `<div class="sub" style="padding:14px 4px;text-align:center">Sign in online to comment.</div>`;
     const rows = Social.commentRows(id);
     if (!rows.length) return `<div class="sub" style="padding:18px 4px;text-align:center">No comments yet — be the first 👋</div>`;
-    const row = (c, isReply) => {
-      const who = Social._commenter(c.author);
-      return `<div class="cmt2 ${isReply ? "reply" : ""}"><span class="cmt2-av" onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${Social.avatar(who, isReply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${Social._renderMentions(c.body)} <span class="cmt2-time">${Social.timeAgo(c.ts)}</span>${isReply ? "" : ` <button class="cmt2-reply" onclick="App.reelReply('${c.author}')">Reply</button>`}</div></div>`;
-    };
-    return rows.map(item => row(item.comment, item.reply)).join("");
+    return rows.map(item => Social.commentNode(item.comment, [], item.reply, true)).join("");
   },
   reelReply(author) {
     const i = document.getElementById("rc-input");
     if (i) { i.value = "@" + Social._commenter(author).handle + " "; i.focus(); }
   },
-  submitReelComment(id) {
-    const i = document.getElementById("rc-input");
-    if (!i || !i.value.trim() || !Social.cloudActive()) return;
-    const body = i.value.trim(); i.value = "";
-    const post = Social.cloud.feed.find((p) => p.id === id);
-    const mentions = Social._parseMentions(body);
-    const nc = (typeof Cloud !== "undefined" && Cloud.addComment) ? Cloud.addComment(id, body, null, mentions, post ? post.author : null, null) : null;
-    if (nc) { if (!Social.cloud.comments) Social.cloud.comments = []; Social.cloud.comments.push(nc); }
-    const list = document.getElementById("rc-list"); if (list) { list.innerHTML = this._reelCommentsList(id); list.scrollTop = list.scrollHeight; }
-    const n = Social.commentCount(id);
-    const title = document.querySelector("#reel-comments .rc-title"); if (title) title.textContent = n + " comment" + (n === 1 ? "" : "s");
-    const badge = document.getElementById("rcnt-" + id); if (badge) badge.textContent = n;
+  async submitReelComment(id) {
+    const input = document.getElementById("rc-input");
+    if (!input || !input.value.trim() || !Social.cloudActive() || this._reelCmtId !== id) return false;
+    const raw = input.value, tab = this.curTab;
+    return Social._publishComment(id, input, null, "flex", () => this._reelCmtId === id && this.curTab === tab
+      && document.getElementById("rc-input") === input, () => {
+      if (input.value === raw) input.value = "";
+      const list = document.getElementById("rc-list"); if (list) { list.innerHTML = this._reelCommentsList(id); list.scrollTop = list.scrollHeight; }
+      const count = Social.commentCount(id);
+      const title = document.querySelector("#reel-comments .rc-title"); if (title) title.textContent = count + " comment" + (count === 1 ? "" : "s");
+      const badge = document.getElementById("rcnt-" + id); if (badge) badge.textContent = count;
+    });
   },
-  closeReelComments() {
+  closeReelComments(resume = true) {
     const id = this._reelCmtId;
     const ov = document.getElementById("reel-comments");
     if (ov) { ov.classList.remove("open"); ov.innerHTML = ""; }
     this._reelCmtId = null;
     const v = document.querySelector(`.reel[data-id="${id}"] .reel-vid`);
-    if (v) { const r = v.getBoundingClientRect(); if (r.top > -r.height && r.top < window.innerHeight) v.play().catch(() => {}); }
+    if (resume && v) { const r = v.getBoundingClientRect(); if (r.top > -r.height && r.top < window.innerHeight) v.play().catch(() => {}); }
   },
 
   // route legacy/deep-link targets (feed, today, progress, nutrition, overview) to the new nav
@@ -4117,30 +4114,8 @@ const App = {
     return this._profileAction("syncCover", []);
   },
   async saveSocialProfile() {
-    const p = Store.state.profile;
-    const bio = document.getElementById("p-bio");
-    if (bio) p.bio = bio.value.trim();
-    const unEl = document.getElementById("p-username");
-    if (unEl) {
-      const un = unEl.value.trim().toLowerCase().replace(/[^a-z0-9._]/g, "");
-      if (un && un !== p.username) {
-        if (SOCIAL_PERSONAS.some((x) => x.handle.toLowerCase() === un)) { alert("That username is taken — try another."); return; }
-        if (typeof Cloud !== "undefined" && Cloud.active() && (await Cloud.usernameTaken(un))) { alert("@" + un + " is already taken — please pick another."); return; }
-        p.username = un;
-      }
-    }
-    const privEl = document.getElementById("p-privacy");
-    if (privEl) p.privacy = privEl.value;
-    p.socials = {
-      instagram: (document.getElementById("soc-ig").value || "").trim(),
-      linkedin: (document.getElementById("soc-li").value || "").trim(),
-      facebook: (document.getElementById("soc-fb").value || "").trim(),
-    };
-    Store.save();
-    // The draft is intentionally kept: this button only saves the header fields, so any edit
-    // still open in the Profile form below must survive the re-render.
-    if (typeof Cloud !== "undefined" && Cloud.active()) Cloud.registerMe(p);
-    this.renderProfile();
+    if (window.AppProfile) return window.AppProfile.saveSocialProfile.call(this);
+    return this._profileAction("saveSocialProfile", []);
   },
 
   // ---- DEF-061: validate the complete Profile patch before any mutation ---

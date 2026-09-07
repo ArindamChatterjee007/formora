@@ -141,6 +141,23 @@ test('candidate files are classified allowlist-first without touching git', () =
   assert.deepEqual(scopeModule.classifyCandidateFiles(['js/app.js']), scopeModule.classifyCandidateFiles(['js/app.js']));
 });
 
+test('independent report readers stay private while excluded-path metadata remains public', context => {
+  const readers = ['tests/measurement-alerts-qa.test.cjs', 'tests/story-banner-independent.test.cjs'];
+  const helper = 'tests/product-lifecycle-independent.test.cjs';
+  const classification = scopeModule.classifyCandidateFiles([...readers, helper]);
+  assert.deepEqual(classification.privateFiles.map(entry => entry.file), readers);
+  assert.deepEqual(classification.publicFiles, [helper]);
+  assert.deepEqual(classification.unreviewedFiles, []);
+  const directory = checkout(context, [...readers, helper, ...publicOnly]);
+  const scoped = suites(directory, PUBLIC_SCOPE);
+  assert.ok(scoped.flatMap(suite => suite.files).includes(helper));
+  for (const reader of readers) {
+    assert.ok(!scoped.flatMap(suite => suite.files).includes(reader));
+    assert.ok(scoped.flatMap(suite => suite.excluded).some(entry => entry.file === reader && entry.present));
+  }
+  assert.ok(suites(directory, FULL_SCOPE).flatMap(suite => suite.files).includes(readers[0]));
+});
+
 test('unsafe and unknown candidate paths are rejected instead of assumed publishable', () => {
   const unsafe = ['../outside.js', 'js/../../etc/passwd', '/etc/passwd', 'C:\\Windows\\win.ini', 'js\\app.js', '.env',
     'supabase/.env.local', 'ios/App/App.mobileprovision', 'keys/service-account.pem', 'js//app.js', './js/app.js', 'js/', '', 'js/a\u0000b.js'];

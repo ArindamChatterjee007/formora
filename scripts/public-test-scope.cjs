@@ -13,6 +13,7 @@ const PRIVATE_RECORD_TESTS = [
   { file: 'tests/claim-register.test.cjs', records: ['office/claim-register.json'], gap: 'Public marketing/claim wording conformance to the private claim register' },
   { file: 'tests/dependency-audit.test.cjs', records: ['office/dependency-audit.json'], gap: 'Dependency audit conformance to the private dependency record' },
   { file: 'tests/funnel-events.test.cjs', records: ['office/measurement-contract.json', 'office/board.json'], gap: 'Funnel/measurement event conformance to the private measurement contract' },
+  { file: 'tests/measurement-alerts-qa.test.cjs', records: ['office/reviews/2026-09-07-qa/measurement-alerts.json', 'office/retests/2026-09-07/story-activation.json'], gap: 'Independent measurement and Alerts checks bound to private QA reports' },
   { file: 'tests/moderation-lifecycle.test.cjs', records: ['office/operations-2026-09-05.json'], gap: 'Moderation lifecycle conformance to the private operations record' },
   { file: 'tests/office-assignments.test.cjs', records: ['office/dashboard-model.js', 'office/board.json', 'office/planning-2026-09-05.json'], gap: 'Office assignment/workload rules' },
   { file: 'tests/office-dashboard.e2e.cjs', records: ['office/dashboard.html', 'office/dashboard.js', 'office/dashboard-model.js', 'office/board.json'], gap: 'Office dashboard browser behaviour' },
@@ -26,6 +27,7 @@ const PRIVATE_RECORD_TESTS = [
   { file: 'tests/office-workflow.test.cjs', records: ['office/dashboard-model.js', 'office/board.json'], gap: 'Office workflow state transitions' },
   { file: 'tests/push-subscriptions.test.cjs', records: ['office/push-rollout.json'], gap: 'Push subscription conformance to the private push rollout record' },
   { file: 'tests/qa-conventions-report.test.cjs', records: ['office/qa-conventions-2026-09-06.json', 'office/board.json'], gap: 'QA conventions report conformance to the private QA record' },
+  { file: 'tests/story-banner-independent.test.cjs', records: ['office/reviews/2026-09-07-qa/story-ui-geometry.json'], gap: 'Independent Story banner paint checks bound to the private geometry finding' },
   { file: 'tests/stories-app.e2e.cjs', records: ['office/story-interactions-rollout.json'], gap: 'Story application browser flows that assert the private story interactions rollout contract' },
   { file: 'tests/stories-client.test.cjs', records: ['office/story-interactions-rollout.json'], gap: 'Story client conformance to the private story interactions rollout contract' },
   { file: 'tests/stories-viewer.e2e.cjs', records: ['office/story-interactions-rollout.json'], gap: 'Story viewer browser flows that assert the private story interactions rollout contract' },
@@ -38,8 +40,8 @@ const OFFICE_TOOLING_TESTS = [
     reason: 'Exercises office-only tooling (scripts/office-server.cjs) that is excluded from the public fingerprint, so a public run could not detect changes to its subject' }
 ];
 
-// Test files that mention an office/ path only as their own throwaway fixture, never a repository office record.
-const FIXTURE_ONLY_OFFICE_LITERALS = ['tests/native-bundle.test.cjs', 'tests/public-test-scope.test.cjs', 'tests/stage-site.test.cjs'];
+// Office-path literals used only in throwaway fixtures or excluded-path metadata, never to read a repository office record.
+const FIXTURE_ONLY_OFFICE_LITERALS = ['tests/native-bundle.test.cjs', 'tests/product-lifecycle-independent.test.cjs', 'tests/public-test-scope.test.cjs', 'tests/stage-site.test.cjs'];
 
 const EXCLUDED_TESTS = [...PRIVATE_RECORD_TESTS, ...OFFICE_TOOLING_TESTS].sort((a, b) => a.file < b.file ? -1 : 1);
 const EXCLUDED_FILES = new Set(EXCLUDED_TESTS.map(entry => entry.file));

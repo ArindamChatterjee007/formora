@@ -263,6 +263,13 @@ const Cloud = {
     if (typeof SupaAuth !== "undefined" && SupaAuth.active && SupaAuth.active()) return SupaAuth.uid() || null;
     return this.me;
   },
+  async _withDeadline(controller, controllers, work) {
+    const cancelled = new Promise(resolve => controller.signal.addEventListener("abort", () => resolve(null), { once: true }));
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try { return await Promise.race([work(), cancelled]); }
+    catch { return null; }
+    finally { clearTimeout(timer); controllers.delete(controller); }
+  },
   async _writeAction(path, method, body, targetId, options = {}) {
     if (!this.base || !this.key) return false;
     const uid = this._actionUid(), payload = body === undefined ? undefined : JSON.stringify(body);
@@ -271,8 +278,7 @@ const Cloud = {
     const current = () => this._actionUid() === uid && !controller.signal.aborted && (!options.owner || (this._publishingUid() === uid && this._publishingGeneration === generation));
     const controllers = this._publishingControllers || (this._publishingControllers = new Set());
     if (options.owner) controllers.add(controller);
-    const timer = setTimeout(() => controller.abort(), 6000);
-    try {
+    return await this._withDeadline(controller, controllers, async () => {
       const secure = typeof SupaAuth !== "undefined" && SupaAuth.active();
       const token = secure ? await SupaAuth.token() : null;
       if (!uid || (options.owner && options.owner !== uid) || !current() || (secure && !token)) return false;
@@ -291,8 +297,7 @@ const Cloud = {
       }
       if (!current() || !Array.isArray(rows) || rows.length !== 1 || !rows[0] || rows[0].id !== targetId || (options.matches && !options.matches(rows[0]))) return false;
       return options.receipt ? rows[0] : true;
-    } catch (error) { return false; }
-    finally { clearTimeout(timer); controllers.delete(controller); }
+    }) || false;
   },
   async deletePost(id) {
     const uid = this._actionUid();
@@ -360,15 +365,38 @@ const Cloud = {
   },
 
   // ---- comments (threaded), mentions & notifications ----
-  addComment(postId, body, parentId, mentions, postAuthor, parentAuthor) {
-    if (!this.active()) return null;
-    const id = "c" + Date.now() + Math.floor(Math.random() * 99999);
-    const m = mentions || [];
-    this._write("/comments", { id, post_id: postId, author: this.me, body, parent_id: parentId || null, mentions: m }, { Prefer: "return=minimal" });
-    if (parentId && parentAuthor && parentAuthor !== this.me) this.notify(parentAuthor, "reply", postId, body);
-    else if (postAuthor && postAuthor !== this.me) this.notify(postAuthor, "comment", postId, body);
-    m.forEach((u) => { if (u && u !== this.me && u !== postAuthor) this.notify(u, "mention", postId, body); });
-    return { id, post_id: postId, author: this.me, body, parent_id: parentId || null, mentions: m, ts: Date.now() };
+  async addComment(postId, body, parentId, mentions, postAuthor, parentAuthor, id = this._newActionId()) {
+    const owner = this._publishingUid(), generation = this._publishingGeneration;
+    if (!this.active() || !owner || this.me !== owner || !this._notificationId(id) || !this._notificationId(postId)
+      || typeof body !== "string" || !body.trim() || (parentId != null && !this._notificationId(parentId))
+      || (mentions != null && (!Array.isArray(mentions) || !mentions.every(uid => this._notificationId(uid))))) return false;
+    const payload = { id, post_id: postId, author: owner, body, parent_id: parentId || null, mentions: [...(mentions || [])] };
+    const writes = this._commentWrites || (this._commentWrites = new Map()), previous = writes.get(id);
+    if (previous && previous.owner === owner && previous.generation === generation) return this._samePayload(previous.payload, payload) ? previous.work : false;
+    const intent = { owner, generation, payload };
+    const current = () => this.me === owner && this._publishingUid() === owner && this._publishingGeneration === generation;
+    intent.work = (async () => {
+      try {
+        const row = await this._writeAction("/comments?on_conflict=id", "POST", payload, id, {
+          owner, receipt: true, prefer: "resolution=ignore-duplicates,return=representation",
+          reconcile: "/comments?id=eq." + encodeURIComponent(id) + "&author=eq." + encodeURIComponent(owner) + "&select=id,post_id,author,body,parent_id,mentions,ts",
+          matches: result => result.author === owner && result.post_id === postId && result.body === body
+            && result.parent_id === payload.parent_id && this._samePayload(result.mentions, payload.mentions),
+        });
+        if (!row || !current()) return false;
+        const recipients = new Map();
+        if (row.parent_id && parentAuthor && parentAuthor !== owner) recipients.set(parentAuthor, "reply");
+        else if (postAuthor && postAuthor !== owner) recipients.set(postAuthor, "comment");
+        row.mentions.forEach(uid => { if (uid !== owner && uid !== postAuthor && !recipients.has(uid)) recipients.set(uid, "mention"); });
+        for (const [uid, type] of recipients) {
+          if (!current()) return false;
+          try { await this.notify(uid, type, row.post_id, null, row.id); } catch (error) {}
+        }
+        return current() ? row : false;
+      } finally { if (writes.get(id) === intent) writes.delete(id); }
+    })();
+    writes.set(id, intent);
+    return intent.work;
   },
   async notify(uid, type, postId, body, eventId) {
     if (!this._notificationId(uid) || !this._notificationType(type) || (postId != null && !this._notificationId(postId)) || (eventId != null && !this._notificationId(eventId))) return false;
@@ -413,30 +441,25 @@ const Cloud = {
     controllers.add(controller);
     const current = () => !controller.signal.aborted && this.me === owner && this._publishingUid() === owner
       && this._publishingGeneration === generation && this._notificationGeneration === notificationGeneration;
-    const cancelled = new Promise(resolve => controller.signal.addEventListener("abort", () => resolve(null), { once: true }));
-    const timer = setTimeout(() => controller.abort(), 6000);
-    try {
-      const work = (async () => {
-        const secure = typeof SupaAuth !== "undefined" && SupaAuth.active();
-        const token = secure ? await SupaAuth.token() : null;
-        if (!current() || (secure && !token) || (window.USE_SUPABASE_AUTH && !secure)) return null;
-        const request = async (path, options = {}) => {
-          if (!current()) throw new Error("notification_account_changed");
-          const result = await fetch(this.base + path, {
-            method: options.method || "GET", signal: controller.signal,
-            headers: this._headers({ ...(secure ? { Authorization: "Bearer " + token } : {}), ...(options.prefer ? { Prefer: options.prefer } : {}) }),
-            body: options.body === undefined ? undefined : JSON.stringify(options.body),
-          });
-          if (!result.ok || !current()) throw new Error("notification_unavailable");
-          const rows = options.minimal ? true : await result.json();
-          if (!current()) throw new Error("notification_account_changed");
-          return rows;
-        };
-        const result = await operation({ owner, request, current });
-        return current() ? result : null;
-      })().catch(() => null);
-      return await Promise.race([work, cancelled]);
-    } finally { clearTimeout(timer); controllers.delete(controller); }
+    return this._withDeadline(controller, controllers, async () => {
+      const secure = typeof SupaAuth !== "undefined" && SupaAuth.active();
+      const token = secure ? await SupaAuth.token() : null;
+      if (!current() || (secure && !token) || (window.USE_SUPABASE_AUTH && !secure)) return null;
+      const request = async (path, options = {}) => {
+        if (!current()) throw new Error("notification_account_changed");
+        const result = await fetch(this.base + path, {
+          method: options.method || "GET", signal: controller.signal,
+          headers: this._headers({ ...(secure ? { Authorization: "Bearer " + token } : {}), ...(options.prefer ? { Prefer: options.prefer } : {}) }),
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        });
+        if (!result.ok || !current()) throw new Error("notification_unavailable");
+        const rows = options.minimal ? true : await result.json();
+        if (!current()) throw new Error("notification_account_changed");
+        return rows;
+      };
+      const result = await operation({ owner, request, current });
+      return current() ? result : null;
+    });
   },
   async getNotifications() {
     return this._notificationRequest(async ({ owner, request }) => this._notificationRows(await request(

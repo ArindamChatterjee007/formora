@@ -50,9 +50,9 @@ test('startup asset server never exposes workspace metadata, backups or traversa
   assert.equal((await fetch(origin + '/index.html')).status, 200);
 });
 
-async function setup(t, { localProfile = true, expired = true, viewport = { width: 390, height: 844 } } = {}) {
+async function setup(t, { localProfile = true, expired = true, viewport = { width: 390, height: 844 }, ownerUid = 'member-A' } = {}) {
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce', hasTouch: true });
-  const state = { uid: 'member-A', token: 'fresh-A', tier: 'elite', membershipStatus: 200, accountStatus: 200, accountRecord: accountState, refreshStatus: 200, refreshCalls: 0, reads: [], writes: [], notifs: [], notifGate: null, refreshGate: null, membershipGate: null, accountGate: null, refreshSeen: deferred(), membershipSeen: deferred(), accountSeen: deferred(), notifSeen: deferred() };
+  const state = { uid: ownerUid, token: 'fresh-A', tier: 'elite', membershipStatus: 200, accountStatus: 200, accountRecord: accountState, refreshStatus: 200, refreshCalls: 0, reads: [], writes: [], notifs: [], notifGate: null, refreshGate: null, membershipGate: null, accountGate: null, refreshSeen: deferred(), membershipSeen: deferred(), accountSeen: deferred(), notifSeen: deferred() };
   Object.assign(state, { posts: [], comments: [], reports: [], actionStatus: 200, actionGate: null, actionSeen: deferred() });
   await context.route('**/*', async route => {
     const req = route.request(), url = new URL(req.url());
@@ -62,7 +62,7 @@ async function setup(t, { localProfile = true, expired = true, viewport = { widt
         state.refreshCalls++; state.refreshSeen.resolve();
         if (state.refreshGate) await state.refreshGate.promise;
       }
-      await route.fulfill({ status: url.searchParams.get('grant_type') === 'refresh_token' ? state.refreshStatus : 200, json: { access_token: state.token, refresh_token: 'fixture-refresh', expires_in: 3600, user: { id: state.uid, email: state.uid === 'member-A' ? 'member@example.test' : 'free@example.test' } } });
+      await route.fulfill({ status: url.searchParams.get('grant_type') === 'refresh_token' ? state.refreshStatus : 200, json: { access_token: state.token, refresh_token: 'fixture-refresh', expires_in: 3600, user: { id: state.uid, email: state.uid === ownerUid ? 'member@example.test' : 'free@example.test' } } });
       return;
     }
     if (url.pathname.startsWith('/rest/v1/')) {
@@ -74,7 +74,7 @@ async function setup(t, { localProfile = true, expired = true, viewport = { widt
         if (state.membershipGate) await state.membershipGate.promise;
         await route.fulfill({ status: membershipStatus, json: membershipStatus === 200 ? [{ tier, status: 'active', current_period_end: '2099-01-01T00:00:00Z' }] : { error: 'fixture_failure' } });
       } else if (url.pathname.endsWith('/accounts') && req.method() === 'GET') {
-        const records = state.uid === 'member-A' ? [{ data: state.accountRecord }] : [];
+        const records = state.uid === ownerUid ? [{ data: state.accountRecord }] : [];
         state.accountSeen.resolve();
         if (state.accountGate) await state.accountGate.promise;
         await route.fulfill({ status: state.accountStatus, json: state.accountStatus === 200 ? records : { error: 'fixture_account_failure' } });
@@ -110,9 +110,9 @@ async function setup(t, { localProfile = true, expired = true, viewport = { widt
     }
     await route.continue();
   });
-  await context.addInitScript(({ stored, localProfile, expired }) => {
+  await context.addInitScript(({ stored, localProfile, expired, ownerUid }) => {
     if (!localStorage.getItem('fixture-seeded')) {
-    localStorage.setItem('formora_supa_session', JSON.stringify({ uid: 'member-A', email: 'member@example.test', access_token: expired ? 'expired-A' : 'fresh-A', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + (expired ? -60 : 3600) }));
+    localStorage.setItem('formora_supa_session', JSON.stringify({ uid: ownerUid, email: 'member@example.test', access_token: expired ? 'expired-A' : 'fresh-A', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + (expired ? -60 : 3600) }));
     localStorage.setItem('gymcoach_auth', JSON.stringify({ accounts: [{ id: 'local-A', email: 'member@example.test', name: 'Startup tester', provider: 'email', emailVerified: true }], currentUserId: 'local-A' }));
     if (localProfile) localStorage.setItem('gymcoach_v1_local-A', JSON.stringify(stored));
     localStorage.setItem('fm_dl_x', '1');
@@ -126,7 +126,7 @@ async function setup(t, { localProfile = true, expired = true, viewport = { widt
         if (!shell.classList.contains('hidden')) window.firstVisibleTiers.push(document.documentElement.getAttribute('data-tier'));
       }).observe(shell, { attributes: true, attributeFilter: ['class'] });
     });
-  }, { stored: accountState, localProfile, expired });
+  }, { stored: accountState, localProfile, expired, ownerUid });
   const page = await context.newPage(), errors = [];
   page.setDefaultTimeout(8000);
   page.on('pageerror', e => errors.push(e.message));
@@ -134,8 +134,8 @@ async function setup(t, { localProfile = true, expired = true, viewport = { widt
   return { page, state };
 }
 
-async function signInFree(page, state) {
-  state.uid = 'member-B'; state.token = 'fresh-B'; state.tier = 'free';
+async function signInFree(page, state, uid = 'member-B') {
+  state.uid = uid; state.token = 'fresh-B'; state.tier = 'free';
   await page.evaluate(async () => {
     await SupaAuth.login('free@example.test', 'fixture-password');
     Auth.supabaseSignIn({ email: 'free@example.test', name: 'Free tester' });
@@ -420,8 +420,8 @@ test('logging out Elite and signing in Free never carries over the paid tier', a
 });
 
 test('private notifications clear at logout and late responses cannot enter the next account', async t => {
-  const { page, state } = await setup(t, { expired: false });
-  state.notifs = [{ id: 'private-A', type: 'message', actor: 'sender-A', body: 'Private message for A', read: false, ts: '2026-09-05T12:00:00Z' }];
+  const { page, state } = await setup(t, { expired: false, ownerUid: '11111111-1111-4111-8111-111111111111' });
+  state.notifs = [{ id: 'private-A', uid: state.uid, type: 'message', actor: '33333333-3333-4333-8333-333333333333', body: 'Private message for A', read: false, ts: '2026-09-05T12:00:00Z' }];
   await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#app-shell:not(.hidden)').waitFor();
   await page.waitForFunction(() => Social.cloud.notifs.length === 1);
@@ -432,7 +432,7 @@ test('private notifications clear at logout and late responses cannot enter the 
   await page.evaluate(() => App.logout());
   assert.deepEqual(await page.evaluate(() => Social.cloud.notifs), []);
   state.notifGate = null; state.notifs = [];
-  await signInFree(page, state);
+  await signInFree(page, state, '22222222-2222-4222-8222-222222222222');
   await page.evaluate(() => App.pollNotifs());
   gate.resolve();
   await page.evaluate(() => window.oldNotification);

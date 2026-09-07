@@ -150,7 +150,8 @@ async function openApp(testContext, { tier = 'free', width = 390, height = 844, 
   const record = { name: testContext.name, tier, width, pageErrors: [], blockedExternal: [], observations: [], screenshots: [] };
   results.push(record);
   const state = fixtureState(tier);
-  const uid = 'a11y-0000-4000-8000-000000000001';
+  // Cloud._publishingUid() rejects a non-UUID owner under secure auth, so a fixture identity must be a real UUID.
+  const uid = 'a11ce55b-0000-4000-8000-000000000001';
   await context.route('**/*', async route => {
     try {
       const request = route.request();
@@ -166,7 +167,7 @@ async function openApp(testContext, { tier = 'free', width = 390, height = 844, 
       }
       if (url.pathname.startsWith('/rest/v1/')) {
         if (url.pathname.endsWith('/rpc/get_state')) {
-          const peerUid = 'a11y-0000-4000-8000-000000000002';
+          const peerUid = 'a11ce55b-0000-4000-8000-000000000002';
           const users = withPeer ? { [peerUid]: { uid: peerUid, name: 'Theme Peer', username: 'theme_peer',
             privacy: 'public', tier, bio: 'Offline contrast fixture.', following: [] } } : {};
           await route.fulfill({ json: { users, posts: {}, requests: {}, comments: {}, stories: {} } }); return;
@@ -308,6 +309,39 @@ function contrastInPage(element, role = 'text') {
     disabled: element.matches(':disabled,[aria-disabled="true"]') };
 }
 
+// Names the element that actually widens the document and whether an ancestor clips it, so a page-overflow
+// failure reports an owning selector instead of only a boolean. body/html overflow is propagated to the
+// viewport rather than clipping in-flow content, so neither counts as a clipping ancestor here.
+function overflowEvidenceInPage() {
+  const root = document.documentElement;
+  const round = value => Math.round(value * 100) / 100;
+  const describe = element => {
+    const parts = [];
+    for (let node = element; node && node !== root && parts.length < 5; node = node.parentElement) {
+      parts.unshift(node.tagName.toLowerCase() + (node.id ? '#' + node.id : '')
+        + [...node.classList].slice(0, 3).map(name => '.' + name).join(''));
+    }
+    return parts.join(' > ');
+  };
+  const elements = [...document.querySelectorAll('body *')].filter(element => element.checkVisibility()).map(element => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    let clippedBy = null;
+    for (let parent = element.parentElement; parent && parent !== document.body && !clippedBy; parent = parent.parentElement) {
+      if (getComputedStyle(parent).overflowX !== 'visible') clippedBy = describe(parent);
+    }
+    return { selector: describe(element), right: round(box.right), width: round(box.width),
+      scrollWidth: element.scrollWidth, clientWidth: element.clientWidth, minWidth: style.minWidth,
+      fontSize: style.fontSize, position: style.position, overflowX: style.overflowX, whiteSpace: style.whiteSpace,
+      display: style.display, gridTemplateColumns: style.gridTemplateColumns, clippedBy };
+  }).filter(entry => entry.right > root.clientWidth + 1 || entry.scrollWidth > entry.clientWidth + 1)
+    .sort((first, second) => (second.right - first.right) || (second.scrollWidth - first.scrollWidth))
+    .slice(0, 12);
+  return { documentWidth: root.scrollWidth, documentClientWidth: root.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth, innerWidth: window.innerWidth,
+    unclipped: elements.filter(entry => !entry.clippedBy).map(entry => entry.selector), elements };
+}
+
 async function renderMediaSurfaceInPage(surface) {
   const canvas = document.createElement('canvas');
   canvas.width = 360;
@@ -350,7 +384,7 @@ for (const tier of ['free', 'pro', 'elite']) {
       { id: 'meal-add', selector: '#view-nutrition .mi-add', role: 'icon',
         open: () => page.evaluate(() => App.goTab('nutrition')) },
       { id: 'send-message', selector: '#view-feed .send-ico', role: 'icon',
-        open: () => page.evaluate(async () => { await Social.openDM('a11y-0000-4000-8000-000000000002'); }), close: () => page.evaluate(() => App.selectTab('home')) },
+        open: () => page.evaluate(async () => { await Social.openDM('a11ce55b-0000-4000-8000-000000000002'); }), close: () => page.evaluate(() => App.selectTab('home')) },
       { id: 'story-share', selector: '#story-preview .sp-share', role: 'text',
         open: () => page.evaluate(renderMediaSurfaceInPage, 'story'), close: () => page.evaluate(() => Social.cancelStory()) },
       { id: 'camera-share', selector: '#camera-ov .cam-share', role: 'text',
@@ -631,6 +665,7 @@ for (const width of [320, 390, 1366]) {
       .map(element => ({ label: element.textContent.trim(), fontSize: parseFloat(getComputedStyle(element).fontSize),
         height: element.getBoundingClientRect().height, width: element.getBoundingClientRect().width })));
     assert.ok(before.length > 0, 'The Profile screen must render its controls before enlargement is measured');
+    const baselineOverflow = await page.evaluate(overflowEvidenceInPage);
     await page.evaluate(() => {
       const sizes = [...document.querySelectorAll('#view-profile *')].filter(element => element.checkVisibility())
         .map(element => [element, parseFloat(getComputedStyle(element).fontSize)]);
@@ -657,9 +692,13 @@ for (const width of [320, 390, 1366]) {
       });
       return { viewport: innerWidth, documentWidth: document.documentElement.scrollWidth, buttons };
     });
-    record.observations.push({ before, ...geometry });
+    const overflow = await page.evaluate(overflowEvidenceInPage);
+    record.observations.push({ before, ...geometry, baselineOverflow, overflow });
     await capture(page, record, '200-percent');
-    assert.ok(geometry.documentWidth <= width + 1, 'No page-level horizontal scrolling');
+    assert.ok(geometry.documentWidth <= width + 1, 'No page-level horizontal scrolling: '
+      + JSON.stringify({ viewportWidth: width, documentWidth: geometry.documentWidth,
+        documentWidthBeforeEnlargement: baselineOverflow.documentWidth,
+        overflowingAfterEnlargement: overflow.elements, overflowingBeforeEnlargement: baselineOverflow.elements }, null, 2));
     assert.equal(geometry.buttons.length, before.length);
     geometry.buttons.forEach((button, index) => {
       assert.equal(button.requestedFontSize, before[index].fontSize * 2, 'Every explicit pixel font requests exactly 200%');

@@ -220,7 +220,7 @@ test('Cold cover calls preserve file selection and last-selection-wins ordering'
   assert.equal(harness.context.Store.state.profile.cover, 'data:image/jpeg;base64,c2Vjb25k');
 });
 
-for (const method of ['uploadCover', 'syncCover']) {
+for (const method of ['uploadCover', 'syncCover', 'saveSocialProfile']) {
   test(`A cold ${method} cannot mutate a different account after its module arrives`, async () => {
     const harness = fixture();
     harness.context.Cloud = { active: () => true, me: 'owner-a' };
@@ -246,6 +246,34 @@ test('A failed cold cover load returns false and reports a retry without changin
   assert.equal(harness.context.Store.state.profile.cover, 'Keep this cover');
   assert.match(harness.messages[0], /try again/i);
 });
+
+for (const cold of [false, true]) {
+  test(`Profile social settings save through the ${cold ? 'cold' : 'loaded'} public entry without clearing the fitness draft`, async () => {
+    const harness = fixture();
+    const calls = [];
+    harness.context.Cloud = { active: () => false };
+    harness.context.SOCIAL_PERSONAS = [];
+    harness.context.Store.state.profile = { username: 'member_a' };
+    harness.context.Store.save = () => calls.push('save');
+    harness.app.renderProfile = preserve => calls.push(['render', preserve]);
+    harness.app._profileDraft = { retained: true };
+    for (const [id, value] of Object.entries({ 'p-bio': ' Updated bio ', 'p-username': 'MEMBER_A',
+      'p-privacy': 'private', 'soc-ig': ' fitness ', 'soc-li': '', 'soc-fb': '' })) harness.fields.set(id, { id, value });
+    if (!cold) vm.runInContext(profileSource, harness.context);
+    const operation = harness.app.saveSocialProfile();
+    if (cold) {
+      assert.equal(harness.scripts.length, 1);
+      assert.deepEqual(calls, []);
+      await harness.loaded(true);
+    }
+    await operation;
+    assert.equal(harness.context.Store.state.profile.bio, 'Updated bio');
+    assert.equal(harness.context.Store.state.profile.privacy, 'private');
+    assert.equal(harness.context.Store.state.profile.socials.instagram, 'fitness');
+    assert.equal(harness.app._profileDraft.retained, true);
+    assert.deepEqual(calls, ['save', ['render', undefined]]);
+  });
+}
 
 test('The unchanged top-level JS budget passes without eagerly loading the Profile module', () => {
   const document = parse(fs.readFileSync(path.join(root, 'index.html'), 'utf8'));

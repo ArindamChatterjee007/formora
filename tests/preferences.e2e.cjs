@@ -113,7 +113,7 @@ before(async () => {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${server.address().port}`;
-  browser = await chromium.launch({ headless: process.env.PREFERENCES_E2E_HEADLESS === '1',
+  browser = await chromium.launch({ headless: process.env.PREFERENCES_E2E_HEADLESS !== '0',
     executablePath: process.env.OFFICE_BROWSER_EXECUTABLE || undefined });
 });
 

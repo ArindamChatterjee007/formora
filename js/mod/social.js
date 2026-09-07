@@ -24,7 +24,10 @@ const Social = {
     if (typeof Stories !== "undefined") Stories.reset();
     this.cancelStory(); this.closeStory();
     if (typeof Cloud !== "undefined" && Cloud.resetPublishing) Cloud.resetPublishing();
+    if (typeof App !== "undefined" && App.closeReelComments) App.closeReelComments(false);
     this._pendingActions = new Set();
+    this._commentRequests = new Map();
+    this._replyTo = null; this._openCmt = null;
     this._postRequest = null;
     this._postText = "";
     this.pendingPost = null;
@@ -723,14 +726,14 @@ const Social = {
         ${p.music ? `<div class="music-pill">🎵 <b>${esc(p.music.title)}</b> · ${esc(p.music.artist)}</div>` : ""}
         <div class="post-actions">
           <button class="pa ${p.likedByMe ? "on" : ""}" onclick="Social.likePost('${p.id}')">${App.ic("heart", { size: 22, solid: p.likedByMe })} <span>${p.likes}</span></button>
-          <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
+          <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span data-comment-count>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
           <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">${App.ic("reshare", { size: 22 })} <span>${p.reshares || 0}</span></button>
           <button class="pa share" title="Share" onclick="Social.sharePost('${p.id}')">${App.ic("share", { size: 21 })}</button>
           <button class="pa save ${saved ? "on" : ""}" title="Save" aria-label="Save post" aria-pressed="${saved}" data-saved-post="${esc(p.id)}" onclick="Social.toggleSave('${p.id}')">${App.ic("bookmark", { size: 21, solid: saved })}</button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
-          ${this.cloudActive() ? this.renderCommentThread(p.id) : comments}
+          <div class="comment-thread">${this.cloudActive() ? this.renderCommentThread(p.id) : comments}</div>
           <div class="cmt-add">
             <input id="ci-${p.id}" placeholder="Add a comment… @ to mention" onkeydown="if(event.key==='Enter')Social.submitComment('${p.id}')">
             ${App.sendIcon(`Social.submitComment('${p.id}')`)}
@@ -1289,7 +1292,13 @@ const Social = {
     }
     this.toggleLike(id); this.render();
   },
-  toggleComments(id) { const c = document.getElementById("cmts-" + id); if (c) { const show = c.style.display === "none"; c.style.display = show ? "block" : "none"; this._openCmt = show ? id : null; } },
+  toggleComments(id) {
+    const panel = document.getElementById("cmts-" + id); if (!panel) return;
+    const show = panel.style.display === "none";
+    panel.style.display = show ? "block" : "none"; panel._commentView = {};
+    this._openCmt = show ? id : null;
+    this._setCommentPending(document.getElementById("ci-" + id), false);
+  },
   // ---- cloud comments: threaded + @mentions ----
   commentsFor(postId) { const hid = this._list("fm_hidden_cmt"); return (this.cloud.comments || []).filter((c) => c.post_id === postId && !hid.includes(c.id) && !this.isBlocked(c.author)).sort((a, b) => (a.ts || 0) - (b.ts || 0)); },
   commentCount(postId) { return this.commentsFor(postId).length; },
@@ -1326,31 +1335,68 @@ const Social = {
     }
     return rows;
   },
-  commentNode(c, all, reply = false) {
+  commentNode(c, all, reply = false, flex = false) {
     const who = this._commenter(c.author);
-    return `<div class="cmt2${reply ? " reply" : ""}"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, reply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button>${this._cmtMore(c)}</div></div>`;
+    const profileAction = `${flex ? "App.closeReelComments();" : ""}Social.viewProfile('${c.author}')`;
+    const replyAction = flex ? `App.reelReply('${c.author}')` : `Social.startReply('${c.post_id}','${c.id}','${c.author}')`;
+    return `<div class="cmt2${reply ? " reply" : ""}"><span class="cmt2-av" onclick="${profileAction}">${this.avatar(who, reply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="${profileAction}">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span>${!flex || !reply ? ` <button class="cmt2-reply" onclick="${replyAction}">Reply</button>` : ""}${flex ? "" : this._cmtMore(c)}</div></div>`;
   },
   startReply(postId, parentId, parentAuthor) {
     this._replyTo = { postId, parentId, parentAuthor };
     const i = document.getElementById("ci-" + postId);
     if (i) { i.value = "@" + this._commenter(parentAuthor).handle + " "; i.focus(); }
   },
-  submitComment(id) {
-    const i = document.getElementById("ci-" + id); if (!i || !i.value.trim()) return;
-    const body = i.value.trim();
-    if (this.cloudActive()) {
-      const post = this.cloud.feed.find((p) => p.id === id);
-      const mentions = this._parseMentions(body);
-      const reply = (this._replyTo && this._replyTo.postId === id) ? this._replyTo : null;
-      const nc = Cloud.addComment(id, body, reply ? reply.parentId : null, mentions, post ? post.author : null, reply ? reply.parentAuthor : null);
-      if (nc) { if (!this.cloud.comments) this.cloud.comments = []; this.cloud.comments.push(nc); }
-      this._replyTo = null; this._openCmt = id;
-      if (typeof App !== "undefined" && App.toast) App.toast("Comment posted");
-      this.render();
-      const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
-      return;
+  _setCommentPending(input, pending) {
+    if (!input) return;
+    if (pending) input.setAttribute("aria-busy", "true"); else input.removeAttribute("aria-busy");
+    const button = input.parentElement?.querySelector(".send-ico");
+    if (button) button.disabled = pending;
+  },
+  async _publishComment(id, input, reply, surface, viewCurrent, commit) {
+    const scope = this._actionScope(), state = this.state, entry = App._entry, owner = Cloud._publishingUid(), generation = Cloud._publishingGeneration;
+    const current = () => scope === this._actionScope() && state === this.state && entry === App._entry
+      && generation === Cloud._publishingGeneration && viewCurrent();
+    const key = surface + ":" + id, pendingKey = scope + ":create-comment:" + key;
+    const pending = this._pendingActions || (this._pendingActions = new Set());
+    if (!state || !current() || pending.has(pendingKey)) return false;
+    const post = this.cloud.feed.find(post => post.id === id), body = input.value.trim();
+    const payload = { body, parentId: reply?.parentId || null, mentions: this._parseMentions(body), postAuthor: post?.author || null, parentAuthor: reply?.parentAuthor || null };
+    const requests = this._commentRequests || (this._commentRequests = new Map());
+    let request = requests.get(key);
+    if (!request || request.scope !== scope || request.entry !== entry || !Cloud._samePayload(request.payload, payload)) {
+      request = { scope, entry, payload, id: Cloud._newActionId() }; requests.set(key, request);
     }
-    this.addComment(id, i.value); this._openCmt = id; this.render();
+    pending.add(pendingKey); this._setCommentPending(input, true);
+    try {
+      let row = false;
+      try { if (owner && request.id) row = await Cloud.addComment(id, body, payload.parentId, payload.mentions, payload.postAuthor, payload.parentAuthor, request.id); } catch (error) {}
+      if (!current()) return false;
+      if (!row || row.id !== request.id || row.author !== owner || row.post_id !== id || row.body !== body
+        || row.parent_id !== payload.parentId || !Cloud._samePayload(row.mentions, payload.mentions)) {
+        if (App.toast) App.toast("Could not confirm the comment. Your draft is kept. Try again.");
+        return false;
+      }
+      if (!this.cloud.comments) this.cloud.comments = [];
+      if (!this.cloud.comments.some(comment => comment.id === row.id)) this.cloud.comments.push({ ...row, ts: new Date(row.ts).getTime() });
+      if (requests.get(key) === request) requests.delete(key);
+      commit(row); return true;
+    } finally { pending.delete(pendingKey); if (current()) this._setCommentPending(input, false); }
+  },
+  async submitComment(id) {
+    const input = document.getElementById("ci-" + id); if (!input || !input.value.trim()) return false;
+    if (this.cloudActive()) {
+      const panel = document.getElementById("cmts-" + id); if (!panel) return false;
+      const view = panel._commentView, sub = this.sub, tab = App.curTab, raw = input.value, reply = this._replyTo;
+      return this._publishComment(id, input, reply?.postId === id ? reply : null, "feed", () =>
+        document.getElementById("ci-" + id) === input && document.getElementById("cmts-" + id) === panel
+        && panel._commentView === view && panel.style.display !== "none" && this.sub === sub && App.curTab === tab, () => {
+        if (input.value === raw && this._replyTo === reply) { input.value = ""; this._replyTo = null; }
+        const thread = panel.querySelector(".comment-thread"); if (thread) thread.innerHTML = this.renderCommentThread(id);
+        const count = panel.closest(".post")?.querySelector("[data-comment-count]"); if (count) count.textContent = String(this.commentCount(id));
+        if (App.toast) App.toast("Comment posted");
+      });
+    }
+    this.addComment(id, input.value); this._openCmt = id; this.render();
     const c = document.getElementById("cmts-" + id); if (c) c.style.display = "block";
   },
   // ---- comment options (standard: own→delete, others→report/block, copy) ----

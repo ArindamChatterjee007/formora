@@ -1,4 +1,28 @@
 window.AppProfile = {
+  async saveSocialProfile() {
+    const profile = Store.state.profile;
+    const bio = document.getElementById("p-bio");
+    if (bio) profile.bio = bio.value.trim();
+    const usernameInput = document.getElementById("p-username");
+    if (usernameInput) {
+      const username = usernameInput.value.trim().toLowerCase().replace(/[^a-z0-9._]/g, "");
+      if (username && username !== profile.username) {
+        if (SOCIAL_PERSONAS.some(person => person.handle.toLowerCase() === username)) { alert("That username is taken — try another."); return; }
+        if (typeof Cloud !== "undefined" && Cloud.active() && (await Cloud.usernameTaken(username))) { alert("@" + username + " is already taken — please pick another."); return; }
+        profile.username = username;
+      }
+    }
+    const privacyInput = document.getElementById("p-privacy");
+    if (privacyInput) profile.privacy = privacyInput.value;
+    profile.socials = {
+      instagram: (document.getElementById("soc-ig").value || "").trim(),
+      linkedin: (document.getElementById("soc-li").value || "").trim(),
+      facebook: (document.getElementById("soc-fb").value || "").trim(),
+    };
+    Store.save();
+    if (typeof Cloud !== "undefined" && Cloud.active()) Cloud.registerMe(profile);
+    this.renderProfile();
+  },
   renderProfile(preserveDraft = true) {
     if (preserveDraft && this.curTab === "profile" && this._sameDraftOwner(this._profileViewOwner, this._draftOwner())) this._captureProfileDraft();
     if (!preserveDraft) this._profileDraft = null;
