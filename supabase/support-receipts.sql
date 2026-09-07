@@ -98,7 +98,7 @@ ALTER TABLE public.support_cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.support_case_actions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.support_policy, public.support_limits, public.support_staff,
-  public.support_cases, public.support_messages, public.support_case_actions FROM PUBLIC, anon, authenticated;
+  public.support_cases, public.support_messages, public.support_case_actions FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, UPDATE ON public.support_policy, public.support_limits TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.support_staff TO service_role;
 GRANT SELECT ON public.support_cases, public.support_messages, public.support_case_actions TO service_role;
@@ -440,7 +440,7 @@ REVOKE ALL ON FUNCTION public.can_staff_support(), public.support_settings(), pu
   public.support_thread(uuid, timestamptz, uuid), public.add_support_reply(uuid, uuid, text, text[]),
   public.support_queue(text, timestamptz, uuid), public.support_case_history(uuid, integer),
   public.staff_update_support_case(uuid, integer, text, text, text, uuid),
-  public.configure_support_policy(boolean, text, text, boolean, integer, boolean, uuid) FROM PUBLIC, anon, authenticated;
+  public.configure_support_policy(boolean, text, text, boolean, integer, boolean, uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can_staff_support(), public.support_settings(),
   public.submit_support_case(uuid, text, text, text[]), public.my_support_cases(timestamptz, uuid),
   public.support_thread(uuid, timestamptz, uuid), public.add_support_reply(uuid, uuid, text, text[]),
