@@ -182,6 +182,26 @@ test('receipt and history load-more traverse 51 records without leaking moderato
   assert.doesNotMatch(await member.page.locator('#modal-card').innerText(),/Private decision|Reviewer/);
 });
 
+test('reduced-motion moderation controls remain stationary under an edge pointer',async context=>{
+  await seedCase();
+  const admin=await pageFor(context,moderator);
+  await admin.page.locator('#launch').waitFor({state:'detached'});
+  await admin.page.evaluate(()=>Reports.open(true));
+  const review=admin.page.getByRole('button',{name:'Review case',exact:true});
+  await review.waitFor({state:'visible'});
+  const bounds=await review.boundingBox();
+  await admin.page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height-0.5);
+  const samples=await review.evaluate(button=>new Promise(resolve=>{
+    const tops=[];
+    const sample=()=>{tops.push(button.getBoundingClientRect().top);if(tops.length===30)resolve(tops);else requestAnimationFrame(sample);};
+    requestAnimationFrame(sample);
+  }));
+  assert.equal(await review.evaluate(button=>button.matches(':hover')),true,'The stationary pointer must exercise the real button hover');
+  assert.ok(Math.max(...samples)-Math.min(...samples)<0.1,'A stationary pointer must not make the review control oscillate: '+JSON.stringify(samples));
+  await review.click();
+  await admin.page.locator('#report-note').waitFor({state:'visible'});
+});
+
 test('a lost decision acknowledgement replays once and a revoked moderator cannot read its history',async context=>{
   const caseId=await seedCase();const admin=await pageFor(context,moderator);await admin.page.evaluate(()=>Reports.open(true));
   await admin.page.getByRole('button',{name:'Review case',exact:true}).click();await admin.page.locator('#report-note').fill('Investigating fixture');
