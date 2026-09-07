@@ -11,12 +11,18 @@ const memberB = '22222222-2222-4222-8222-222222222222';
 const staff = '33333333-3333-4333-8333-333333333333';
 const policyRef = '44444444-4444-4444-8444-444444444444';
 
-async function database(context) {
+async function database(context, { hostedDefaults = false } = {}) {
   const db = new PGlite();
   context.after(() => db.close());
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE ROLE public_probe;
     CREATE SCHEMA auth; GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role, public_probe;
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;`);
+  if (hostedDefaults) await db.exec(`
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
+    CREATE TABLE public.unrelated_fixture(id integer);
+    CREATE FUNCTION public.unrelated_fixture() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;
+  `);
   await db.exec(migration);
   await db.query('INSERT INTO public.support_staff(uid) VALUES ($1)', [staff]);
   return db;
@@ -68,6 +74,29 @@ async function counts(db) {
     (SELECT count(*)::int FROM public.support_messages) AS messages,
     (SELECT count(*)::int FROM public.support_case_actions) AS actions`)).rows[0];
 }
+
+test('hosted Supabase defaults are narrowed only on support-owned objects', async context => {
+  const db = await database(context, { hostedDefaults: true });
+  const grants = (await db.query(`SELECT
+    has_function_privilege('service_role', 'public.add_support_reply(uuid,uuid,text,text[])', 'EXECUTE') AS service_reply,
+    has_function_privilege('authenticated', 'public.add_support_reply(uuid,uuid,text,text[])', 'EXECUTE') AS member_reply,
+    has_function_privilege('service_role', 'public.configure_support_policy(boolean,text,text,boolean,integer,boolean,uuid)', 'EXECUTE') AS service_configure,
+    has_table_privilege('service_role', 'public.support_cases', 'SELECT') AS service_read,
+    has_table_privilege('service_role', 'public.support_cases', 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS service_write,
+    has_table_privilege('service_role', 'public.unrelated_fixture', 'INSERT') AS unrelated_write,
+    has_function_privilege('service_role', 'public.unrelated_fixture()', 'EXECUTE') AS unrelated_call`)).rows[0];
+  assert.deepEqual(grants, { service_reply: false, member_reply: true, service_configure: true,
+    service_read: true, service_write: false, unrelated_write: true, unrelated_call: true });
+  await db.exec(`CREATE TABLE public.later_fixture(id integer);
+    CREATE FUNCTION public.later_fixture() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;`);
+  const defaults = (await db.query(`SELECT
+    has_table_privilege('service_role', 'public.later_fixture', 'INSERT') AS table_default,
+    has_function_privilege('service_role', 'public.later_fixture()', 'EXECUTE') AS function_default`)).rows[0];
+  assert.deepEqual(defaults, { table_default: true, function_default: true });
+  await identity(db, 'authenticated', memberA);
+  assert.equal((await db.query('SELECT public.support_settings() AS settings')).rows[0].settings.collection_enabled, false);
+  await assert.rejects(submit(db), { code: 'PT503' });
+});
 
 test('intake starts closed and no response time or staffed contact is published without an approval reference', async context => {
   const db = await database(context);
