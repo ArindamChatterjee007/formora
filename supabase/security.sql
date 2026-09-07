@@ -112,13 +112,26 @@ grant select, insert, update         on public.accounts      to authenticated;
 -- likes-only write must bypass the author-only posts UPDATE policy). The liker
 -- is auth.uid() (server-verified) so likes can't be spoofed as another user.
 create or replace function public.like_post(p_id text, p_uid text)
-returns void language sql security definer set search_path = public as $$
-  update public.posts set likes = coalesce(likes,'{}'::jsonb) || jsonb_build_object(coalesce(auth.uid()::text, p_uid), true) where id = p_id;
+returns void language plpgsql security definer set search_path = '' as $$
+declare actor text := auth.uid()::text;
+begin
+  if actor is null then raise exception 'Sign in required' using errcode = 'PT401'; end if;
+  if p_uid is not null and p_uid <> actor then raise exception 'Actor mismatch' using errcode = 'PT403'; end if;
+  if p_id is null or length(p_id) not between 1 and 255 then raise exception 'Invalid post' using errcode = '22023'; end if;
+  update public.posts set likes = coalesce(likes,'{}'::jsonb) || pg_catalog.jsonb_build_object(actor, true) where id = p_id;
+end;
 $$;
 create or replace function public.unlike_post(p_id text, p_uid text)
-returns void language sql security definer set search_path = public as $$
-  update public.posts set likes = likes - coalesce(auth.uid()::text, p_uid) where id = p_id;
+returns void language plpgsql security definer set search_path = '' as $$
+declare actor text := auth.uid()::text;
+begin
+  if actor is null then raise exception 'Sign in required' using errcode = 'PT401'; end if;
+  if p_uid is not null and p_uid <> actor then raise exception 'Actor mismatch' using errcode = 'PT403'; end if;
+  if p_id is null or length(p_id) not between 1 and 255 then raise exception 'Invalid post' using errcode = '22023'; end if;
+  update public.posts set likes = coalesce(likes,'{}'::jsonb) - actor where id = p_id;
+end;
 $$;
+revoke all on function public.like_post(text,text), public.unlike_post(text,text) from public, anon, authenticated;
 grant execute on function public.like_post(text,text), public.unlike_post(text,text) to authenticated;
 
 -- entitlements (Pro/Elite) + billing_events: owner reads own entitlement; only the

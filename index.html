@@ -10,7 +10,7 @@
   <meta name="google-site-verification" content="fGx45rb_4aJRe-fmGorgUYqXf0JQRgUKQcEiReiJSv8" />
   <title>Formora · Your Aesthetic Physique Coach</title>
   <!-- PWA: installable on iPhone (Add to Home Screen) and Android — no App Store, no fee -->
-  <meta name="description" content="Formora is your AI physique coach — adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Train. Track. Connect. Free to start." />
+  <meta name="description" content="Formora combines adaptive workouts, meal planning, progress tracking and a social fitness feed. Optional paid features include training programs, analytics, progress photos and camera tools. Free to start." />
   <meta name="theme-color" content="#0e0f13" />
   <link rel="canonical" href="https://arindamchatterjee007.github.io/formora/" />
   <meta name="keywords" content="fitness app, AI workout planner, physique coach, gym tracker, meal plan, progress photos, aesthetic physique, bodybuilding, social fitness" />
@@ -18,7 +18,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Formora" />
   <meta property="og:title" content="Formora — Build your dream physique" />
-  <meta property="og:description" content="Your AI physique coach: adaptive daily workouts, smart meal plans, a social feed to flex your progress, and dated progress photos. Free to start." />
+  <meta property="og:description" content="Adaptive workouts, meal planning, progress tracking and a social fitness feed. Start free with optional Pro and Elite features." />
   <meta property="og:url" content="https://arindamchatterjee007.github.io/formora/" />
   <meta property="og:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=175" />
   <meta property="og:image:width" content="1200" />
@@ -27,10 +27,10 @@
   <!-- Twitter / X card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Formora — Build your dream physique" />
-  <meta name="twitter:description" content="AI physique coach: adaptive workouts, meal plans, a social feed to flex your progress, and progress photos. Free to start." />
+  <meta name="twitter:description" content="Adaptive workouts, meal planning and a social fitness feed. Track your progress with Formora. Free to start." />
   <meta name="twitter:image" content="https://arindamchatterjee007.github.io/formora/icons/og-image.png?v=175" />
   <!-- Structured data for search engines -->
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"AI physique coach with adaptive workouts, meal plans, a social fitness feed and progress photos.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Formora","applicationCategory":"HealthApplication","operatingSystem":"Web, Android, iOS","description":"Adaptive workouts, meal planning, progress tracking and a social fitness feed with optional Pro and Elite features.","offers":{"@type":"Offer","name":"Free plan","price":"0","priceCurrency":"USD"},"url":"https://arindamchatterjee007.github.io/formora/"}</script>
   <link rel="manifest" href="manifest.webmanifest?v=175" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=175" />
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=175" />
@@ -277,7 +277,8 @@
     .sheet-sep { height: 1px; background: var(--line,#262a36); margin: 6px 12px; }
     .sheet-cancel { width: 100%; background: rgba(255,255,255,.06); border: 0; color: var(--text,#eef1f7); font-size: 15px; font-weight: 800; padding: 14px; border-radius: 12px; margin-top: 6px; cursor: pointer; }
     .post-more { margin-left: auto; opacity: .75; }
-    .cmt2-more { background: none; border: 0; color: var(--sub, #9aa3b2); cursor: pointer; padding: 5px 7px; margin-left: 2px; vertical-align: middle; opacity: .6; line-height: 0; }
+    .cmt2-more { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; background: none; border: 0; color: var(--sub, #9aa3b2); cursor: pointer; padding: 0; margin-left: 8px; vertical-align: middle; opacity: .6; line-height: 0; }
+    .cmt2-reply { min-width: 44px; min-height: 44px; padding: 0 6px; vertical-align: middle; }
     .cmt2-more:active { opacity: 1; }
 
     /* Elite photo frames (camera editor) */
@@ -414,8 +415,8 @@
   <footer class="foot">Formora · Train. Track. Connect.</footer>
   </div><!-- /app-shell -->
   <!-- ===== MODAL (physique picker) ===== -->
-  <div class="modal-overlay hidden" id="modal" onclick="if(event.target===this)App.closeModal()">
-    <div class="modal-card" id="modal-card"></div>
+  <div class="modal-overlay hidden" id="modal" role="dialog" aria-modal="true" aria-label="Formora dialog" onclick="if(event.target===this)App.closeModal()">
+    <div class="modal-card" id="modal-card" tabindex="-1"></div>
   </div>
 
   <script src="js/config.js?v=175"></script>
@@ -430,6 +431,13 @@
   <script src="js/cloud.js?v=175"></script>
   <script src="js/entitlements.js?v=175"></script>
   <script src="js/supaauth.js?v=175"></script>
+  <script src="js/mod/reports.js?v=175"></script>
+  <script src="js/mod/stories.js?v=175"></script>
+  <script src="js/mod/support-receipts.js?v=175"></script>
+  <script src="js/mod/account-rights.js?v=175"></script>
+  <script src="js/mod/measurement.js?v=175"></script>
+  <script src="js/mod/push.js?v=175"></script>
+  <script src="js/mod/preferences.js?v=175"></script>
   <script>
     // Camera is code-split: ~30KB module (js/mod/camera.js) is loaded ON DEMAND the first time the in-app camera opens, keeping the initial payload small. CameraLoader is a tiny always-present shim.
     window.CameraLoader = {

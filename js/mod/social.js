@@ -19,7 +19,42 @@ const Social = {
   key: null,
   state: null,
 
+  resetSession() {
+    this._session = (this._session || 0) + 1;
+    if (typeof Stories !== "undefined") Stories.reset();
+    this.cancelStory(); this.closeStory();
+    if (typeof Cloud !== "undefined" && Cloud.resetPublishing) Cloud.resetPublishing();
+    this._pendingActions = new Set();
+    this._postRequest = null;
+    this._postText = "";
+    this.pendingPost = null;
+    this.pendingPhotos = [];
+    this.pendingVideo = null;
+    this.pendingMusic = null;
+    this.pendingVideoUploading = false;
+    this._videoUpload = null;
+    for (const key of Object.keys(this.cloud)) this.cloud[key] = [];
+    this._feedRead = "idle";
+    this._pinged = new Set();
+    this._dmWith = null;
+    this._dmMsgs = [];
+    this._dmDrafts = new Map();
+    this._dmConvos = [];
+    this._dmInboxLoaded = false;
+    this._dmInboxLoading = false;
+    this._dmThreadLoading = false;
+    this._dmReadError = false;
+    this._dmInboxError = false;
+    this._dmSearch = "";
+    this._dmSearchOpen = false;
+    this._editMsg = null;
+    this._storyContext = new Map();
+    this._storyContextPass = null;
+    this._storyContextOpening = null;
+    clearTimeout(this._editPrefillTimer);
+  },
   load(uid) {
+    if (this.key !== "formora_social_" + (uid || "guest")) this.resetSession();
     this.key = "formora_social_" + (uid || "guest");
     try {
       this.state = JSON.parse(localStorage.getItem(this.key));
@@ -133,6 +168,22 @@ const Social = {
   chatWith: null,
   cloud: { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] },
   cloudActive() { return typeof Cloud !== "undefined" && Cloud.active(); },
+  // outcome of the shared-state read, so an outage is never rendered as an empty account
+  _feedRead: "idle",
+  noteFeedRead(ok) { this._feedRead = ok ? "ready" : "error"; },
+  feedReadState() { return this._feedRead || "idle"; },
+  feedStatusCard() {
+    const state = this.feedReadState();
+    if (state === "error") {
+      return `<div class="card" role="alert"><div style="font-weight:800;margin-bottom:4px">Your feed could not be loaded</div>
+        <div class="sub" style="margin-bottom:12px">We could not reach Formora just now. Nothing has been deleted — this is a connection problem, not an empty account.</div>
+        <button class="btn ghost" onclick="App.retryFeed()">${App.ic("undo", { size: 16 })} Retry</button></div>`;
+    }
+    if (state === "loading" || state === "idle") {
+      return `<div class="card"><div role="status" style="font-weight:700">Loading your feed…</div></div>`;
+    }
+    return `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}</div>`;
+  },
   cloudUser(uid) {
     const u = this.cloud.users.find((x) => x.uid === uid);
     if (!u) return null;
@@ -239,7 +290,7 @@ const Social = {
     const body = sub2 === "feed" ? this.feedBody() : sub2 === "crew" ? this.crewBody() : sub2 === "chat" ? this.chatBody() : this.challengesBody();
     el.innerHTML = `<div class="social-subnav">${nav.map(([n, l]) => `<button class="ssub ${n === sub2 ? "active" : ""}" onclick="Social.feedTab('${n}')">${l}</button>`).join("")}</div>${body}`;
     if (sub2 === "feed") this._bindFeedVideos();
-    if (sub2 === "chat") this.scrollChat();
+    if (sub2 === "chat") { this.scrollChat(); this._paintStoryContext(); }
   },
   feedTab(n) { this.sub = n; this.render(); },
   // Instagram-style feed video: muted autoplay in view; TAP the video turns sound on; speaker toggles it (persists across videos)
@@ -460,11 +511,11 @@ const Social = {
   playMusic(src) { if (!src) return this.stopMusic(); const a = this._ensureMusic(); if (this._musicSrc !== src) { a.src = src; this._musicSrc = src; } a.muted = !this._feedSound; a.play().catch(() => {}); },
   // subtle two-note chime for a new incoming message (WebAudio — no asset, respects fm_msgsound)
   playPing() {
-    try { if (localStorage.getItem("fm_msgsound") === "off") return; } catch (_) {}
+    if (this.msgSoundOff()) return;
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       const ctx = this._actx || (this._actx = new AC());
-      if (ctx.state === "suspended") { try { ctx.resume(); } catch (_) {} }
+      if (ctx.state === "suspended") { try { Promise.resolve(ctx.resume()).catch(() => {}); } catch (_) {} }
       const now = ctx.currentTime;
       [880, 1174.7].forEach((f, i) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
@@ -498,7 +549,7 @@ const Social = {
     const post = list.find((p) => p.id === id);
     this._share(post && post.text ? post.text : "Check out this fitness progress on Formora");
   },
-  shareApp() { this._share("I'm getting fit with Formora \u2014 an AI coach + fitness social app"); },
+  shareApp() { this._share("I'm tracking workouts and progress with Formora, a fitness and social app"); },
   _myRef() { try { let r = localStorage.getItem("fm_myref"); if (!r) { r = Math.random().toString(36).slice(2, 8); localStorage.setItem("fm_myref", r); } return r; } catch (e) { return ""; } },
   _refUrl() { const r = this._myRef(); const base = "https://arindamchatterjee007.github.io/formora/"; return r ? base + "?ref=" + r : base; },
   inviteFriends() {
@@ -517,19 +568,27 @@ const Social = {
   copyInvite() { const el = document.getElementById("inv-link"); const url = el ? el.value : this._refUrl(); if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { if (typeof App !== "undefined" && App.toast) App.toast("Invite link copied \ud83d\udd17"); }).catch(() => {}); window.Track && Track.event("invite_shared"); },
   doInvite() { window.Track && Track.event("invite_shared"); this._share("Come train with me on Formora \u2014 free AI workouts + a fitness feed to flex your progress"); },
   // ---- save / bookmark (local, personal) ----
-  isSaved(id) { try { return JSON.parse(localStorage.getItem("fm_saved") || "[]").includes(id); } catch (e) { return false; } },
+  isSaved(id) { return this._list("fm_saved").includes(id); },
   _setSaved(id) {
-    let arr = []; try { arr = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { arr = []; }
-    const i = arr.indexOf(id); const saved = i < 0;
-    if (i >= 0) arr.splice(i, 1); else arr.unshift(id);
-    localStorage.setItem("fm_saved", JSON.stringify(arr));
+    const list = this._list("fm_saved"), index = list.indexOf(id), saved = index < 0;
+    if (index >= 0) list.splice(index, 1); else list.unshift(id);
+    if (!this._setList("fm_saved", list)) { if (App.toast) App.toast("Could not update saved posts on this device. Try again."); return !saved; }
     this.haptic(12);
     if (typeof App !== "undefined" && App.toast) App.toast(saved ? "Saved \ud83d\udd16" : "Removed from saved");
     return saved;
   },
-  toggleSave(id) { this._setSaved(id); this.render(); },
+  toggleSave(id) {
+    this._setSaved(id); this.render();
+    const saved = this.isSaved(id);
+    if (document.querySelectorAll) document.querySelectorAll("[data-saved-post]").forEach(button => {
+      if (button.getAttribute("data-saved-post") !== id) return;
+      button.setAttribute("aria-pressed", String(saved)); button.classList.toggle("on", saved);
+      button.innerHTML = App.ic("bookmark", { size: 21, solid: saved });
+    });
+    return saved;
+  },
   openSaved() {
-    let ids = []; try { ids = JSON.parse(localStorage.getItem("fm_saved") || "[]"); } catch (e) { ids = []; }
+    const ids = this._list("fm_saved");
     const list = this.cloudActive() ? (this.cloud.feed || []) : (this.feed() || []);
     const posts = ids.map((id) => list.find((p) => p.id === id)).filter(Boolean);
     const card = document.getElementById("modal-card"); if (!card) return;
@@ -570,7 +629,7 @@ const Social = {
       </div>` : `
       <div class="card composer">
         <div class="composer-top">${this.avatar(meU, 42)}
-          <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…"></textarea>
+          <textarea id="post-text" class="food-text" rows="2" placeholder="Share a win, flex your progress, or drop some motivation…" oninput="Social._postText=this.value">${esc(this._postText || "")}</textarea>
         </div>
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${esc(src)}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         ${this.pendingVideo ? `<div class="composer-video"><video src="${esc(this.pendingVideo)}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
@@ -579,14 +638,15 @@ const Social = {
           <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
           <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
           <button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">${App.ic("music", { size: 16 })} Music</button>
-          <button class="btn" onclick="Social.publishPost()">Post</button>
+          <button id="post-publish" class="btn" onclick="Social.publishPost()" ${this._actionPending("create-post", "composer") || this.pendingVideoUploading ? 'disabled aria-busy="true"' : ""}>${this._actionPending("create-post", "composer") ? "Posting..." : this._postRequest ? "Retry post" : "Post"}</button>
         </div>
       </div>`;
     if (this.cloudActive()) {
       const visible = this._rankFeed(this.cloud.feed.filter((p) => this._canSeePost(p)));
       const posts = visible.map((p) => this.postCard(this._cloudPost(p))).join("");
-      return this.storiesRow() + composer + (visible.length ? posts
-        : `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}</div>`);
+      // posts already loaded stay on screen through a transient failure; only a cold
+      // empty feed reports the read outcome instead of claiming an empty account
+      return this.storiesRow() + composer + (visible.length ? posts : this.feedStatusCard());
     }
     return composer + this.suggestStrip() + this.feed().filter((p) => this._canSeePost(p)).map((p) => this.postCard(p)).join("");
   },
@@ -636,6 +696,7 @@ const Social = {
   },
   postCard(p) {
     const a = this.persona(p.author);
+    const saved = this.isSaved(p.id);
     const pics = (p.photos && p.photos.length) ? p.photos : (p.photo ? [p.photo] : []);
     const media = p.video
       ? `<div class="post-media video" data-fv="${p.id}"><video src="${esc(p.video)}" data-msrc="${esc(p.music ? p.music.src : "")}" playsinline preload="metadata" loop ${this._feedSound ? "" : "muted"} onclick="Social.mediaTap('${p.id}',event,'video')"></video><button class="fv-mute" onclick="event.stopPropagation();Social.toggleFeedMute(this)" aria-label="Sound">${App.ic(this._feedSound ? "volume" : "mute", { size: 18 })}</button><span class="reel-badge">Flex</span>${this._musicPill(p)}</div>`
@@ -649,7 +710,7 @@ const Social = {
     return `
       <div class="card post">
         <div class="post-head">
-          <div class="post-author" onclick="Social.viewProfile('${p.author}')">
+          <div class="post-author" role="button" tabindex="0" aria-label="${esc('View ' + a.name + ' profile')}" onclick="Social.viewProfile('${p.author}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}">
             ${this.avatar(a, 44)}
             <div class="post-who"><div class="pw-name">${esc(a.name)}${this.vbadge(a)} ${a.level ? `<span class="lvl">${esc(a.level)}</span>` : ""}</div>
               <div class="pw-sub">@${esc(a.handle)} · ${this.timeAgo(p.ts)}</div></div>
@@ -665,7 +726,7 @@ const Social = {
           <button class="pa" onclick="Social.toggleComments('${p.id}')">${App.ic("comment", { size: 22 })} <span>${this.cloudActive() ? this.commentCount(p.id) : (p.comments || []).length}</span></button>
           <button class="pa ${p.resharedByMe ? "on" : ""}" title="${p.resharedByMe ? "Undo reshare" : "Reshare"}" onclick="Social.resharePost('${p.id}')">${App.ic("reshare", { size: 22 })} <span>${p.reshares || 0}</span></button>
           <button class="pa share" title="Share" onclick="Social.sharePost('${p.id}')">${App.ic("share", { size: 21 })}</button>
-          <button class="pa save ${this.isSaved(p.id) ? "on" : ""}" title="Save" onclick="Social.toggleSave('${p.id}')">${App.ic("bookmark", { size: 21, solid: this.isSaved(p.id) })}</button>
+          <button class="pa save ${saved ? "on" : ""}" title="Save" aria-label="Save post" aria-pressed="${saved}" data-saved-post="${esc(p.id)}" onclick="Social.toggleSave('${p.id}')">${App.ic("bookmark", { size: 21, solid: saved })}</button>
         </div>
         ${p.likers && p.likers.length ? `<div class="post-likers" onclick="Social.showLikers('${p.id}')">❤️ Liked by ${this._likerNames(p.likers)}</div>` : ""}
         <div class="post-comments" id="cmts-${p.id}" style="display:${this._openCmt === p.id ? "block" : "none"}">
@@ -681,23 +742,31 @@ const Social = {
     const files = Array.from((e.target && e.target.files) || []); if (!files.length) return;
     if (!this.pendingPhotos) this.pendingPhotos = [];
     const slots = Math.max(0, 6 - this.pendingPhotos.length);
-    Promise.all(files.slice(0, slots).map((f) => resizeImage(f, 1080, 0.8))).then((datas) => { this.pendingPhotos.push(...datas); this.render(); }).catch(() => alert("Couldn't read one of those images."));
+    const scope = this._actionScope();
+    return Promise.all(files.slice(0, slots).map((f) => resizeImage(f, 1080, 0.8))).then((datas) => {
+      if (this._actionScope() !== scope) return;
+      this.pendingPhotos.push(...datas.slice(0, Math.max(0, 6 - this.pendingPhotos.length))); this.render();
+    }).catch(() => { if (this._actionScope() === scope) alert("Couldn't read one of those images."); });
   },
   removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); this.render(); } },
   async postVideo(e) {
     const f = e.target && e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Flex videos need you to be signed in and online."); return; }
     if (f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
+    const scope = this._actionScope(), upload = this._videoUpload = {};
     this.pendingVideoUploading = true; this.render();
-    const url = await Cloud.uploadMedia(f, "videos");
+    let url;
+    try { url = await Cloud.uploadMedia(f, "videos"); } catch (_) { url = null; }
+    if (this._actionScope() !== scope || this._videoUpload !== upload) return;
     this.pendingVideoUploading = false;
     if (!url) { alert("Couldn't upload that video — check your connection and try again."); this.render(); return; }
     this.pendingVideo = url; this.render();
   },
-  removeVideo() { this.pendingVideo = null; this.render(); },
+  removeVideo() { this._videoUpload = null; this.pendingVideoUploading = false; this.pendingVideo = null; this.render(); },
 
   // ---- stories (Instagram-style, 24h) ----
   storyGroups() {
+    if (window.STORY_INTERACTIONS) return typeof Stories !== "undefined" ? Stories.groups() : [];
     const byAuthor = {};
     (this.cloud.stories || []).forEach((s) => { (byAuthor[s.author] = byAuthor[s.author] || []).push(s); });
     const meId = (typeof Cloud !== "undefined") ? Cloud.me : null;
@@ -713,11 +782,17 @@ const Social = {
     const others = groups.filter((g) => g.author !== meId);
     const ring = (g) => {
       const u = (g.author === meId) ? this.me() : (this.cloudUser(g.author) || { name: "?", handle: "?", colors: ["#8b93a7", "#262c3a"], avatar: null });
-      return `<button class="story-ring has" onclick="Social.openStory('${g.author}')"><span class="sr-halo">${this.avatar(u, 60)}</span><span class="sr-name">${esc((u.name || u.handle || "?").split(" ")[0])}</span></button>`;
+      const seen = window.STORY_INTERACTIONS && g.items.every(item => item.seen);
+      return `<button class="story-ring has" aria-label="${esc(u.name || u.handle || 'Member')}: ${seen ? 'seen story' : 'new story'}" onclick="Social.openStory('${g.author}')"><span class="sr-halo"${seen ? ' style="filter:grayscale(1)"' : ''}>${this.avatar(u, 60)}</span><span class="sr-name">${esc((u.name || u.handle || "?").split(" ")[0])}</span></button>`;
     };
     const yours = `<button class="story-ring${mine ? " has" : ""}" onclick="${mine ? `Social.openStory('${meId}')` : "Social.addStoryPick()"}"><span class="sr-halo">${this.avatar(this.me(), 60)}<span class="sr-plus" onclick="event.stopPropagation();Social.addStoryPick()">＋</span></span><span class="sr-name">Your story</span></button>`;
     const uploading = this.pendingStoryUploading ? `<div class="story-ring"><span class="sr-halo up">⏳</span><span class="sr-name">Posting…</span></div>` : "";
-    return `<div class="stories-row">${yours}${uploading}${others.map(ring).join("")}</div>`;
+    const controls = window.STORY_INTERACTIONS ? `<div style="display:flex;gap:8px;align-items:center">${typeof Stories === "undefined" || Stories.error ? `<button class="btn ghost" onclick="App.refreshStories()">${App.ic("undo", { size: 16 })} Retry Stories</button>` : ""}${typeof Stories !== "undefined" && Stories.nextCursor ? `<button class="btn ghost" onclick="Social.moreStories()">${App.ic("chevronR", { size: 16 })} Older Stories</button>` : ""}<button class="icon-btn" aria-label="Story preferences" title="Story preferences" onclick="App.openStorySettings()">${App.ic("cog", { size: 18 })}</button></div>` : "";
+    return `<div class="stories-row">${yours}${uploading}${others.map(ring).join("")}</div>${controls}`;
+  },
+  async moreStories() {
+    if (!window.STORY_INTERACTIONS || typeof Stories === "undefined" || !Stories.nextCursor) return;
+    try { await Stories.refresh(Stories.nextCursor); } catch (error) { App.toast(error.message || "Stories unavailable."); }
   },
   addStoryPick() {
     const opts = [];
@@ -749,30 +824,33 @@ const Social = {
   },
   // hand-off targets used by the Formora Camera
   attachPhoto(file) {
-    resizeImage(file, 1080, 0.82).then((dataUrl) => {
+    const scope = this._actionScope();
+    return resizeImage(file, 1080, 0.82).then((dataUrl) => {
+      if (this._actionScope() !== scope) return;
       if (!this.pendingPhotos) this.pendingPhotos = [];
       if (this.pendingPhotos.length < 6) this.pendingPhotos.push(dataUrl);
       if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
       this.sub = "feed"; this.render();
-    }).catch(() => alert("Couldn't process that photo."));
+    }).catch(() => { if (this._actionScope() === scope) alert("Couldn't process that photo."); });
   },
   attachReel(file, url) {
     if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
-    this.sub = "feed"; this.pendingVideo = null; this.pendingVideoUploading = true; this.render();
-    Cloud.uploadMedia(file, "videos").then((u) => {
-      this.pendingVideoUploading = false;
-      if (!u) { alert("Couldn't upload that Flex — check your connection and try again."); this.render(); return; }
-      this.pendingVideo = u; this.render();
-    });
+    this.sub = "feed";
+    return this.postVideo({ target: { files: [file] } });
   },
   // story: preview the picked media full-screen before sharing (Instagram/Snapchat-style)
   onStoryFile(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return; }
+    const owner = Cloud._publishingUid();
+    if (!owner || !/^(image\/(jpeg|png|webp)|video\/(mp4|webm))$/.test(f.type)) { App.toast("Choose a supported photo or video while signed in."); return; }
     const isVid = /^video\//.test(f.type);
+    if (window.STORY_MEDIA_VALIDATION === true && (window.STORY_INTERACTIONS !== true || f.size > (isVid ? 26214400 : 8388608))) {
+      App.toast("Validated Stories require a photo up to 8 MiB or a video up to 25 MiB."); return;
+    }
     if (isVid && f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
     if (this._storyDraft && this._storyDraft.url) URL.revokeObjectURL(this._storyDraft.url);
-    this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f) };
+    this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f), owner, scope: this._actionScope(), id: Cloud._newActionId(), v2: window.STORY_INTERACTIONS === true };
     this.storyPreview();
   },
   storyPreview() {
@@ -787,22 +865,79 @@ const Social = {
       <div class="sp-bar"><button class="sp-share" onclick="Social.shareStory()">${d.isVid ? "Share Flex to your story" : "Share to your story"} →</button></div>
     </div>`;
   },
-  cancelStory() { const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; const ov = document.getElementById("story-preview"); if (ov) ov.remove(); },
+  cancelStory() { const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; this.pendingStoryUploading = false; const ov = typeof document !== "undefined" && document.getElementById("story-preview"); if (ov) ov.remove(); },
   async shareStory() {
-    const d = this._storyDraft; if (!d) return;
+    const d = this._storyDraft; if (!d || d.sending || !this.cloudActive() || !d.id) return false;
+    d.v2 ??= window.STORY_INTERACTIONS === true;
+    d.validation ??= window.STORY_MEDIA_VALIDATION === true;
+    const current = () => this._storyDraft === d && this._actionScope() === d.scope && Cloud._publishingUid() === d.owner
+      && d.v2 === (window.STORY_INTERACTIONS === true) && d.validation === (window.STORY_MEDIA_VALIDATION === true);
+    if (!current()) return false;
     const ov = document.getElementById("story-preview");
     const btn = ov && ov.querySelector(".sp-share"); if (btn) { btn.textContent = "Uploading…"; btn.disabled = true; }
-    let url;
+    d.sending = true; this.pendingStoryUploading = true;
     try {
-      if (d.isVid) url = await Cloud.uploadMedia(d.file, "stories");
-      else { const dataUrl = await resizeImage(d.file, 1280, 0.82); const blob = await (await fetch(dataUrl)).blob(); url = await Cloud.uploadMedia(new File([blob], "s.jpg", { type: "image/jpeg" }), "stories"); }
-    } catch (err) { url = null; }
-    if (!url) { alert("Couldn't upload your story — check your connection and try again."); if (btn) { btn.textContent = (d.isVid ? "Share Flex to your story" : "Share to your story") + " →"; btn.disabled = false; } return; }
-    const st = Cloud.addStory(url, d.isVid ? "video" : "photo");
-    if (st) this.cloud.stories.push(st);
-    this.cancelStory();
-    if (typeof App !== "undefined" && App.toast) App.toast("Story shared ✨ visible for 24h");
-    this.render();
+      if (d.validation && !d.v2) throw new Error("Validated Stories unavailable");
+      if (!d.uploadedURL) {
+        let file = d.file;
+        if (!d.isVid) {
+          const dataUrl = await resizeImage(file, 1280, 0.82);
+          if (!current()) return false;
+          if (!dataUrl.startsWith("data:image/jpeg;base64,")) throw new Error("invalid_image");
+          const bytes = Uint8Array.from(atob(dataUrl.slice("data:image/jpeg;base64,".length)), character => character.charCodeAt(0));
+          file = new File([bytes], "story.jpg", { type: "image/jpeg" });
+        }
+        const uploaded = await Cloud.uploadMedia(file, "stories", d.validation ? { requestId: d.id, current } : undefined);
+        if (!current()) return false;
+        const url = d.validation ? uploaded?.media_url : uploaded;
+        if (typeof url !== "string" || !/^https:\/\//.test(url)) throw new Error("upload_unconfirmed");
+        if (d.validation) d.mediaReceipt = uploaded;
+        d.uploadedURL = url;
+      }
+      if (!current()) return false;
+      let story;
+      if (d.v2) {
+        if (typeof Stories === "undefined") throw new Error("Stories unavailable");
+        const result = await Stories.publish(d.uploadedURL, d.isVid ? "video" : "photo", d.id, d.mediaReceipt);
+        if (!current()) return false;
+        if (result?.receipt?.committed !== true || result.receipt.request_id !== d.id || result.receipt.author !== d.owner) throw new Error("story_unconfirmed");
+        story = result.row;
+        if (story && (story.id !== result.receipt.id || story.author !== d.owner || story.photo !== d.uploadedURL)) throw new Error("story_unconfirmed");
+      } else story = await Cloud.addStory(d.uploadedURL, d.isVid ? "video" : "photo", d.id);
+      if (!current()) return false;
+      if (!d.v2 && (!story || story.id !== d.id || story.author !== d.owner || story.photo !== d.uploadedURL)) throw new Error("story_unconfirmed");
+      if (!d.v2 && !this.cloud.stories.some(item => item.id === story.id)) this.cloud.stories.push(story);
+      this.cancelStory();
+      App.toast(story ? "Story shared. Available for up to 24 hours." : "The earlier Story was received, but is no longer available."); this.render(); return true;
+    } catch (error) {
+      if (current()) {
+        App.toast(error.message && error.status ? error.message : "Story not confirmed. Your draft is kept; retry sharing.");
+        if (d.v2 && error.status === 409 && ov && !ov.querySelector(".story-reconcile")) {
+          const recover = document.createElement("button"); recover.className = "btn ghost story-reconcile"; recover.textContent = "Check previous Story";
+          recover.onclick = () => this.reconcileStory(); ov.querySelector(".sp-bar")?.append(recover);
+        }
+      }
+      return false;
+    } finally {
+      d.sending = false;
+      if (current()) {
+        this.pendingStoryUploading = false;
+        if (btn && document.getElementById("story-preview") === ov) { btn.textContent = "Retry sharing"; btn.disabled = false; }
+      }
+    }
+  },
+  async reconcileStory() {
+    const draft = this._storyDraft;
+    if (!draft?.v2 || draft.sending || typeof Stories === "undefined" || draft.owner !== Stories.owner()) return;
+    draft.sending = true;
+    try {
+      const receipt = await Stories.reconcile(draft.isVid ? "publish_video" : "publish_photo", draft.owner);
+      if (this._storyDraft !== draft || draft.owner !== Stories.owner()) return;
+      draft.id = Cloud._newActionId();
+      if (draft.validation) { delete draft.uploadedURL; delete draft.mediaReceipt; }
+      App.toast(receipt ? "Previous Story received. Your new draft is kept; share it when ready." : "No previous Story receipt found. Your draft is kept.");
+    } catch (error) { if (this._storyDraft === draft) App.toast(error.message || "Could not check the previous Story."); }
+    finally { draft.sending = false; }
   },
   // composer: camera/gallery choosers for photos & reels
   pickPhotos() {
@@ -820,6 +955,10 @@ const Social = {
     this.mediaSheet("Add a Flex", opts);
   },
   openStory(authorUid) {
+    if (window.STORY_INTERACTIONS) {
+      if (typeof Stories === "undefined") return App.toast("Stories unavailable.");
+      return Stories.open(authorUid).catch(error => App.toast(error.message || "Stories unavailable."));
+    }
     const groups = this.storyGroups();
     const gi = groups.findIndex((g) => g.author === authorUid);
     if (gi < 0) return;
@@ -866,57 +1005,173 @@ const Social = {
     if (this._storyGi > 0) { this._storyGi--; this._storyIi = 0; return this.renderStory(); }
     this.renderStory();
   },
-  closeStory() { clearTimeout(this._storyTimer); const ov = document.getElementById("story-viewer"); if (ov) ov.remove(); },
-  deleteStory(id) {
-    if (typeof window !== "undefined" && window.confirm && !window.confirm("Delete this story?")) return;
-    if (typeof Cloud !== "undefined" && Cloud.deleteStory) Cloud.deleteStory(id);
-    this.cloud.stories = (this.cloud.stories || []).filter((s) => s.id !== id);
-    this.closeStory();
-    if (typeof App !== "undefined" && App.toast) App.toast("Story removed");
-    this.render();
+  closeStory() { if (typeof Stories !== "undefined" && window.STORY_INTERACTIONS) Stories.close(); clearTimeout(this._storyTimer); this._storyGroups = null; const ov = typeof document !== "undefined" && document.getElementById("story-viewer"); if (ov) ov.remove(); },
+  async deleteStory(id) {
+    if (window.STORY_INTERACTIONS) {
+      if (typeof Stories === "undefined" || !Stories.storyFeed.some(item => item.id === id && item.mine) || !confirm("Delete this story?")) return false;
+      try { const receipt = await Stories.remove(id); if (receipt?.committed === true) { App.toast("Story removed"); return true; } } catch (error) { App.toast(error.message || "Story removal was not confirmed."); }
+      return false;
+    }
+    const story = (this.cloud.stories || []).find(item => item.id === id);
+    if (!story || story.author !== Cloud._publishingUid() || this._actionPending("delete-story", id)) return false;
+    if (!confirm("Delete this story?")) return false;
+    return this._ackAction("delete-story", id, () => Cloud.deleteStory(id), () => {
+      this.cloud.stories = (this.cloud.stories || []).filter(item => item.id !== id);
+      this.closeStory(); App.toast("Story removed"); this.render();
+    }, "Story removal was not confirmed. Retry when signed in and online.");
   },
 
-  publishPost() {
+  async publishPost() {
+    if (!this.state || this._actionPending("create-post", "composer") || this.pendingVideoUploading) return false;
     if (typeof Mailer !== "undefined" && Mailer.canSendCodes && Mailer.canSendCodes() && !this.me().verified) {
       if (typeof App !== "undefined" && App.verifyMyEmail) App.verifyMyEmail();
-      return;
+      return false;
     }
     const t = document.getElementById("post-text");
-    const text = t ? t.value.trim() : "";
+    if (!t) return false;
+    this._postText = t.value;
+    const text = t.value.trim();
     const photos = this.pendingPhotos || [];
     const video = this.pendingVideo || null;
-    if (!text && !photos.length && !video) { alert("Write something, add a photo or a Flex to post."); return; }
+    if (!text && !photos.length && !video && !this._postRequest) { alert("Write something, add a photo or a Flex to post."); return false; }
     if (this.cloudActive()) {
-      const np = Cloud.addPost({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, tag: "Flex", music: this.pendingMusic || null });
-      window.Track && Track.event("post_created", { has_photo: !!(photos && photos.length), has_video: !!video, has_music: !!this.pendingMusic });
-      if (np) this.cloud.feed.unshift(np);
-      this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null;
-      if (typeof App !== "undefined" && App.toast) App.toast(video ? "Flex posted 💪" : "Posted to the feed 🎉");
-      const el = document.getElementById("post-text"); if (el) el.value = "";
-      this.render();
-      return;
+      const owner = Cloud._publishingUid(), scope = this._actionScope();
+      if (!owner) { if (App.toast) App.toast("Could not post. Your draft is kept. Sign in and try again."); return false; }
+      if (!this._postRequest || this._postRequest.scope !== scope) this._postRequest = {
+        scope, id: Cloud._newActionId(), text: t.value,
+        data: JSON.parse(JSON.stringify(this._postData({ text, photo: photos[0] || null, photos: photos.length ? photos : null, video, gradient: this.me().colors, music: this.pendingMusic }))),
+      };
+      const request = this._postRequest;
+      const button = document.getElementById("post-publish");
+      if (button) { button.disabled = true; button.textContent = "Posting..."; }
+      let receipt;
+      try {
+        return await this._ackAction("create-post", "composer", async () => {
+          if (!request.id || !Cloud.addPost) return false;
+          receipt = await Cloud.addPost({ ...request.data, id: request.id, author: owner });
+          return !!(receipt && receipt.id === request.id && receipt.author === owner && Cloud._samePayload(this._postData(receipt), request.data));
+        }, () => {
+          if (!this.cloud.feed.some(post => post.id === receipt.id)) this.cloud.feed.unshift(receipt);
+          this._postRequest = null;
+          const input = document.getElementById("post-text");
+          const currentText = input ? input.value : this._postText;
+          const currentPhotos = this.pendingPhotos || [];
+          const current = this._postData({ text: currentText.trim(), photo: currentPhotos[0] || null, photos: currentPhotos.length ? currentPhotos : null, video: this.pendingVideo, gradient: this.me().colors, music: this.pendingMusic });
+          if (currentText === request.text && Cloud._samePayload(current, request.data)) {
+            this._postText = ""; if (input) input.value = "";
+            this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null;
+          } else this._postText = currentText;
+          window.Track && Track.event("post_created", { has_photo: !!request.data.photo, has_video: !!request.data.video, has_music: !!request.data.music });
+          if (App.toast) App.toast(request.data.video ? "Flex posted" : "Posted to the feed");
+          this.render();
+        }, "Could not confirm the post. Your draft is kept. Retry the original post.");
+      } finally {
+        if (this._actionScope() === scope) {
+          const current = document.getElementById("post-publish");
+          if (current) { current.disabled = !!this.pendingVideoUploading; current.textContent = this._postRequest ? "Retry post" : "Post"; current.removeAttribute && current.removeAttribute("aria-busy"); }
+        }
+      }
     }
-    this.createPost({ text, photo: photos[0] || null, music: this.pendingMusic || null }); this.pendingPhotos = []; this.pendingMusic = null; this.render();
+    this.createPost({ text, photo: photos[0] || null, music: this.pendingMusic || null }); this._postText = ""; this.pendingPhotos = []; this.pendingMusic = null; this.render(); return true;
   },
-  removePost(id) {
-    if (!confirm("Delete this post? This can't be undone.")) return;
-    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.deletePost) {
-      Cloud.deletePost(id);
-      this.cloud.feed = this.cloud.feed.filter((p) => p.id !== id);
-      if (typeof App !== "undefined" && App.toast) App.toast("Post deleted");
-      this.render();
-      return;
+  async removePost(id) {
+    if (!this._isMine(this._postById(id)) || this._actionPending("delete-post", id)) return false;
+    if (!confirm("Delete this post? This can't be undone.")) return false;
+    if (this.cloudActive()) {
+      return this._ackAction("delete-post", id, () => Cloud.deletePost && Cloud.deletePost(id), () => {
+        this.cloud.feed = this.cloud.feed.filter((p) => p.id !== id);
+        if (App.toast) App.toast("Post deleted");
+        this.render();
+      }, "Could not delete post. It is still here. Try again.");
     }
-    this.deletePost(id); this.render();
+    this.deletePost(id); this.render(); return true;
   },
   // ---- post overflow menu (standard social actions) + personal feed curation ----
   _postById(id) {
     if (this.cloudActive() && this.cloud.feed) { const c = this.cloud.feed.find((x) => x.id === id); if (c) return c; }
-    return (this.state.posts || []).find((x) => x.id === id) || ((this.cloud.feed || []).find((x) => x.id === id));
+    return ((this.state && this.state.posts) || []).find((x) => x.id === id) || ((this.cloud.feed || []).find((x) => x.id === id));
   },
-  _isMine(p) { return !!(p && (p.author === "me" || (typeof Cloud !== "undefined" && Cloud.me && p.author === Cloud.me))); },
-  _list(k) { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch (e) { return []; } },
-  _addTo(k, v) { const a = this._list(k); if (!a.includes(v)) { a.unshift(v); localStorage.setItem(k, JSON.stringify(a)); } return a; },
+  _isMine(p) {
+    const uid = this.cloudActive() ? Cloud._actionUid() : "me";
+    return !!(p && uid && p.author === uid);
+  },
+  _actionScope() {
+    const uid = typeof Cloud !== "undefined" ? Cloud.me : null;
+    const authUid = (typeof SupaAuth !== "undefined" && SupaAuth.active() && SupaAuth.uid()) || null;
+    return JSON.stringify([this.key, uid, authUid, this._session]);
+  },
+  _actionPending(action, id) { return !!(this._pendingActions && this._pendingActions.has(this._actionScope() + ":" + action + ":" + id)); },
+  async _ackAction(action, id, write, commit, failure) {
+    const scope = this._actionScope(), state = this.state;
+    const key = scope + ":" + action + ":" + id;
+    const pending = this._pendingActions || (this._pendingActions = new Set());
+    if (pending.has(key)) return false;
+    pending.add(key);
+    try {
+      let ok = false;
+      try { ok = await write(); } catch (error) {}
+      if (scope !== this._actionScope() || state !== this.state) return false;
+      if (ok !== true) { if (App.toast) App.toast(typeof failure === "function" ? failure() : failure); return false; }
+      commit();
+      return true;
+    } finally { pending.delete(key); }
+  },
+  _listKey(name) {
+    const account = this.cloudActive() ? "cloud_" + (Cloud._actionUid() || "guest") : (this.key || "guest");
+    return name + "_" + account;
+  },
+  _legacyPreferences() {
+    const names = ["fm_saved", "fm_hidden", "fm_hidden_cmt", "fm_blocked", "fm_notint", "fm_reported", "fm_muted"];
+    try {
+      const owner = localStorage.getItem("fm_legacy_preferences_owner");
+      if (owner && owner !== this._listKey("owner")) return [];
+      return names.flatMap(name => {
+        const values = JSON.parse(localStorage.getItem(name) || "[]");
+        return Array.isArray(values) && values.length ? [{ name, values }] : [];
+      });
+    } catch (_) { return []; }
+  },
+  showLegacyPreferences() {
+    let notice = document.getElementById("legacy-preferences-status");
+    const legacy = this._legacyPreferences();
+    if (!legacy.length) { if (notice) notice.remove(); return; }
+    if (!notice) {
+      const shell = document.getElementById("app-shell"); if (!shell) return;
+      notice = document.createElement("div"); notice.id = "legacy-preferences-status";
+      notice.style.cssText = "margin:12px 16px;padding:12px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap";
+      shell.insertBefore(notice, shell.querySelector("nav"));
+    }
+    notice.innerHTML = `<span role="status" style="flex:1;min-width:180px">Saved items, blocks or mutes from an older version are not active for this account. Their original device data is retained.</span><button class="btn ghost" onclick="Social.restoreLegacyPreferences()">${App.ic("undo", { size: 16 })} Restore preferences</button>`;
+  },
+  restoreLegacyPreferences() {
+    const legacy = this._legacyPreferences();
+    if (!legacy.length || (this.cloudActive() && !Cloud._actionUid())) return false;
+    if (!confirm("Restore this device's older saved items, blocks, hides and mutes to this account? Continue only if they are yours. Other accounts will not inherit them.")) return false;
+    try {
+      localStorage.setItem("fm_legacy_preferences_owner", this._listKey("owner"));
+      for (const item of legacy) {
+        const values = [...new Set([...this._list(item.name), ...item.values])];
+        if (!this._setList(item.name, values)) throw new Error("storage_unavailable");
+      }
+      for (const item of legacy) localStorage.removeItem(item.name);
+    } catch (_) { if (App.toast) App.toast("Could not finish restoring preferences. Original data is retained; try again."); return false; }
+    this.showLegacyPreferences(); this.render();
+    if (App.toast) App.toast("Preferences restored for this account on this device");
+    return true;
+  },
+  _list(name) {
+    try { const list = JSON.parse(localStorage.getItem(this._listKey(name)) || "[]"); return Array.isArray(list) ? list : []; }
+    catch (error) { return []; }
+  },
+  _setList(name, list) {
+    try { localStorage.setItem(this._listKey(name), JSON.stringify(list)); return true; }
+    catch (error) { return false; }
+  },
+  _addTo(name, value) {
+    const list = this._list(name);
+    if (!list.includes(value)) { list.unshift(value); if (!this._setList(name, list)) return null; }
+    return list;
+  },
   isHidden(id) { return this._list("fm_hidden").includes(id); },
   isBlocked(uid) { return this._list("fm_blocked").includes(uid); },
   postMenu(id) {
@@ -940,25 +1195,46 @@ const Social = {
     }
     App.openSheet(mine ? "Your post" : (a.name || "Post"), acts);
   },
-  hidePost(id) { this._addTo("fm_hidden", id); this.haptic(12); if (App.toast) App.toast("Post hidden"); this.render(); },
+  hidePost(id) {
+    if (!this._addTo("fm_hidden", id)) { if (App.toast) App.toast("Could not hide post on this device. Try again."); return false; }
+    this.haptic(12); if (App.toast) App.toast("Post hidden on this device"); this.render(); return true;
+  },
   notInterested(id) {
-    const p = this._postById(id); this._addTo("fm_hidden", id);
-    if (p && p.author) this._addTo("fm_notint", p.author);
-    this.haptic(12); if (App.toast) App.toast("Thanks — you'll see less like this"); this.render();
+    const post = this._postById(id); if (!post) return false;
+    if ((post.author && !this._addTo("fm_notint", post.author)) || !this._addTo("fm_hidden", id)) {
+      if (App.toast) App.toast("Could not save this feed preference on this device. Try again."); return false;
+    }
+    this.haptic(12); if (App.toast) App.toast("Post hidden from your feed on this device"); this.render(); return true;
   },
   blockUser(uid) {
-    if (!uid) return;
-    if (!confirm("Block this person? You won't see their posts, and they won't see yours.")) return;
-    this._addTo("fm_blocked", uid); this.haptic(16); if (App.toast) App.toast("Blocked"); this.render();
+    if (!uid || this._isMine({ author: uid })) return false;
+    if (!confirm("Hide this person's posts from your feed and their comments for this account on this device? They can still see your content and contact you.")) return false;
+    if (!this._addTo("fm_blocked", uid)) { if (App.toast) App.toast("Could not save this local block. Try again."); return false; }
+    this.haptic(16); if (App.toast) App.toast("Blocked in your feed on this device"); this.render(); return true;
   },
   reportPost(id) {
     const reasons = ["Spam or scam", "Nudity or sexual content", "Harassment or hate", "Violence or threats", "False information", "Something else"];
     App.openSheet("Why are you reporting this?", reasons.map((r) => ({ icon: "flag", label: r, fn: () => this._doReport(id, r) })));
   },
-  _doReport(id, reason) {
-    this._addTo("fm_reported", id); this._addTo("fm_hidden", id);
-    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("post", id, reason, (this._postById(id) || {}).author); } catch (e) {} }
-    this.haptic(14); if (App.toast) App.toast("Reported — our team will review it, and it's hidden from your feed"); this.render();
+  async _doReport(id, reason) {
+    const post = this._postById(id); if (!post) return false;
+    return this._reportAction("post", id, reason, post.author);
+  },
+  async _reportAction(kind, id, reason, reportedUid) {
+    if (!id) return false;
+    return this._ackAction("report-" + kind, id,
+      () => this.cloudActive() && Cloud.report && Cloud.report(kind, id, reason, reportedUid),
+      () => {
+        const hiddenList = kind === "post" ? "fm_hidden" : kind === "comment" ? "fm_hidden_cmt" : null;
+        let hidden = false;
+        try {
+          if (kind === "post") this._addTo("fm_reported", id);
+          if (hiddenList) hidden = !!this._addTo(hiddenList, id);
+        } catch (error) {}
+        this.haptic(12);
+        if (App.toast) App.toast("Report sent." + (hiddenList ? (hidden ? " Hidden from your view." : " Could not hide this item on this device.") : ""));
+        if (hiddenList) this.render();
+      }, () => typeof Reports !== "undefined" && Reports.enabled() ? Reports.errorFor(kind, String(id), reason) : "Could not confirm the report. Try again when you are signed in and online.");
   },
   copyPostLink(id) {
     const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
@@ -969,20 +1245,29 @@ const Social = {
   },
   _postData(p) { return { text: p.text || "", photo: p.photo || null, photos: p.photos || null, video: p.video || null, gradient: p.gradient || null, tag: p.tag || "Flex", resharedFrom: p.resharedFrom || null, reshareOf: p.reshareOf || null, music: p.music || null }; },
   editPost(id) {
-    const p = this._postById(id); if (!p) return;
+    const p = this._postById(id); if (!this._isMine(p)) return;
     const card = document.getElementById("modal-card"); if (!card) return;
     card.innerHTML = `<div class="modal-head"><h2>Edit caption</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <textarea id="edit-cap" class="food-text" rows="4" style="width:100%;box-sizing:border-box" placeholder="Write a caption…">${esc(p.text || "")}</textarea>
-      <button class="btn wide" style="margin-top:12px" onclick="Social.saveEditPost('${id}')">Save changes</button>`;
+      <button id="edit-cap-save" class="btn wide" style="margin-top:12px" onclick="Social.saveEditPost('${id}')">Save changes</button>`;
     document.getElementById("modal").classList.remove("hidden");
   },
-  saveEditPost(id) {
+  async saveEditPost(id) {
     const p = this._postById(id); const el = document.getElementById("edit-cap");
-    if (!p || !el) return;
-    p.text = (el.value || "").trim();
-    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.editPost) { Cloud.editPost(id, this._postData(p)); }
-    else { try { this.save && this.save(); } catch (e) {} }
-    App.closeModal(); this.haptic(12); if (App.toast) App.toast("Caption updated"); this.render();
+    if (!this._isMine(p) || !el || this._actionPending("edit-post", id)) return false;
+    const draft = el.value || "", text = draft.trim(), cloud = this.cloudActive();
+    const button = document.getElementById("edit-cap-save");
+    if (button) { button.disabled = true; button.textContent = "Saving..."; }
+    try {
+      return await this._ackAction("edit-post", id,
+        () => cloud ? (Cloud.editPost && Cloud.editPost(id, this._postData({ ...p, text }))) : true,
+        () => {
+          const current = this._postById(id); if (current) current.text = text;
+          if (!cloud) this.save();
+          if (document.getElementById("edit-cap") === el && el.value === draft) App.closeModal();
+          this.haptic(12); if (App.toast) App.toast("Caption updated"); this.render();
+        }, "Could not update caption. Your draft is still here. Try again.");
+    } finally { if (button) { button.disabled = false; button.textContent = "Save changes"; } }
   },
   likePost(id) {
     this.haptic(12);
@@ -991,7 +1276,13 @@ const Social = {
       if (post) {
         post.likes = post.likes || {};
         if (post.likes[Cloud.me]) { delete post.likes[Cloud.me]; Cloud.unlikeCloud(id); }
-        else { post.likes[Cloud.me] = true; Cloud.likeCloud(id); if (Cloud.notify && post.author !== Cloud.me) Cloud.notify(post.author, "like", id, post.text || ""); }
+        else {
+          const owner = Cloud.me, scope = this._actionScope();
+          post.likes[owner] = true;
+          Promise.resolve(Cloud.likeCloud(id)).then(ok => {
+            if (ok === true && this._actionScope() === scope && post.likes[owner] && Cloud.notify && post.author !== owner) return Cloud.notify(post.author, "like", id, undefined, id);
+          }).catch(() => {});
+        }
         this.render();
         return;
       }
@@ -1011,16 +1302,33 @@ const Social = {
     return uids;
   },
   renderCommentThread(postId) {
-    const all = this.commentsFor(postId);
-    const tops = all.filter((c) => !c.parent_id);
-    if (!tops.length) return `<div class="sub" style="padding:6px 2px 10px">No comments yet — be the first 👋</div>`;
-    return tops.map((c) => this.commentNode(c, all)).join("");
+    const rows = this.commentRows(postId);
+    if (!rows.length) return `<div class="sub" style="padding:6px 2px 10px">No comments yet — be the first 👋</div>`;
+    return rows.map(row => this.commentNode(row.comment, [], row.reply)).join("");
   },
-  commentNode(c, all) {
-    const replies = all.filter((r) => r.parent_id === c.id);
+  commentRows(postId) {
+    const comments = this.commentsFor(postId), ids = new Set(comments.map(comment => comment.id));
+    const children = new Map(), roots = [], rows = [], seen = new Set();
+    for (const comment of comments) {
+      if (!comment.parent_id || !ids.has(comment.parent_id)) roots.push(comment);
+      const replies = children.get(comment.parent_id) || [];
+      replies.push(comment); children.set(comment.parent_id, replies);
+    }
+    for (const root of [...roots, ...comments]) {
+      const pending = [{ comment: root, reply: false }];
+      while (pending.length) {
+        const row = pending.pop();
+        if (seen.has(row.comment.id)) continue;
+        seen.add(row.comment.id); rows.push(row);
+        const replies = children.get(row.comment.id) || [];
+        for (let index = replies.length - 1; index >= 0; index--) pending.push({ comment: replies[index], reply: true });
+      }
+    }
+    return rows;
+  },
+  commentNode(c, all, reply = false) {
     const who = this._commenter(c.author);
-    const rep = replies.map((r) => { const rw = this._commenter(r.author); return `<div class="cmt2 reply"><span class="cmt2-av" onclick="Social.viewProfile('${r.author}')">${this.avatar(rw, 26)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${r.author}')">${esc(rw.name)}</b> ${this._renderMentions(r.body)} <span class="cmt2-time">${this.timeAgo(r.ts)}</span>${this._cmtMore(r)}</div></div>`; }).join("");
-    return `<div class="cmt2"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button>${this._cmtMore(c)}</div>${rep}</div>`;
+    return `<div class="cmt2${reply ? " reply" : ""}"><span class="cmt2-av" onclick="Social.viewProfile('${c.author}')">${this.avatar(who, reply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${this._renderMentions(c.body)} <span class="cmt2-time">${this.timeAgo(c.ts)}</span> <button class="cmt2-reply" onclick="Social.startReply('${c.post_id}','${c.id}','${c.author}')">Reply</button>${this._cmtMore(c)}</div></div>`;
   },
   startReply(postId, parentId, parentAuthor) {
     this._replyTo = { postId, parentId, parentAuthor };
@@ -1050,7 +1358,7 @@ const Social = {
   _commentById(id) { return (this.cloud.comments || []).find((c) => c.id === id); },
   commentMenu(id) {
     const c = this._commentById(id); if (!c) return;
-    const mine = (typeof Cloud !== "undefined" && c.author === Cloud.me);
+    const mine = this._isMine(c);
     const who = this._commenter(c.author);
     const acts = [{ icon: "copy", label: "Copy text", fn: () => this.copyText(c.body) }];
     if (mine) {
@@ -1063,17 +1371,17 @@ const Social = {
     }
     App.openSheet(mine ? "Your comment" : (who.name || "Comment"), acts);
   },
-  deleteComment(id) {
-    if (!confirm("Delete this comment?")) return;
-    if (typeof Cloud !== "undefined" && Cloud.deleteComment) Cloud.deleteComment(id);
-    this.cloud.comments = (this.cloud.comments || []).filter((c) => c.id !== id && c.parent_id !== id);
-    this.haptic(12); if (App.toast) App.toast("Comment deleted"); this.render();
+  async deleteComment(id) {
+    if (!this._isMine(this._commentById(id)) || this._actionPending("delete-comment", id)) return false;
+    if (!confirm("Delete this comment?")) return false;
+    return this._ackAction("delete-comment", id, () => this.cloudActive() && Cloud.deleteComment && Cloud.deleteComment(id), () => {
+      this.cloud.comments = (this.cloud.comments || []).filter((c) => c.id !== id);
+      this.haptic(12); if (App.toast) App.toast("Comment deleted"); this.render();
+    }, "Could not delete comment. It is still here. Try again.");
   },
-  reportComment(id) {
-    const c = this._commentById(id);
-    this._addTo("fm_hidden_cmt", id);
-    if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("comment", id, "reported", c && c.author); } catch (e) {} }
-    this.haptic(12); if (App.toast) App.toast("Reported — our team will review it; hidden from your view"); this.render();
+  async reportComment(id) {
+    const comment = this._commentById(id); if (!comment) return false;
+    return this._reportAction("comment", id, "reported", comment.author);
   },
   copyText(t) {
     const ok = () => { if (App.toast) App.toast("Copied"); };
@@ -1088,43 +1396,48 @@ const Social = {
     else acts.push({ icon: "ban", label: "Block @" + h, danger: true, fn: () => this.blockFromProfile(uid) });
     App.openSheet(who.name || "Profile", acts);
   },
-  blockFromProfile(uid) {
-    if (!confirm("Block this person? You won't see their posts or comments, and they won't see yours.")) return;
-    this._addTo("fm_blocked", uid); this.haptic(16); if (App.toast) App.toast("Blocked"); App.closeModal(); this.render();
+  blockFromProfile(uid) { if (this.blockUser(uid)) { App.closeModal(); return true; } return false; },
+  unblockUser(uid) {
+    if (!this._setList("fm_blocked", this._list("fm_blocked").filter((member) => member !== uid))) {
+      if (App.toast) App.toast("Could not remove this local block. Try again."); return false;
+    }
+    this.haptic(12); if (App.toast) App.toast("Unblocked on this device"); this.render(); return true;
   },
-  unblockUser(uid) { localStorage.setItem("fm_blocked", JSON.stringify(this._list("fm_blocked").filter((x) => x !== uid))); this.haptic(12); if (App.toast) App.toast("Unblocked"); this.render(); },
-  reportUser(uid) { if (this.cloudActive() && typeof Cloud !== "undefined" && Cloud.report) { try { Cloud.report("user", uid, "reported", uid); } catch (e) {} } this.haptic(12); if (App.toast) App.toast("Reported — thanks, our team will review this account"); },
+  async reportUser(uid) { return this._reportAction("user", uid, "reported", uid); },
   copyProfileLink(uid) {
     const base = (location.origin + location.pathname).replace(/(index\.html)?$/, "");
     const ok = () => { if (App.toast) App.toast("Link copied"); };
     const url = base + "?user=" + encodeURIComponent(uid);
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => this._share(url)); else this._share(url);
   },
-  resharePost(id) {
+  async resharePost(id) {
     if (this.cloudActive()) {
       const src = this.cloud.feed.find((p) => p.id === id);
-      if (!src) return;
+      const owner = Cloud._publishingUid();
+      if (!src || !owner) return false;
       const origId = src.reshareOf || src.id;
       const origAuthor = src.resharedFrom || src.author;
-      if (origAuthor === Cloud.me) { if (typeof App !== "undefined" && App.toast) App.toast("You can't reshare your own post"); return; }
-      const mine = this.cloud.feed.find((x) => x.author === Cloud.me && x.reshareOf === origId);
+      if (origAuthor === owner || this._actionPending("reshare", origId)) return false;
+      const mine = this.cloud.feed.find((x) => x.author === owner && x.reshareOf === origId);
       if (mine) {
-        if (Cloud.deletePost) Cloud.deletePost(mine.id);
-        this.cloud.feed = this.cloud.feed.filter((p) => p.id !== mine.id);
-        if (typeof App !== "undefined" && App.toast) App.toast("Reshare removed");
-        this.render();
-        return;
+        return this._ackAction("reshare", origId, () => Cloud.deletePost && Cloud.deletePost(mine.id), () => {
+          this.cloud.feed = this.cloud.feed.filter(post => post.id !== mine.id);
+          if (App.toast) App.toast("Reshare removed"); this.render();
+        }, "Could not remove reshare. Try again.");
       }
-      // deterministic id → upsert; a post can only be reshared once per account (no duplicates on race/double-tap)
-      const reshareId = "rs_" + Cloud.me + "__" + origId;
-      const np = Cloud.addPost({ id: reshareId, merge: true, text: src.text, photo: src.photo, photos: src.photos, video: src.video, gradient: src.gradient, tag: src.tag, resharedFrom: origAuthor, reshareOf: origId });
-      if (np && !this.cloud.feed.some((p) => p.id === np.id)) this.cloud.feed.unshift(np);
-      if (Cloud.notify) Cloud.notify(origAuthor, "reshare", origId, src.text || "");
-      if (typeof App !== "undefined" && App.toast) App.toast("Reshared to your feed 🔁");
-      this.render();
-      return;
+      const reshareId = "rs_" + owner + "__" + origId;
+      const data = this._postData({ ...src, resharedFrom: origAuthor, reshareOf: origId });
+      let receipt;
+      return this._ackAction("reshare", origId, async () => {
+        receipt = await Cloud.addPost({ ...data, id: reshareId, merge: true, author: owner });
+        return !!(receipt && receipt.id === reshareId && receipt.author === owner && Cloud._samePayload(this._postData(receipt), data));
+      }, () => {
+        if (!this.cloud.feed.some(post => post.id === receipt.id)) this.cloud.feed.unshift(receipt);
+        if (Cloud.notify && Cloud.me === owner) Cloud.notify(origAuthor, "reshare", origId, src.text || "");
+        if (App.toast) App.toast("Reshared to your feed"); this.render();
+      }, "Could not confirm reshare. Try again.");
     }
-    this.reshare(id); this.render();
+    this.reshare(id); this.render(); return true;
   },
 
   // ---- crew UI ----
@@ -1328,7 +1641,7 @@ const Social = {
   },
   // ---- cloud direct messages (Instagram-style DMs) ----
   dmBody() {
-    const meId = Cloud.me;
+    const meId = Cloud._actionUid();
     if (!this._dmInboxLoaded) { this._dmInboxLoaded = true; this.loadInbox(); }
     if (this._dmWith) {
       const u = (this._dmWith === meId) ? this.me() : (this.cloudUser(this._dmWith) || { name: "Member", handle: this._dmWith, colors: ["#8b93a7", "#262c3a"], avatar: null });
@@ -1338,11 +1651,14 @@ const Social = {
       const thread = this._dmThreadLoading
         ? `<div class="sub" style="padding:20px;text-align:center">Loading…</div>`
         : (msgs.length ? msgs.map((m) => this.dmBubble(m, meId)).join("")
-          : (q ? `<div class="sub" style="padding:20px;text-align:center">No messages match “${esc(this._dmSearch)}”.</div>`
+          : this._dmReadError ? "" : (q ? `<div class="sub" style="padding:20px;text-align:center">No messages match “${esc(this._dmSearch)}”.</div>`
             : `<div class="sub" style="padding:20px;text-align:center">Say hi to ${esc((u.name || "").split(" ")[0])} 👋</div>`));
+      const draft = this._dmDraft();
+      const sending = draft.request && this._actionPending("send-message", JSON.stringify([this._dmWith, draft.request.id]));
+      const editing = this._editMsg && this._messagePending(this._editMsg.id);
       const input = this._editMsg
-        ? `<div class="chat-input editing"><span class="ci-tag">✏️ Editing</span><input id="dm-edit" placeholder="Edit message…" onkeydown="if(event.key==='Enter')Social.saveEditMsg();if(event.key==='Escape')Social.cancelEdit()"><button class="icon-btn" onclick="Social.cancelEdit()" title="Cancel">✕</button>${App.sendIcon("Social.saveEditMsg()")}</div>`
-        : `<div class="chat-input"><input id="dm-text" placeholder="Message…" onkeydown="if(event.key==='Enter')Social.sendDM()">${App.sendIcon("Social.sendDM()")}</div>`;
+        ? `<div class="chat-input editing"><span class="ci-tag">✏️ Editing</span><input id="dm-edit" placeholder="Edit message…" value="${esc(this._editMsg.draft)}" oninput="if(Social._editMsg)Social._editMsg.draft=this.value" onkeydown="if(event.key==='Enter')Social.saveEditMsg();if(event.key==='Escape')Social.cancelEdit()"><button class="icon-btn" onclick="Social.cancelEdit()" title="Cancel">✕</button><button id="dm-save" class="send-ico" aria-label="Save message" aria-busy="${!!editing}" ${editing ? "disabled" : ""} onclick="Social.saveEditMsg()">${App.ic("send", { size: 20 })}</button></div>`
+        : `<div class="chat-input"><input id="dm-text" placeholder="Message…" value="${esc(draft.text)}" oninput="Social._dmDraft().text=this.value" onkeydown="if(event.key==='Enter')Social.sendDM()"><button id="dm-send" class="send-ico" aria-label="${draft.request ? "Retry message" : "Send message"}" aria-busy="${!!sending}" ${sending ? "disabled" : ""} onclick="Social.sendDM()">${App.ic("send", { size: 20 })}</button></div>`;
       return `<div class="card chat-card">
         <div class="dm-head">
           <button class="icon-btn" onclick="Social.closeDM()">←</button>
@@ -1350,7 +1666,7 @@ const Social = {
           <div class="dm-head-actions"><button class="icon-btn" onclick="Social.toggleDmSearch()" title="Search messages">${App.ic("search", { size: 20 })}</button><button class="icon-btn" onclick="Social.chatDetails()" title="Chat details">${App.ic("info", { size: 20 })}</button></div>
         </div>
         ${this._dmSearchOpen ? `<div class="dm-search"><input id="dm-q" placeholder="Search this chat…" value="${esc(this._dmSearch || "")}" oninput="Social.dmSearch(this.value)"><button class="icon-btn" onclick="Social.toggleDmSearch()">✕</button></div>` : ""}
-        <div class="chat-thread" id="chat-thread">${thread}</div>
+        <div class="chat-thread" id="chat-thread">${this._dmReadError ? '<div role="alert">Could not load messages. <button class="btn ghost" onclick="Social.refreshDM()">Retry</button></div>' : ""}${thread}</div>
         ${input}
       </div>`;
     }
@@ -1364,7 +1680,8 @@ const Social = {
     return `<div class="card">
       <div class="card-head"><h2>Messages</h2><span class="tag">💬</span></div>
       ${startRow}
-      ${this._dmInboxLoading ? `<div class="sub" style="padding:10px 2px">Loading chats…</div>` : (convos.length ? `<div class="dm-list">${rows}</div>` : `<div class="sub" style="padding:10px 2px">No messages yet. Tap a crew member above to start a chat, or connect with people in Search.</div>`)}
+      ${this._dmInboxError ? '<div role="alert">Could not load chats. <button class="btn ghost" onclick="Social.loadInbox()">Retry</button></div>' : ""}
+      ${this._dmInboxLoading ? `<div class="sub" style="padding:10px 2px">Loading chats…</div>` : (convos.length ? `<div class="dm-list">${rows}</div>` : this._dmInboxError ? "" : `<div class="sub" style="padding:10px 2px">No messages yet. Tap a crew member above to start a chat, or connect with people in Search.</div>`)}
     </div>`;
   },
   // a single message bubble; my own messages are tappable for edit/unsend
@@ -1372,11 +1689,198 @@ const Social = {
     const mine = m.from === meId;
     const edited = m.edited ? ` <span class="msg-edited">Edited</span>` : "";
     const t = m.ts ? esc(this.timeAgo(m.ts) + " ago") : "";
-    const more = mine ? ` <span onclick="event.stopPropagation();Social.msgMenu('${m.id}')" title="Edit or unsend" role="button" aria-label="Message options" style="opacity:.6;cursor:pointer;font-weight:800;padding:0 3px;letter-spacing:1px">⋯</span>` : "";
-    return `<div class="bubble ${mine ? "me" : "them"}" title="${t}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}${more}</div>`;
+    const more = mine ? ` <span onclick="event.stopPropagation();Social.msgMenu('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();this.click()}" tabindex="0" title="Edit or unsend" role="button" aria-label="Message options" style="opacity:.6;cursor:pointer;font-weight:800;padding:0 3px">⋯</span>` : "";
+    return `<div class="bubble ${mine ? "me" : "them"}" data-message-id="${esc(m.id)}" aria-busy="${mine && this._messagePending(m.id)}" title="${t}"${mine ? ` onclick="Social.msgMenu('${m.id}')"` : ""}>${this._urlify2(m.body)}${edited}${more}${this._storyContextSlot(m)}</div>`;
+  },
+
+  // ---- Story reply context: reference marker + checked resolve. No story id, media URL or caption is ever kept in the DOM or storage. ----
+  _storyContextScan: 50,
+  _storyContextResolve: 8,
+  _storyContextReady() {
+    if (window.STORY_INTERACTIONS !== true || typeof Stories === "undefined" || !this.cloudActive()) return false;
+    try { return Stories.enabled() && !!Stories.owner(); } catch (_) { return false; }
+  },
+  _storyContextSlot(m) {
+    if (!m || typeof m.id !== "string" || !m.id || !this._storyContextReady()) return "";
+    return `<span class="msg-context" data-story-context="${esc(m.id)}" style="display:block"></span>`;
+  },
+  _storyContextMap(withUid) {
+    const outer = this._storyContext || (this._storyContext = new Map());
+    const key = this._actionScope() + ":" + withUid;
+    if (!outer.has(key)) {
+      outer.set(key, new Map());
+      while (outer.size > 8) outer.delete(outer.keys().next().value);
+    }
+    return outer.get(key);
+  },
+  _storyContextCurrent(withUid, scope, session, pass) {
+    return this._session === session && this._actionScope() === scope && this._dmWith === withUid
+      && this.sub === "chat" && (!pass || this._storyContextPass === pass);
+  },
+  _storyContextNode(id, status) {
+    const wrap = document.createElement("span");
+    wrap.setAttribute("style", "display:inline-flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap");
+    if (status === "unavailable") {
+      wrap.className = "msg-context-note";
+      wrap.innerHTML = App.ic("info", { size: 14 }) + "<span style=\"font-size:12px;opacity:.8\">Story unavailable</span>";
+      return wrap;
+    }
+    const failed = status === "error";
+    if (failed) {
+      const note = document.createElement("span");
+      note.setAttribute("style", "font-size:12px;opacity:.8");
+      note.textContent = "Story could not be checked.";
+      wrap.appendChild(note);
+    }
+    const button = document.createElement("button");
+    const label = failed ? "Retry the story this reply is about" : "View the story this reply is about";
+    button.type = "button";
+    button.className = "btn ghost sm";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.setAttribute("style", "display:inline-flex;align-items:center;gap:6px;min-width:44px;min-height:44px;border-radius:8px;font-size:12px;padding:4px 10px");
+    button.innerHTML = App.ic(failed ? "undo" : "film", { size: 14 }) + "<span>" + (failed ? "Retry" : "View story") + "</span>";
+    button.addEventListener("click", (event) => { event.stopPropagation(); this.openStoryContext(id); });
+    wrap.appendChild(button);
+    return wrap;
+  },
+  // replaces only the context slots, so composer focus, typing and thread scroll are never disturbed
+  _paintStoryContext(withUid = this._dmWith) {
+    if (typeof document === "undefined" || !document.querySelectorAll || !withUid || this._dmWith !== withUid) return;
+    const state = this._storyContextMap(withUid);
+    document.querySelectorAll("#chat-thread [data-story-context]").forEach((slot) => {
+      const id = slot.getAttribute("data-story-context"), status = state.get(id) || "";
+      if (slot.getAttribute("data-story-context-state") === status) return;
+      slot.setAttribute("data-story-context-state", status);
+      slot.replaceChildren();
+      if (status) slot.appendChild(this._storyContextNode(id, status));
+    });
+  },
+  async _scanStoryContext(withUid = this._dmWith, force = false) {
+    this._paintStoryContext(withUid);
+    if (!withUid || !this._storyContextReady() || this._dmWith !== withUid || this.sub !== "chat") return false;
+    const scope = this._actionScope(), session = this._session, state = this._storyContextMap(withUid);
+    const ids = (this._dmMsgs || []).map((message) => message && message.id)
+      .filter((id) => typeof id === "string" && !!id && id.length <= 255 && !/[\x00-\x1f\x7f]/.test(id));
+    const windowIds = [...new Set(ids)].slice(-this._storyContextScan);
+    const scanned = state.scanned || (state.scanned = new Set());
+    for (const id of scanned) if (!windowIds.includes(id)) scanned.delete(id);
+    for (const id of state.keys()) if (!windowIds.includes(id)) state.delete(id);
+    const batch = force ? windowIds : windowIds.filter(id => !scanned.has(id));
+    if (!batch.length) return true;
+    if (!force && this._storyContextPass?.state === state && this._storyContextPass.pending) return false;
+    if (!force && state.retryAfter > Date.now()) return false;
+    const pass = this._storyContextPass = { state, pending: true };
+    state.retryAfter = Date.now() + 300000;
+    let references;
+    try { references = await Stories.replyReferences(batch); }
+    catch (_) {
+      // a transient outage must offer a retry, never assert a tombstone we could not confirm
+      if (this._storyContextCurrent(withUid, scope, session, pass)) {
+        for (const id of batch) if (state.has(id)) state.set(id, "error");
+        this._paintStoryContext(withUid);
+      }
+      pass.pending = false;
+      return false;
+    }
+    pass.pending = false;
+    if (!this._storyContextCurrent(withUid, scope, session, pass)) return false;
+    state.retryAfter = 0;
+    for (const id of batch) scanned.add(id);
+    const referenced = new Set(references);
+    for (const id of batch) if (referenced.has(id)) { if (!state.has(id)) state.set(id, "reference"); } else state.delete(id);
+    this._paintStoryContext(withUid);
+    for (const id of batch.filter((value) => referenced.has(value)).reverse().slice(0, this._storyContextResolve)) {
+      if (!this._storyContextCurrent(withUid, scope, session, pass)) return false;
+      await this._checkStoryContext(id, withUid, scope, session, pass);
+    }
+    return true;
+  },
+  // resolves through the checked accessor only; the story id lives in this call frame and is never stored
+  async _checkStoryContext(id, withUid, scope, session, pass) {
+    const state = this._storyContextMap(withUid);
+    try {
+      const result = await Stories.resolveContext(id);
+      if (!this._storyContextCurrent(withUid, scope, session, pass)) return null;
+      const storyId = result && result.available === true && result.story ? result.story.id : null;
+      state.set(id, storyId ? "reference" : "unavailable");
+      this._paintStoryContext(withUid);
+      return storyId || null;
+    } catch (error) {
+      if (this._storyContextCurrent(withUid, scope, session, pass)) {
+        state.set(id, error && error.status === 404 ? "unavailable" : "error");
+        this._paintStoryContext(withUid);
+      }
+      return null;
+    }
+  },
+  async openStoryContext(id) {
+    if (!this._storyContextReady()) { if (App.toast) App.toast("Stories are unavailable right now."); return false; }
+    const withUid = this._dmWith, scope = this._actionScope(), session = this._session, key = withUid + ":" + id;
+    if (this._storyContextOpening === key) return false;
+    this._storyContextOpening = key;
+    try {
+      const storyId = await this._checkStoryContext(id, withUid, scope, session, null);
+      if (!this._storyContextCurrent(withUid, scope, session, null)) return false;
+      if (!storyId) {
+        if (App.toast) App.toast(this._storyContextMap(withUid).get(id) === "error" ? "Could not check that story. Try again." : "Story unavailable.");
+        return false;
+      }
+      await Stories.open(storyId);
+      return true;
+    } catch (error) {
+      if (this._storyContextCurrent(withUid, scope, session, null) && App.toast) App.toast((error && error.message) || "Stories are unavailable right now.");
+      return false;
+    } finally { if (this._storyContextOpening === key) this._storyContextOpening = null; }
+  },
+  _dmDraft(withUid = this._dmWith) {
+    const drafts = this._dmDrafts || (this._dmDrafts = new Map());
+    const key = this._actionScope() + ":" + withUid;
+    if (!drafts.has(key)) drafts.set(key, { text: "", request: null, mutations: new Map(), revision: 0 });
+    return drafts.get(key);
+  },
+  _messagePending(id, withUid = this._dmWith) {
+    const key = JSON.stringify([withUid, id]);
+    return this._actionPending("edit-message", key) || this._actionPending("unsend-message", key);
+  },
+  _ownedMessage(id) {
+    const owner = typeof Cloud !== "undefined" && Cloud._publishingUid && Cloud._publishingUid();
+    return owner && (this._dmMsgs || []).find(message => message.id === id && message.from === owner && message.to === this._dmWith);
+  },
+  _dmRows(rows, withUid) {
+    if (!Array.isArray(rows)) return null;
+    const draft = this._dmDraft(withUid), owner = Cloud._actionUid();
+    const messages = rows.filter(message => message && ((message.from === owner && message.to === withUid) || (message.from === withUid && message.to === owner)))
+      .filter(message => !draft.request || message.id !== draft.request.id);
+    for (const [id, mutation] of draft.mutations) {
+      const index = messages.findIndex(message => message.id === id);
+      if (index >= 0) messages[index] = { ...mutation.original }; else messages.push({ ...mutation.original });
+    }
+    if (this._dmWith === withUid) for (const message of messages) {
+      const previous = (this._dmMsgs || []).find(item => item.id === message.id);
+      if (previous && previous.edited && previous.body === message.body) message.edited = true;
+    }
+    return messages.sort((first, second) => first.ts - second.ts);
+  },
+  _dmWriteControls() {
+    const draft = this._dmDraft();
+    const sending = draft.request && this._actionPending("send-message", JSON.stringify([this._dmWith, draft.request.id]));
+    for (const [id, pending] of [["dm-send", sending], ["dm-save", this._editMsg && this._messagePending(this._editMsg.id)]]) {
+      const button = document.getElementById(id);
+      if (button) {
+        button.disabled = !!pending;
+        if (button.setAttribute) { button.setAttribute("aria-busy", String(!!pending)); if (id === "dm-send") button.setAttribute("aria-label", draft.request ? "Retry message" : "Send message"); }
+      }
+    }
+    if (document.querySelectorAll) document.querySelectorAll("#chat-thread [data-message-id]").forEach(bubble => {
+      const pending = this._messagePending(bubble.getAttribute("data-message-id"));
+      bubble.setAttribute("aria-busy", String(pending));
+      const options = bubble.querySelector('[role="button"]');
+      if (options) options.setAttribute("aria-disabled", String(pending));
+    });
   },
   msgMenu(id) {
-    const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
+    const m = this._ownedMessage(id); if (!m || this._messagePending(id)) return;
     const when = m.ts ? "Sent " + this.timeAgo(m.ts) + " ago" + (m.edited ? " · edited" : "") : "Message";
     this.mediaSheet(when, [
       { label: `${App.ic("edit", { size: 18 })} <span>Edit</span>`, action: () => Social.editMsg(id) },
@@ -1386,26 +1890,65 @@ const Social = {
   },
   editMsg(id) {
     const m = (this._dmMsgs || []).find((x) => x.id === id); if (!m) return;
-    this._editMsg = { id, body: m.body };
+    if (this.cloudActive() && (!this._ownedMessage(id) || this._messagePending(id))) return;
+    const session = this._session, withUid = this._dmWith;
+    const edit = this._editMsg = { id, body: m.body, draft: m.body };
     this.render();
-    setTimeout(() => { const i = document.getElementById("dm-edit"); if (i) { i.value = m.body; i.focus(); i.setSelectionRange(m.body.length, m.body.length); } }, 30);
+    clearTimeout(this._editPrefillTimer);
+    this._editPrefillTimer = setTimeout(() => {
+      if (this._session !== session || this._dmWith !== withUid || this._editMsg !== edit) return;
+      const input = document.getElementById("dm-edit");
+      if (input) { input.value = edit.draft; input.focus(); input.setSelectionRange(edit.draft.length, edit.draft.length); }
+    }, 30);
   },
-  saveEditMsg() {
-    const i = document.getElementById("dm-edit"); if (!i || !this._editMsg) return;
-    const body = i.value.trim(); if (!body) return this.cancelEdit();
-    const id = this._editMsg.id;
-    const m = (this._dmMsgs || []).find((x) => x.id === id);
-    if (m && m.body !== body) { m.body = body; m.edited = true; if (typeof Cloud !== "undefined" && Cloud.editMessage) Cloud.editMessage(id, body); }
-    this._editMsg = null; this.render(); this.scrollChat();
-    if (typeof App !== "undefined" && App.toast) App.toast("Message edited");
+  async saveEditMsg() {
+    const input = document.getElementById("dm-edit"), edit = this._editMsg;
+    if (!this.state || !this.cloudActive() || !input || !edit || !input.value.trim() || this._messagePending(edit.id)) return false;
+    const message = this._ownedMessage(edit.id); if (!message) return false;
+    const raw = edit.draft = input.value, body = raw.trim(), withUid = this._dmWith, scope = this._actionScope();
+    const draft = this._dmDraft(), key = JSON.stringify([withUid, edit.id]);
+    if (!draft.mutations.has(edit.id)) draft.mutations.set(edit.id, { original: { ...message } });
+    const saving = this._ackAction("edit-message", key, () => Cloud.editMessage && Cloud.editMessage(edit.id, body, withUid), () => {
+      draft.revision++;
+      draft.mutations.delete(edit.id);
+      if (this._dmWith === withUid) {
+        const current = this._ownedMessage(edit.id);
+        if (current) { current.body = body; current.edited = true; }
+        if (this._editMsg === edit) {
+          const currentInput = document.getElementById("dm-edit");
+          if (currentInput === input && input.value === raw) this._editMsg = null;
+          else if (currentInput) edit.draft = currentInput.value;
+        }
+        if (this.sub === "chat") { this.render(); this.scrollChat(); }
+      }
+      this._dmInboxLoaded = false;
+      if (App.toast) App.toast("Message edited");
+    }, "Could not edit message. Your draft is kept. Try again.");
+    this._dmWriteControls();
+    try { return await saving; }
+    finally { if (this._actionScope() === scope && this._dmWith === withUid) this._dmWriteControls(); }
   },
-  cancelEdit() { this._editMsg = null; this.render(); },
-  unsendMsg(id) {
-    if (typeof window !== "undefined" && window.confirm && !window.confirm("Unsend this message? It will be removed for both of you.")) return;
-    this._dmMsgs = (this._dmMsgs || []).filter((x) => x.id !== id);
-    if (typeof Cloud !== "undefined" && Cloud.deleteMessage) Cloud.deleteMessage(id);
-    this.render(); this.scrollChat();
-    if (typeof App !== "undefined" && App.toast) App.toast("Message unsent");
+  cancelEdit() { clearTimeout(this._editPrefillTimer); this._editMsg = null; this.render(); },
+  async unsendMsg(id, confirmed = false) {
+    const message = this._ownedMessage(id);
+    if (!this.state || !this.cloudActive() || !message || this._messagePending(id)) return false;
+    if (!confirmed && typeof window !== "undefined" && window.confirm && !window.confirm("Unsend this message? It will be removed for both of you.")) return false;
+    const withUid = this._dmWith, scope = this._actionScope(), draft = this._dmDraft(), key = JSON.stringify([withUid, id]);
+    if (!draft.mutations.has(id)) draft.mutations.set(id, { original: { ...message } });
+    const unsending = this._ackAction("unsend-message", key, () => Cloud.deleteMessage && Cloud.deleteMessage(id, withUid), () => {
+      draft.revision++;
+      draft.mutations.delete(id);
+      if (this._dmWith === withUid) {
+        this._dmMsgs = (this._dmMsgs || []).filter(message => message.id !== id);
+        if (this._editMsg && this._editMsg.id === id) this._editMsg = null;
+        if (this.sub === "chat") { this.render(); this.scrollChat(); }
+      }
+      this._dmInboxLoaded = false;
+      if (App.toast) App.toast("Message unsent");
+    }, "Could not confirm unsend. The message is kept here. Try again.");
+    this._dmWriteControls();
+    try { return await unsending; }
+    finally { if (this._actionScope() === scope && this._dmWith === withUid) this._dmWriteControls(); }
   },
   toggleDmSearch() {
     this._dmSearchOpen = !this._dmSearchOpen; if (!this._dmSearchOpen) this._dmSearch = "";
@@ -1416,21 +1959,32 @@ const Social = {
     this._dmSearch = q; this.render();
     const i = document.getElementById("dm-q"); if (i) { i.focus(); const v = i.value.length; i.setSelectionRange(v, v); }
   },
-  isMuted(uid) { try { return JSON.parse(localStorage.getItem("fm_muted") || "[]").includes(uid); } catch (e) { return false; } },
+  isMuted(uid) { return this._list("fm_muted").includes(uid); },
   toggleMute(uid) {
-    let arr = []; try { arr = JSON.parse(localStorage.getItem("fm_muted") || "[]"); } catch (e) { arr = []; }
+    if (!uid) return false;
+    let arr = this._list("fm_muted");
     if (arr.includes(uid)) arr = arr.filter((x) => x !== uid); else arr.push(uid);
-    localStorage.setItem("fm_muted", JSON.stringify(arr));
+    if (!this._setList("fm_muted", arr)) { if (App.toast) App.toast("Could not update notifications on this device. Try again."); return false; }
     if (typeof App !== "undefined" && App.toast) App.toast(arr.includes(uid) ? "Notifications muted" : "Unmuted");
-    this.chatDetails();
+    this.chatDetails(); return true;
   },
-  msgSoundOff() { try { return localStorage.getItem("fm_msgsound") === "off"; } catch (e) { return false; } },
+  msgSoundOff() {
+    try {
+      if (!this.key || (this.cloudActive() && !Cloud._actionUid())) return true;
+      const preference = localStorage.getItem(this._listKey("fm_msgsound"));
+      return preference === "off" || (preference !== "on" && localStorage.getItem("fm_msgsound") === "off");
+    }
+    catch (_) { return true; }
+  },
   toggleMsgSound() {
+    if (!this.key || (this.cloudActive() && !Cloud._actionUid())) return false;
     const off = this.msgSoundOff();
-    try { localStorage.setItem("fm_msgsound", off ? "on" : "off"); } catch (e) {}
+    try { localStorage.setItem(this._listKey("fm_msgsound"), off ? "on" : "off"); }
+    catch (_) { if (typeof App !== "undefined" && App.toast) App.toast("Could not update message sound on this device. Try again."); return false; }
     if (off) this.playPing();
     if (typeof App !== "undefined" && App.toast) App.toast(off ? "Message sound on" : "Message sound off");
     this.chatDetails();
+    return true;
   },
   chatDetails() {
     const uid = this._dmWith; if (!uid) return;
@@ -1451,19 +2005,31 @@ const Social = {
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
-  clearMyMessages(uid) {
-    if (typeof window !== "undefined" && window.confirm && !window.confirm("Unsend ALL your messages in this chat? This removes them for both of you.")) return;
-    (this._dmMsgs || []).filter((m) => m.from === Cloud.me).forEach((m) => { if (typeof Cloud !== "undefined" && Cloud.deleteMessage) Cloud.deleteMessage(m.id); });
-    this._dmMsgs = (this._dmMsgs || []).filter((m) => m.from !== Cloud.me);
-    if (typeof App !== "undefined") { App.closeModal(); if (App.toast) App.toast("Your messages unsent"); }
-    this.render();
+  async clearMyMessages(uid) {
+    if (uid !== this._dmWith || !this.state || !this.cloudActive()) return false;
+    const messages = (this._dmMsgs || []).filter(message => this._ownedMessage(message.id));
+    if (!messages.length || !window.confirm("Unsend ALL your messages in this chat? This removes them for both of you.")) return false;
+    const scope = this._actionScope(), card = document.getElementById("modal-card"), content = card && card.firstElementChild;
+    let ok = true;
+    for (const message of messages) {
+      if (this._actionScope() !== scope || this._dmWith !== uid) return false;
+      if (!await this.unsendMsg(message.id, true)) ok = false;
+    }
+    if (this._actionScope() !== scope || this._dmWith !== uid) return false;
+    if (ok && card && card.firstElementChild === content) App.closeModal();
+    if (!ok && App.toast) App.toast("Some messages could not be unsent. Try again.");
+    return ok;
   },
   _urlify2(s) { return esc(s || ""); },
   loadInbox() {
     if (typeof Cloud === "undefined" || !Cloud.getInbox) return;
+    const scope = this._actionScope(), meId = Cloud._actionUid();
     this._dmInboxLoading = true;
-    Cloud.getInbox().then((msgs) => {
-      const meId = Cloud.me, map = {};
+    return Cloud.getInbox().then((msgs) => {
+      if (this._actionScope() !== scope) return;
+      this._dmInboxLoading = false; this._dmInboxError = !Array.isArray(msgs);
+      if (this._dmInboxError) { if (this.sub === "chat" && !this._dmWith) this.render(); return; }
+      const map = {};
       (msgs || []).forEach((m) => { const other = m.from === meId ? m.to : m.from; if (!map[other] || m.ts > map[other].ts) map[other] = { uid: other, last: (m.from === meId ? "You: " : "") + m.body, ts: m.ts }; });
       this._dmConvos = Object.values(map).sort((a, b) => b.ts - a.ts);
       this._dmInboxLoading = false;
@@ -1471,34 +2037,76 @@ const Social = {
     });
   },
   openDM(uid) {
+    if (this._dmWith !== uid) { clearTimeout(this._editPrefillTimer); this._editMsg = null; }
     if (typeof App !== "undefined" && App.closeModal) App.closeModal();
     if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
-    this.sub = "chat"; this._dmWith = uid; this._dmMsgs = []; this._dmThreadLoading = true;
+    this.sub = "chat"; this._dmWith = uid; this._dmMsgs = []; this._dmThreadLoading = true; this._dmReadError = false;
+    this._storyContextPass = null;
     this.render();
     if (typeof Cloud !== "undefined" && Cloud.getMessages) {
-      Cloud.getMessages(uid).then((msgs) => { this._dmMsgs = msgs || []; this._dmThreadLoading = false; if (this.sub === "chat" && this._dmWith === uid) { this.render(); this.scrollChat(); } });
+      const scope = this._actionScope(), draft = this._dmDraft(uid), revision = draft.revision;
+      return Cloud.getMessages(uid).then((msgs) => {
+        if (this._actionScope() !== scope || this._dmWith !== uid) return;
+        if (draft.revision !== revision) {
+          this._dmThreadLoading = false;
+          if (this.sub === "chat") { this.render(); return this.refreshDM(); }
+          return;
+        }
+        this._dmReadError = !Array.isArray(msgs);
+        this._dmMsgs = this._dmRows(msgs, uid) || []; this._dmThreadLoading = false;
+        if (this.sub === "chat") { this.render(); this.scrollChat(); }
+        if (!this._dmReadError) this._scanStoryContext(uid, true).catch(() => {});
+      });
     }
   },
-  closeDM() { this._dmWith = null; this._dmInboxLoaded = false; this.render(); this.loadInbox(); },
-  sendDM() {
-    const i = document.getElementById("dm-text");
-    if (!i || !i.value.trim() || !this._dmWith) return;
-    const body = i.value.trim(); i.value = "";
-    const sent = (typeof Cloud !== "undefined" && Cloud.sendMessage) ? Cloud.sendMessage(this._dmWith, body) : null;
-    if (sent) this._dmMsgs = (this._dmMsgs || []).concat([sent]);
-    this.render(); this.scrollChat();
-  },
-  refreshDM() {
-    if (!this._dmWith || typeof Cloud === "undefined" || !Cloud.getMessages) return;
-    Cloud.getMessages(this._dmWith).then((msgs) => {
-      if (this.sub !== "chat" || !this._dmWith) return;
-      const prev = this._dmMsgs || [];
-      if ((msgs || []).length !== prev.length) {
-        const seen = new Set(prev.map((m) => m.id));
-        const newIncoming = (msgs || []).some((m) => m.from !== Cloud.me && !seen.has(m.id));
-        this._dmMsgs = msgs || []; this.render(); this.scrollChat();
-        if (newIncoming && !this.isMuted(this._dmWith)) this.playPing();
+  closeDM() { clearTimeout(this._editPrefillTimer); this._editMsg = null; this._dmWith = null; this._storyContextPass = null; this._dmInboxLoaded = false; this.render(); this.loadInbox(); },
+  async sendDM() {
+    const input = document.getElementById("dm-text"), withUid = this._dmWith;
+    if (!this.state || !this.cloudActive() || !input || !withUid) return false;
+    const owner = Cloud._publishingUid(), scope = this._actionScope();
+    if (!owner || !Cloud._messageRecipient(withUid)) { if (App.toast) App.toast("Could not send message. Sign in and try again."); return false; }
+    const draft = this._dmDraft(); draft.text = input.value;
+    if (!draft.request && !draft.text.trim()) return false;
+    if (!draft.request) draft.request = { id: Cloud._newActionId(), body: draft.text.trim(), text: draft.text };
+    const request = draft.request, key = JSON.stringify([withUid, request.id]);
+    let receipt;
+    const sending = this._ackAction("send-message", key, async () => {
+      if (!request.id || !Cloud.sendMessage) return false;
+      receipt = await Cloud.sendMessage(withUid, request.body, request.id);
+      return !!(receipt && receipt.id === request.id && receipt.from === owner && receipt.to === withUid && receipt.body === request.body);
+    }, () => {
+      draft.revision++;
+      draft.request = null;
+      const currentInput = this._dmWith === withUid && document.getElementById("dm-text");
+      if (currentInput) draft.text = currentInput.value;
+      if ((!currentInput || currentInput === input) && draft.text === request.text) { draft.text = ""; if (currentInput) currentInput.value = ""; }
+      if (this._dmWith === withUid) {
+        if (!(this._dmMsgs || []).some(message => message.id === receipt.id)) this._dmMsgs = (this._dmMsgs || []).concat([receipt]);
+        if (this.sub === "chat") { this.render(); this.scrollChat(); }
       }
+      this._dmInboxLoaded = false;
+      if (App.toast) App.toast("Message sent");
+    }, "Could not confirm the message. Your draft is kept. Try again.");
+    this._dmWriteControls();
+    try { return await sending; }
+    finally { if (this._actionScope() === scope && this._dmWith === withUid) this._dmWriteControls(); }
+  },
+  refreshDM(passive = false) {
+    if (!this._dmWith || typeof Cloud === "undefined" || !Cloud.getMessages) return;
+    const scope = this._actionScope(), withUid = this._dmWith;
+    const draft = this._dmDraft(withUid), revision = draft.revision;
+    return Cloud.getMessages(withUid).then((msgs) => {
+      if (this._actionScope() !== scope || this.sub !== "chat" || this._dmWith !== withUid || draft.revision !== revision) return;
+      const previousError = this._dmReadError;
+      this._dmReadError = !Array.isArray(msgs);
+      const prev = this._dmMsgs || [], current = this._dmRows(msgs, withUid);
+      if (current && JSON.stringify(current) !== JSON.stringify(prev)) {
+        const seen = new Set(prev.map((m) => m.id));
+        const newIncoming = current.some((m) => m.from !== Cloud._actionUid() && !seen.has(m.id));
+        this._dmMsgs = current; this.render(); this.scrollChat();
+        if (newIncoming && !this.isMuted(this._dmWith)) this.playPing();
+      } else if (previousError !== this._dmReadError) this.render();
+      if (!this._dmReadError) this._scanStoryContext(withUid, !passive).catch(() => {});
     });
   },
   openChat(id) { this.chatWith = id; this.sub = "chat"; this.render(); },

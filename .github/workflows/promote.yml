@@ -39,9 +39,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SRC: ${{ github.event.workflow_run.head_branch }}
           DST: ${{ steps.n.outputs.next }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch origin "$SRC" "$DST"
+          decision="$(node scripts/promotion-policy.cjs "$SRC" "$TESTED_SHA" "$(git rev-parse "origin/$SRC")")"
+          if [ "$decision" != current ]; then
+            echo "::notice::The $SRC branch changed after this CI run. Awaiting checks for its current commit."
+            exit 0
+          fi
           if git diff --quiet "origin/$DST" "origin/$SRC"; then
             echo "Nothing to promote: $SRC and $DST are identical."
             exit 0
@@ -53,5 +59,5 @@ jobs:
           fi
           gh pr create --base "$DST" --head "$SRC" \
             --title "Promote: $SRC -> $DST" \
-            --body "Automated promotion PR. CI passed on \`$SRC\`. Merge to advance the code to **$DST** once this stage's testing is signed off. File any defects as issues using the Bug report template." \
+            --body "Automated promotion PR. CI passed on \`$SRC\` at \`$TESTED_SHA\`. This is not QAT, beta or production sign-off. Merge to advance to **$DST** only after current-commit checks and this stage's testing are signed off. New commits invalidate earlier stage acceptance. File defects using the Bug report template." \
             --label promotion

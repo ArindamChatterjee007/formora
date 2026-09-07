@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "file-type": "npm:file-type@22.0.2",
+    "mediainfo.js": "npm:mediainfo.js@0.3.7"
+  },
+  "nodeModulesDir": "none",
+  "lock": "deno.lock"
+}

@@ -1,64 +1,112 @@
-# Formora release pipeline
+# Formora Release Pipeline
 
-Code flows in **one direction** through four branches. Each arrow is a GitHub
-pull request that is **created automatically** once the previous stage passes
-CI; a human merges it after that stage's testing is signed off.
-
-```
-feature/* ──▶ dev ──▶ release ──▶ beta ──▶ main
-              build     QA/test    staging   production → GitHub Pages
+```text
+Development      Independent QAT       Beta acceptance       Production
+dev          ->  release           ->  beta              ->  main
+cloud fixtures   isolated test site    isolated beta site    existing Pages site
 ```
 
-| Branch    | Owner            | Purpose                                           | Protected |
-| --------- | ---------------- | ------------------------------------------------- | --------- |
-| `dev`     | Dev team         | Integrate features; fast iteration                | No        |
-| `release` | **Test/QA team** | Full manual test pass; bugs filed as issues       | Yes (CI)  |
-| `beta`    | Release owner    | Production-parity re-test; confirm nothing broke  | Yes (CI)  |
-| `main`    | Release owner    | Production — auto-deploys to the live site        | Yes (CI)  |
+Production is last, never the environment used to discover QAT failures.
+Production: https://arindamchatterjee007.github.io/formora/
+CI: https://github.com/ArindamChatterjee007/formora/actions/workflows/ci.yml
 
-Live site: https://arindamchatterjee007.github.io/formora/
+## Candidate Handoff
 
-## Daily flow
+1. Development reviews and commits an explicit public-app file list to `dev`.
+   Private office records, internal screenshots, developer instructions, local
+   reports, credentials and unrelated changes must not enter this public repository.
+2. Cloud CI runs `validate`, `functional-fixtures` and `promotion-gate` against
+   the commit. A developer's passing local checks are not this gate's result.
+3. An authorized release owner promotes the tested candidate to `release` by
+   PR. QAT uses the resulting exact commit in an isolated checkout and test site.
+4. After independent QAT evidence and authorized sign-off, record acceptance
+   against that full SHA in `formora-qat-accepted`, then promote `release` to
+   `beta`. Beta tests the new branch commit and its actual deployed asset hashes.
+5. Only an accepted beta candidate with `formora-beta-accepted` evidence can
+   pass the PR gate into `main`. A release owner still authorizes the merge.
+   Complete post-deploy smoke checks, verify the published SHA, and keep a
+   tested rollback and monitoring plan. Beta passing is not permission to ship.
 
-1. Branch from `dev`: `git checkout dev && git pull && git checkout -b feature/my-fix`
-2. Open a PR into `dev`. The `validate` check must pass; merge it.
-3. When `dev` is green, a **Promote: dev → release** PR opens automatically.
-   Merge it when the feature is ready for QA.
-4. The test team tests the `release` branch and files defects with the
-   **Bug report** issue template. When green, they merge the auto-opened
-   **release → beta** PR.
-5. Do a final production-parity check on `beta`, then merge the
-   **beta → main** PR to ship. Pages redeploys `main` within ~1 minute.
+Development may continue while QAT tests a pinned candidate. Do not change
+branches or product files in the QA chat's shared developer worktree. Fixes
+return through `dev`, produce a new candidate, and require affected retests.
+Do not launch duplicate local suites; the cloud workflow serializes each run.
 
-Merging a promotion PR is the "sign-off" — nothing advances until a human
-merges, and CI must be green to merge.
+## Check Scope
 
-## CI gate — `.github/workflows/ci.yml`
+- `validate`: syntax, cache version, URL sinks, conflict/secret checks and the
+  existing 430 KiB top-level JS / 100 KiB CSS budgets. These budgets do not claim
+  to measure every module or compressed network byte.
+- `functional-fixtures`: `FORMORA_QA_SCOPE=public-product npm test`, serial Node
+  and Chromium fixtures. The explicit private-contract exclusion catalog is
+  reported as unverified, even if those files are absent. This is not a full
+  candidate, private-contract, hosted RLS, provider, native or real-device pass.
+  Only verification JSON and JUnit are retained in public Actions artifacts.
+- `promotion-gate`: same-repository `dev -> release -> beta -> main`; beta/main
+  require the newest exact-SHA acceptance deployment to be successful. A later
+  pending/failed acceptance cannot fall back to an older success.
 
-Runs on every push/PR to the four branches and fails the merge unless:
+Recorded acceptance requires protected environments and authorized reviewers.
+The code checks provenance, not reviewer competence or actual human approval.
+Required branch checks must be enabled remotely before claiming enforcement.
+Do not bypass them using `--admin` or automatically merge production.
 
-- every `js/**/*.js` parses (no syntax errors),
-- `index.html` cache-bust `?v=N` and `var V = N` all match `version.txt`,
-- no unescaped `src="${…}"` / `href="${…}"` in the feed (stored-XSS guard),
-- no leftover merge-conflict markers.
+## Separate Test Origins
 
-## Cutting a version
+The prepared builder supports three distinct Cloudflare Pages projects with
+separate browser storage origins. Paths under the production `github.io` origin
+are not isolated test environments. Proposed project names are `formora-dev`,
+`formora-qat` and `formora-beta`; these are configuration examples, not live URLs.
 
-Bump `version.txt` and every `?v=` + `var V =` in `index.html` **on `dev`**,
-then let the change flow up. CI blocks the merge if they disagree.
+Current build mode is **offline-preview**: production auth, backend, analytics,
+email, push and payment globals are locked off before app config, and CSP blocks
+external service requests. Camera permissions still require a user gesture.
+The title and `/__formora/candidate.json` identify the stage and full commit.
+No office, backups, SQL or developer files are in the allowlisted site bundle.
+Generated security controls and app files have recorded SHA-256 identities.
 
-## First-time setup / hardening
+An offline preview cannot pass integration QAT or beta. Real hosted acceptance
+requires a separately authorized test backend, synthetic accounts, storage,
+provider sandboxes and allowed auth redirect origins. Never point these sites at
+production to unblock a check. External fonts, music and exercise-CDN loading are
+also blocked in offline mode; those failures are not production-parity evidence.
 
-Run once with an admin `gh` login:
+## Activation Prerequisites
 
-```bash
-bash scripts/setup-pipeline.sh
-```
+Prepared configuration is not deployed configuration. The initial read-only
+check on 2026-09-07 found only production hosted, Cloudflare CLI unauthenticated,
+no Actions variables/secrets, and only `validate` required on `release` with
+admin bypass enabled. No environment, protection or live-site change is implied.
 
-It creates the labels, lets Actions open promotion PRs, and protects
-`release` / `beta` / `main` with the required `validate` check. Admins can
-still bypass in an emergency (`enforce_admins` is off).
+An authorized operator must:
 
-To add **human sign-off gates** when you have teammates: list reviewers in
-`.github/CODEOWNERS` and raise `required_approving_review_count` for the
-protected branches.
+1. Authenticate Cloudflare directly using `npx --yes wrangler@4.129.0 login`.
+   Never paste API tokens or passwords into a chat. Confirm account, free quotas
+   and no paid service activation before creating the three separate projects.
+   Set each project's production branch to its mapped `dev`, `release` or `beta`
+   branch so the root project URL and CI branch agree.
+2. Configure GitHub environments `formora-dev`, `formora-qat`, `formora-beta`,
+   each with `CLOUDFLARE_PAGES_PROJECT`, `CLOUDFLARE_ACCOUNT_ID` and a scoped
+   `CLOUDFLARE_API_TOKEN` secret. Set `FORMORA_STAGE_PREVIEWS_ENABLED=true` only
+   after validating the projects and protection. CI publishes after all checks.
+3. Configure separately protected `formora-qat-accepted` and
+   `formora-beta-accepted` environments with named authorized reviewers and an
+   approval process that records the exact candidate and private QA evidence.
+   Merely creating an environment or a successful API status is not sign-off.
+4. After approval to change repository protection, run
+   `bash scripts/setup-pipeline.sh`. It requires all three checks with strict
+   up-to-date branches and no admin bypass. It does not create reviewers,
+   acceptances, test projects or credentials. Verify actual API settings after it.
+5. Verify each published manifest, headers, denied private routes and browser
+   isolation. Retest QAT/beta on the actual authorized test backend when ready.
+
+`promote.yml` is a `workflow_run` workflow, so its hardened PR-creation guard
+only becomes active when the workflow and helper reach the default branch through
+an authorized promotion. A `dev`-only push does not update `main` or production.
+
+## Version Changes
+
+Keep `version.txt`, every cache-bust `?v=` and `var V` in `index.html` aligned.
+Native assets must be rebuilt from the accepted candidate; historical APK/iOS
+checks cannot certify later source. Promotion and approval records stay tied to
+their original SHA rather than silently becoming evidence for the next edit.

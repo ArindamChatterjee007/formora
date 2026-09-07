@@ -45,6 +45,15 @@ window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // without a login wall, and posts stay owned by uidFor(email). RLS is disabled in
 // the DB to match. Re-enable later WITH backups + a real existing-user migration.
 window.USE_SUPABASE_AUTH = true;
+window.MODERATION_RECEIPTS = false;
+window.STORY_INTERACTIONS = false;
+window.STORY_MEDIA_VALIDATION = false;
+window.SUPPORT_RECEIPTS = false;
+window.ACCOUNT_RIGHTS = false;
+window.SERVER_MEASUREMENT = false;
+window.MEASUREMENT_PERMISSIONS = {};
+window.FORMORA_WEB_PUSH = false;
+window.FORMORA_PUSH_VAPID_PUBLIC_KEY = "";
 window.SOCIAL_API = "";
 
 /* ---- Music library (royalty-free) — attach a track to a Flex/post and it plays
@@ -78,9 +87,9 @@ window.MUSIC = {
 // early-access interest locally.
 window.PRICING = {
   tiers: [
-    { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "30+ camera filters (preview all)"] },
-    { id: "pro",   name: "Pro",   price: "5.99",  period: "/mo", yearly: "$39.99/yr", badge: "Most popular", features: ["Everything in Free", "Unlimited AI workout plans", "Full AI meal plans + grocery lists", "90+ Pro cinema filters", "Advanced analytics + progress photos", "No ads · unlimited Flex"] },
-    { id: "elite", name: "Elite", price: "9.99", period: "/mo", yearly: "$69.99/yr",   features: ["Everything in Pro", "Exclusive Elite cinematic filters", "Priority support", "Early access to every new feature", "Founding member — launch price locked forever", "When we launch coaching: 1 month Elite+ & a coach check-in, free"] },
+    { id: "free",  name: "Free",  price: "0",     period: "",    features: ["Adaptive daily workouts", "Food & weight logging", "Social feed + Flex reels", "30 camera filters (preview all)"] },
+    { id: "pro",   name: "Pro",   price: "5.99",  period: "/mo", yearly: "$39.99/yr", badge: "Most popular", features: ["Everything in Free", "4-week training programs", "Unlimited meal-plan generations + grocery lists", "89 additional Pro camera filters", "Advanced analytics + progress photos"] },
+    { id: "elite", name: "Elite", price: "9.99", period: "/mo", yearly: "$69.99/yr",   features: ["Everything in Pro", "13 exclusive Elite cinematic filters", "Elite camera frames", "Rules-based progress review from your logs", "Founding member — launch price locked forever", "When we launch coaching: 1 month Elite+ & a coach check-in, free"] },
     { id: "eliteplus", name: "Elite+", price: "29", period: "/mo", comingSoon: true, features: ["Everything in Elite", "Progress-photo reviews with a REAL coach", "Monthly 1:1 human-coach check-in", "Your plan tuned by a human", "Founding Elite members get the first month free"] },
   ],
 };
@@ -203,6 +212,20 @@ window.POSTHOG_KEY = "phc_B7gWQxVAZL7mqcMrb3kjFr2xJygPg5TX9A4KwS6hzSMY";
 window.POSTHOG_HOST = "https://us.i.posthog.com";
 window.Track = {
   _ready: false, _sdk: false, _q: [], _id: null,
+  _measurementConsent: null,
+  _measurementEvent(name) { return name === "checkout_started" || name === "membership_synced"; },
+  _measurementAllowed(owner) {
+    return !!owner && this._measurementConsent === owner && typeof SupaAuth !== "undefined" && SupaAuth.active() && SupaAuth.uid() === owner;
+  },
+  measurementConsent() {
+    const owner = typeof SupaAuth !== "undefined" && SupaAuth.active() ? SupaAuth.uid() : "";
+    return this._measurementAllowed(owner);
+  },
+  setMeasurementConsent(granted) {
+    const owner = typeof SupaAuth !== "undefined" && SupaAuth.active() ? SupaAuth.uid() : "";
+    this._measurementConsent = granted === true && owner ? owner : null;
+    this._q = this._q.filter(queued => !this._measurementEvent(queued[0]) || this._measurementAllowed(queued[2]));
+  },
   init() {
     if (this._ready || !window.POSTHOG_KEY) return;
     this._ready = true;
@@ -217,7 +240,12 @@ window.Track = {
           self._sdk = true;
           if (self._id) window.posthog.identify(self._id[0], self._id[1]);
           var q = self._q; self._q = [];
-          q.forEach(function (e) { try { window.posthog.capture(e[0], e[1]); } catch (_) {} });
+          q.forEach(function (queued) {
+            try {
+              if (self._measurementEvent(queued[0]) && !self._measurementAllowed(queued[2])) return;
+              window.posthog.capture(queued[0], queued[1]);
+            } catch (_) {}
+          });
         } catch (e) {}
       };
       document.head.appendChild(s);
@@ -225,9 +253,18 @@ window.Track = {
   },
   event(name, props) {
     if (!window.POSTHOG_KEY) return;
-    this.init();
+    const measured = this._measurementEvent(name);
+    let owner;
+    if (measured) {
+      owner = typeof SupaAuth !== "undefined" && SupaAuth.active() ? SupaAuth.uid() : "";
+      if (!this._measurementAllowed(owner) || !props || !["pro", "elite"].includes(props.tier) || !["upi", "card"].includes(props.rail)) return;
+      if (name === "membership_synced" && props.rail !== "upi") return;
+      props = { tier: props.tier, rail: props.rail };
+      if (name === "membership_synced") props.confirmation = "access";
+    }
+    if (!measured) this.init();
     if (this._sdk && window.posthog) { try { window.posthog.capture(name, props || {}); } catch (e) {} }
-    else this._q.push([name, props || {}]);
+    else this._q.push(measured ? [name, props, owner] : [name, props || {}]);
   },
   identify(id, props) {
     if (!window.POSTHOG_KEY) return;

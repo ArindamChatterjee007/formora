@@ -7,7 +7,14 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/run-functional-checks.cjs",
+    "test:unit": "node --experimental-vm-modules --test --test-concurrency=1 tests/*.test.cjs",
+    "test:app:browser": "node --test --test-concurrency=1 tests/app-startup.e2e.cjs tests/legacy-functional.e2e.cjs tests/product-lifecycle.e2e.cjs",
+    "test:office": "node --test tests/office-*.test.cjs",
+    "test:office:browser": "node --test tests/office-dashboard.e2e.cjs",
+    "office:serve": "node scripts/office-server.cjs",
+    "office:check": "node scripts/office-server.cjs --check",
+    "office:prepare": "node scripts/prepare-private-office.cjs",
     "www": "bash tools/sync-www.sh",
     "sync": "npm run www && npx cap sync",
     "ios": "npm run sync && npx cap open ios",
@@ -31,5 +38,11 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@capgo/capacitor-social-login": "^8.4.4"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "parse5": "8.0.0",
+    "playwright": "^1.63.0"
   }
 }

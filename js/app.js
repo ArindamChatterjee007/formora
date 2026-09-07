@@ -41,12 +41,18 @@ const App = {
     this.applySky();
     setInterval(() => this.applySky(), 5 * 60 * 1000);
     document.addEventListener("visibilitychange", () => this.onVisibility());
+    window.addEventListener("formora:sessionchange", () => this.onSessionChange());
+    window.addEventListener("storage", event => {
+      if (typeof SupaAuth !== "undefined" && event.key === SupaAuth.KEY) { SupaAuth.load(); this.onSessionChange(); }
+    });
     this.guardImages();
     this.bindSwipe();
+    this._bindModalA11y();
+    this._watchCloudReads();
     if (this._checkRecovery()) return;
     if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
       const s = SupaAuth.load();
-      if (s && s.email) { SupaAuth.token(); Auth.supabaseSignIn({ email: s.email, name: (Auth.findByEmail(s.email) || {}).name }); this.enterApp(); }
+      if (s && s.email) { Auth.supabaseSignIn({ email: s.email, name: (Auth.findByEmail(s.email) || {}).name }); this.enterApp(); }
       else this.showAuth("login");
     } else if (Auth.isLoggedIn()) this.enterApp();
     else this.showAuth("login");
@@ -115,7 +121,7 @@ const App = {
     card.innerHTML = `<div class="modal-head"><h2>Verify your email</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
       <div style="padding:6px 2px">
         <div class="auth-sub">${sent ? `We emailed a 6-digit code to <b>${esc(email)}</b> — check your inbox (and spam).` : `Couldn't send the code right now — please try again shortly.`}</div>
-        <div class="field"><input id="my-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000"></div>
+        <div class="field"><label for="my-code">Verification code</label><input id="my-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"></div>
         <button class="btn wide" onclick="App.submitMyEmailCode()">Verify</button>
       </div>`;
     document.getElementById("modal").classList.remove("hidden");
@@ -148,26 +154,65 @@ const App = {
 
   /* ---------------- AUTH GATE ---------------- */
   async enterApp() {
+    if (this._activeLocalId && this._activeLocalId !== Auth.currentUser()?.id) this._invalidateAccount();
+    if (typeof Preferences !== "undefined") { Preferences.generation++; Preferences._measurement?.reset(); }
+    const entry = this._entry = (this._entry || 0) + 1;
     const u = Auth.currentUser();
     if (!u) return this.showAuth("login");
+    this._activeLocalId = u.id;
+    this._membershipRetry = null;
     const myUid = (typeof Cloud !== "undefined" && Cloud.uidFor) ? Cloud.uidFor(u.email) : (u.email || "").toLowerCase();
     if (this.isBanned(myUid)) return this.showSuspended();
+    clearTimeout(Store._pushTimer);
+    Store._syncReady = false;
+    this._accountSyncError = false;
+    if (typeof Cloud !== "undefined" && Cloud.stop) Cloud.stop();
+    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+      const uid = SupaAuth.uid();
+      const token = await SupaAuth.token();
+      if (entry !== this._entry || Auth.currentUser()?.id !== u.id) return;
+      if (!token && !SupaAuth.uid()) { if (typeof Entitlements !== "undefined") Entitlements.reset(); Auth.logout(); return this.showAuth("login"); }
+      if (SupaAuth.uid() !== uid || SupaAuth.email().toLowerCase() !== (u.email || "").toLowerCase()) {
+        if (!SupaAuth.email()) return this.showAuth("login");
+        Auth.supabaseSignIn({ email: SupaAuth.email() });
+        return this.enterApp();
+      }
+      this._authUid = uid;
+    }
+    if (typeof Cloud !== "undefined" && Cloud._ensureIdentity) Cloud._ensureIdentity(u.email);
     Store.load("gymcoach_v1_" + u.id);
+    await this.syncAccountFromCloud(u, entry);
+    if (!this._isCurrentEntry(entry, u)) return;
+    if (this._accountSyncError && !Store.state.profile.onboarded && !this.onboardProfile) {
+      document.getElementById("app-shell").classList.add("hidden");
+      document.getElementById("auth-overlay").classList.remove("hidden");
+      document.getElementById("auth-card").innerHTML = `<h2>Account restore unavailable</h2><p>Your saved data has not been replaced.</p><button class="btn wide" onclick="App.enterApp()">${this.ic("undo", { size: 16 })} Retry</button><button class="btn ghost wide" onclick="App.confirmLogout()">Log out</button>`;
+      return;
+    }
     this.applyAccount(u);
     if (this.onboardProfile) this.applyOnboarding();
-    await this.syncAccountFromCloud(u);
     Social.load(u.id);
-    this.ensureUsername();
+    if (!this._accountSyncError) this.ensureUsername();
     if (!Store.state.profile.onboarded) { this.onboardMode = "login"; return this.showAuth("details"); }
-    this.initCloud(u);
+    await this.initCloud(u);
+    if (!this._isCurrentEntry(entry, u)) return;
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
     if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
     this.renderChips();
     this.applyTierTheme();
+    this.renderMembershipStatus();
+    if (Social.showLegacyPreferences) Social.showLegacyPreferences();
     if (window.Track) { Track.identify((typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : u.id, { name: u.name || "" }); Track.event("app_opened"); }
     this.selectTab("home");
+    if (typeof Preferences !== "undefined") void Preferences.resume();
     if (this._showWelcome) { this._showWelcome = false; try { this.showWelcome(); } catch (e) {} }
+  },
+
+  _isCurrentEntry(entry, user) {
+    return entry === this._entry && Auth.currentUser()?.id === user.id &&
+      (typeof SupaAuth === "undefined" || !SupaAuth.active() ||
+        (SupaAuth.uid() === this._authUid && SupaAuth.email().toLowerCase() === (user.email || "").toLowerCase()));
   },
 
   applyAccount(u) {
@@ -176,7 +221,7 @@ const App = {
     p.email = u.email || p.email || "";
     p.phone = u.phone || p.phone || "";
     if (u.emailVerified || u.provider === "google") p.verified = true; // real email / Google → verified badge
-    Store.save();
+    Store.save({ touch: false });
   },
 
   // seed a brand-new account's profile from the signup onboarding answers
@@ -190,26 +235,89 @@ const App = {
 
   // pull this account's data from the cloud and union-merge it, so streak/logs/weight
   // follow the user across devices and no entry is ever lost either way
-  async syncAccountFromCloud(u) {
+  async syncAccountFromCloud(u, entry = this._entry) {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     Cloud._ensureIdentity(u.email);
+    const key = Store.key, uid = Cloud.me;
     let cloud = null;
-    try { cloud = await Cloud.pullAccount(); } catch (e) { cloud = null; }
+    try { cloud = await Cloud.pullAccount(); } catch (e) {
+      if (this._isCurrentEntry(entry, u)) this._accountSyncError = true;
+      return;
+    }
+    if (!this._isCurrentEntry(entry, u) || Store.key !== key || Cloud.me !== uid) return;
     if (cloud && cloud.profile) {
       Store.merge(cloud);   // union of both devices — never drops a logged entry
       Store.normalize();
-      Store.save();         // persist locally + mirror the merged result back to the cloud
-    } else if (Store.state.profile && Store.state.profile.onboarded) {
-      Cloud.pushAccount(Store.state);  // first device online — seed the cloud
+      this._profileDraft = null;   // restored account data must not be masked by an older local draft
+      this._profileViewOwner = null;
     }
+    Store._syncReady = true;
   },
 
-  logout() {
-    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) { try { SupaAuth.logout(); } catch (_) {} }
-    Auth.logout();
+  _invalidateAccount() {
+    this._accountRights?.reset();
+    if (typeof SupportReceipts !== "undefined") SupportReceipts.reset();
+    if (typeof Preferences !== "undefined") Preferences.reset();
+    if (typeof Reports !== "undefined") Reports.reset();
+    this._entry = (this._entry || 0) + 1;
+    this._authUid = null;
+    this._activeLocalId = null;
+    this._membershipRetry = null;
+    this._accountSyncError = false;
+    this._coverSync = null;
+    this._coverDraft = null;
+    this._coverVersion = (this._coverVersion || 0) + 1;
+    this._avatarVersion = (this._avatarVersion || 0) + 1;
+    this._authIntent = null;
+    this._loginPending = null;
+    this._supportPending = new Set();
+    this._profileDraft = null;
+    this._profileViewOwner = null;
+    this._notifSeeded = false;
+    this._notifRequest = (this._notifRequest || 0) + 1;
+    this._notifOpen = (this._notifOpen || 0) + 1;
+    this._notifListError = false;
+    this._notifReadPending = null;
+    this._notifReadRetry = null;
+    this._notifDisplayed = [];
+    this._notifDisplayedScope = null;
+    this._notifReadAcks = new Set();
+    Store._syncReady = false;
+    if (typeof Entitlements !== "undefined") Entitlements.reset();
+    if (window.Track && typeof Track.setMeasurementConsent === "function") Track.setMeasurementConsent(false);
     this.session = null;
+    this.curTab = null;
+    clearTimeout(Store._pushTimer);
+    clearInterval(this._hb);
+    clearTimeout(this._upgradeTimer);
+    if (typeof Cloud !== "undefined") {
+      if (Cloud.resetNotifications) Cloud.resetNotifications();
+      Cloud.stop();
+      Cloud.me = null;
+    }
+    if (typeof Social !== "undefined") Social.resetSession();
+    this.updateNotifBadge(0);
+    this.closeModal();
+    const modalCard = document.getElementById("modal-card");
+    if (modalCard) modalCard.innerHTML = "";
+    this.closeSheet();
+    for (const id of ["view-feed", "view-flex", "view-alerts", "view-profile", "view-home", "view-today", "view-progress", "view-nutrition"]) {
+      const view = document.getElementById(id); if (view) view.innerHTML = "";
+    }
     try { localStorage.removeItem("fm_tier"); document.documentElement.setAttribute("data-tier", "free"); } catch (_) {}
     document.getElementById("app-shell").classList.add("hidden");
+  },
+  onSessionChange() {
+    if (!this._authUid || SupaAuth.uid() === this._authUid) return;
+    this._invalidateAccount();
+    if (SupaAuth.email()) { Auth.supabaseSignIn({ email: SupaAuth.email() }); this.enterApp(); }
+    else { Auth.logout(); this.showAuth("login"); }
+  },
+  logout() {
+    if (typeof Preferences !== "undefined") Preferences.beforeAccountChange();
+    this._invalidateAccount();
+    if (typeof SupaAuth !== "undefined" && SupaAuth.active()) { try { SupaAuth.logout(); } catch (_) {} }
+    Auth.logout();
     this.showAuth("login");
   },
   confirmLogout() {
@@ -237,24 +345,185 @@ const App = {
   importFile(e) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
+    if (f.size !== undefined && (!Number.isFinite(f.size) || f.size < 0 || f.size > 10 * 1024 * 1024)) return alert(this._backupError(new Error("backup_too_large")));
+    // the read is async: remember who asked for it so a later account switch can't be overwritten
+    const entry = this._entry, key = (typeof Store !== "undefined") ? Store.key : null;
+    const user = (typeof Auth !== "undefined" && Auth.currentUser) ? Auth.currentUser() : null;
     const r = new FileReader();
-    r.onload = () => { try { this.importData(r.result); } catch { alert("That doesn't look like a valid Formora backup file."); } };
-    r.readAsText(f);
+    const current = () => entry === this._entry && (typeof Store === "undefined" || Store.key === key) &&
+      (!user || (typeof Auth !== "undefined" && Auth.currentUser()?.id === user.id));
+    r.onload = async () => {
+      if (!current()) return false;
+      try {
+        const restoring = this.importData(r.result), restoreEntry = this._entry;
+        const restored = await restoring;
+        if (restored && restoreEntry === this._entry) this.toast?.("Backup restored.");
+        return restored;
+      } catch (err) { alert(this._backupError(err)); return false; }
+    };
+    r.onerror = r.onabort = () => { if (current()) alert(this._backupError(new Error("bad_backup_file"))); };
+    try { r.readAsText(f); } catch (_) { r.onerror(); }
+  },
+  _backupError(err) {
+    const known = {
+      bad_backup_file: "That doesn't look like a valid Formora backup file.",
+      unsupported_backup_version: "That backup was made by a different version of Formora and can't be restored safely.",
+      bad_backup_account: "That backup has no readable account, so nothing was changed.",
+      bad_backup_data: "That backup's saved data is damaged, so your existing logs were left untouched.",
+      backup_owner_mismatch: "Sign in to the account that owns this backup, then restore it.",
+      backup_id_collision: "That backup conflicts with another saved account. Nothing was changed.",
+      backup_too_large: "That backup is too large to restore on this device (10 MB maximum).",
+      backup_busy: "Another backup is still being restored. Wait for it to finish.",
+      backup_write_failed: "There wasn't enough space to restore that backup — your existing data was put back unchanged.",
+      backup_restore_failed: "The backup could not be opened. Your previous data was restored.",
+      backup_rollback_failed: "Restore failed and the previous data could not be fully restored. Keep your backup file and free some device storage before trying again.",
+    };
+    return known[err && err.message] || known.bad_backup_file;
+  },
+  // A backup replaces this device's saved logs, so validate the whole shape BEFORE
+  // touching Auth or localStorage, and roll the exact keys we wrote back on failure.
+  _readBackup(text) {
+    let blob;
+    if (typeof text !== "string" || text.length > 10 * 1024 * 1024) throw new Error("bad_backup_file");
+    const unsafeKeys = new Set(["__proto__", "prototype", "constructor"]);
+    try { blob = JSON.parse(text, (key, value) => unsafeKeys.has(key) ? undefined : value); } catch (_) { throw new Error("bad_backup_file"); }
+    const plain = value => !!value && typeof value === "object" && !Array.isArray(value);
+    const string = (value, limit = 4096) => typeof value === "string" && value.length <= limit;
+    const number = (minimum, maximum) => value => Number.isFinite(value) && value >= minimum && value <= maximum;
+    const boolean = value => typeof value === "boolean";
+    const date = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    const list = (value, valid) => Array.isArray(value) && value.length <= 100000 && value.every(valid);
+    const record = (value, rules) => plain(value) && Object.entries(rules).every(([key, valid]) => value[key] === undefined || valid(value[key]));
+    const safeTree = (value, depth = 0) => depth <= 20 && (value === null || typeof value === "boolean" ||
+      (typeof value === "string" && value.length <= 2 * 1024 * 1024) ||
+      (typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER) ||
+      (Array.isArray(value) ? list(value, item => item !== null && safeTree(item, depth + 1)) :
+        plain(value) && Object.values(value).every(item => safeTree(item, depth + 1))));
+    if (!plain(blob)) throw new Error("bad_backup_file");
+    if (blob.app !== undefined && blob.app !== "formora") throw new Error("bad_backup_file");
+    if (blob.v !== undefined && blob.v !== 1) throw new Error("unsupported_backup_version");
+    const account = blob.account;
+    if (!plain(account) || !string(account.id, 128) || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(account.id) || unsafeKeys.has(account.id) ||
+      !string(account.name, 200) || !account.name.trim() || !string(account.email, 254) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(account.email) ||
+      !record(account, { phone: string, provider: string, hash: string, salt: string, algo: string, iter: number(1, 2000000), phoneVerified: boolean, emailVerified: boolean, remote: boolean }) ||
+      !safeTree(account)) throw new Error("bad_backup_account");
+    const data = blob.data;
+    if (!plain(data)) throw new Error("bad_backup_data");
+    const strings = value => list(value, item => string(item));
+    const media = value => value === null || string(value, 2 * 1024 * 1024);
+    const profileRules = Object.fromEntries(["name", "email", "phone", "gender", "goal", "physique", "diet", "bio", "username", "privacy", "unit", "experience", "tier", "referredBy"].map(key => [key, string]));
+    Object.assign(profileRules, {
+      dob: date, age: number(0, 130), heightCm: number(30, 300), startWeightKg: number(1, 700), weightKg: number(1, 700),
+      targetWeightKg: value => value === null || number(1, 700)(value), activityFactor: number(0.1, 5), bodyFat: number(0, 100), bmi: number(0, 300),
+      physiqueChosen: boolean, verified: boolean, onboarded: boolean, avatar: media, cover: media,
+      following: strings, autoFollowed: strings,
+      socials: value => plain(value) && Object.values(value).every(item => string(item)),
+      lookPhotos: value => plain(value) && Object.values(value).every(photos => list(photos, photo => typeof photo === "string" && media(photo))),
+    });
+    const set = value => record(value, { reps: number(0, 10000), weight: number(0, 5000) }) && number(0, 10000)(value.reps) && number(0, 5000)(value.weight);
+    const exerciseRules = { id: string, name: string, muscle: string, equip: string, photo: media, images: strings, sets: value => list(value, set) };
+    const workout = value => record(value, { date, split: string, volume: number(0, 1e12), exercises: exercises => list(exercises, exercise => record(exercise, exerciseRules)) }) && date(value.date);
+    const weight = value => plain(value) && date(value.date) && number(1, 700)(value.kg);
+    const food = value => plain(value) && date(value.date) && list(value.items, item => record(item, {
+      text: string, id: string, kcal: number(0, 100000), protein: number(0, 10000), carbs: number(0, 10000), fat: number(0, 10000),
+    }) && string(item.text));
+    const draftAmount = (value, maximum) => value === "" || ((typeof value === "number" ||
+      (typeof value === "string" && /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value))) && number(0, maximum)(Number(value)));
+    const draftSet = value => plain(value) && draftAmount(value.reps, 10000) && draftAmount(value.weight, 5000);
+    const draft = value => value === null || (plain(value) && date(value.date) && record(value.session, { split: string, editing: boolean, origDate: date }) &&
+      list(value.session.items, item => record(item, { selected: string, options: strings, ex: details => details === null || record(details, exerciseRules) }) && list(item.sets, draftSet)));
+    if ((data.profile !== undefined && !record(data.profile, profileRules)) ||
+      (data.draftSession !== undefined && !draft(data.draftSession)) ||
+      (data.updatedAt !== undefined && !number(0, Number.MAX_SAFE_INTEGER)(data.updatedAt))) throw new Error("bad_backup_data");
+    const arrays = ["weightLog", "workoutLog", "foodLog", "restDays"];
+    const validators = [weight, workout, food, date];
+    for (const [index, key] of arrays.entries()) if (data[key] !== undefined && !list(data[key], validators[index])) throw new Error("bad_backup_data");
+    const restored = {};
+    for (const k of ["profile", ...arrays, "updatedAt", "draftSession"]) if (data[k] !== undefined) restored[k] = data[k];
+    if ((!restored.profile && !arrays.some(key => restored[key])) || !safeTree(restored)) throw new Error("bad_backup_data");
+    for (const workout of restored.workoutLog || []) {
+      if (workout.exercises === undefined) workout.exercises = [];
+      for (const exercise of workout.exercises) if (exercise.sets === undefined) exercise.sets = [];
+      if (workout.volume === undefined) workout.volume = workout.exercises.reduce((total, exercise) => total + exercise.sets.reduce((sum, entry) => sum + entry.reps * entry.weight, 0), 0);
+    }
+    return { account, data: restored };
   },
   importData(text) {
-    const blob = JSON.parse(text);
-    if (!blob || !blob.account || !blob.data) throw new Error("bad backup");
-    const acc = blob.account;
+    return this._restoreBackup(this._readBackup(text));
+  },
+  async _restoreBackup({ account, data }) {
+    if (this._backupRestoring) throw new Error("backup_busy");
+    // A signed-in cloud session owns the identity: never let a file swap the authenticated member.
+    const secure = typeof SupaAuth !== "undefined" && SupaAuth.active && SupaAuth.active();
+    const email = account.email.toLowerCase();
+    if (secure && (!SupaAuth.uid() || email !== (SupaAuth.email() || "").toLowerCase())) throw new Error("backup_owner_mismatch");
     Auth.load();
-    const i = Auth.data.accounts.findIndex((a) => a.id === acc.id ||
-      (a.email && acc.email && a.email.toLowerCase() === acc.email.toLowerCase()));
-    if (i >= 0) Auth.data.accounts[i] = acc; else Auth.data.accounts.push(acc);
-    Auth.setCurrent(acc.id);
-    localStorage.setItem("gymcoach_v1_" + acc.id, JSON.stringify(blob.data));
-    this.enterApp();
+    const accounts = Auth.data.accounts;
+    const matches = accounts.filter(saved => typeof saved?.email === "string" && saved.email.toLowerCase() === email);
+    const currentId = Auth.currentUser?.()?.id || Auth.data.currentUserId;
+    const owner = matches.find(saved => saved.id === currentId) || matches[0];
+    if (secure && !owner) throw new Error("backup_owner_mismatch");
+    if (matches.length > 1 || (!secure && accounts.some(saved => saved.id === account.id && saved !== owner))) throw new Error("backup_id_collision");
+    const acc = secure ? { ...account, ...owner } : { ...account, id: owner?.id || account.id };
+    if (accounts.some(saved => saved.id === acc.id && saved !== owner)) throw new Error("backup_id_collision");
+    const index = owner ? accounts.indexOf(owner) : -1;
+    const storeKey = "gymcoach_v1_" + acc.id;
+    const payload = JSON.stringify(data);
+    const previousAuth = Auth.data, restoredAccounts = accounts.slice();
+    if (index >= 0) restoredAccounts[index] = acc; else restoredAccounts.push(acc);
+    const restoredAuth = { ...previousAuth, accounts: restoredAccounts };
+    const authKey = typeof AUTH_KEY === "string" ? AUTH_KEY : "gymcoach_auth";
+    const hadAuth = localStorage.getItem(authKey);
+    const hadStore = localStorage.getItem(storeKey);
+    if (index < 0 && hadStore !== null) throw new Error("backup_id_collision");
+    const previousStore = typeof Store === "undefined" ? null : { key: Store.key, state: Store.state, _syncReady: Store._syncReady };
+    const authUid = secure ? SupaAuth.uid() : null;
+    let wroteStore = false, entering = false, restoreEntry = this._entry;
+    this._backupRestoring = true;
+    try {
+      localStorage.setItem(storeKey, payload);
+      wroteStore = true;
+      Auth.data = restoredAuth;
+      Auth.setCurrent(acc.id);
+      entering = true;
+      const entryResult = this.enterApp();
+      restoreEntry = this._entry;
+      const entered = await entryResult;
+      if (entered === false || restoreEntry !== this._entry || Auth.data.currentUserId !== acc.id ||
+        (secure && (SupaAuth.uid() !== authUid || SupaAuth.email().toLowerCase() !== email))) throw new Error("backup_restore_failed");
+      return true;
+    } catch (_) {
+      let rolledBack = true;
+      const putBack = (key, value) => {
+        try {
+          if (localStorage.getItem(key) === value) return;
+          if (value === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        } catch (__) { rolledBack = false; }
+      };
+      if (wroteStore) putBack(storeKey, hadStore);
+      if (!entering || (Auth.data === restoredAuth && Auth.data.currentUserId === acc.id)) {
+        Auth.data = previousAuth;
+        putBack(authKey, hadAuth);
+      } else {
+        const restoredIndex = Auth.data.accounts.indexOf(acc);
+        if (restoredIndex >= 0) {
+          if (index >= 0) Auth.data.accounts[restoredIndex] = accounts[index];
+          else Auth.data.accounts.splice(restoredIndex, 1);
+          try { Auth.save?.(); } catch (__) { rolledBack = false; }
+        }
+      }
+      if (previousStore && Store.key === storeKey && restoreEntry === this._entry) {
+        clearTimeout(Store._pushTimer);
+        Object.assign(Store, previousStore);
+      }
+      if (entering && restoreEntry === this._entry) this._entry = (this._entry || 0) + 1;
+      throw new Error(!rolledBack ? "backup_rollback_failed" : entering ? "backup_restore_failed" : "backup_write_failed");
+    } finally { this._backupRestoring = false; }
   },
 
   showAuth(view = "login") {
+    if (this._modalActive) this.closeModal();   // the auth gate replaces the app: never leave the background inert
     document.getElementById("app-shell").classList.add("hidden");
     document.getElementById("auth-overlay").classList.remove("hidden");
     this.authView = view;
@@ -273,7 +542,7 @@ const App = {
           ${inviteBanner}
           <div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg1" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg1)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
           <h1 class="landing-h1">Build your dream physique.</h1>
-          <p class="landing-sub">Adaptive daily workouts, smart meal plans and progress tracking — personalised to the exact look you want.</p>
+          <p class="landing-sub">Adaptive daily workouts, meal planning and progress tracking. Start free, with optional Pro and Elite features.</p>
           <div class="landing-feats">
             <span>${this.ic("dumbbell", { size: 14 })} Adaptive workouts</span><span>${this.ic("utensils", { size: 14 })} Meal planner</span>
             <span>${this.ic("chart", { size: 14 })} Streaks &amp; progress</span><span>${this.ic("target", { size: 14 })} Physique goals</span>
@@ -286,20 +555,22 @@ const App = {
     // Web uses Google Identity Services (GSI). Native uses the SocialLogin plugin (real Google account picker).
     // Google is wired into secure Supabase Auth via id_token sign-in (see onGoogleCredential).
     const gbtn = window.Capacitor
-      ? `<button class="gbtn" onclick="App.goGoogleNative()">${this.googleIcon()} Continue with Google</button>`
+      ? `<button class="gbtn" type="button" onclick="App.goGoogleNative()">${this.googleIcon()} Continue with Google</button>`
       : (window.GOOGLE_CLIENT_ID
         ? `<div id="gsi-btn" class="gsi-wrap"></div>`
-        : `<button class="gbtn" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
+        : `<button class="gbtn" type="button" onclick="App.goGoogle()">${this.googleIcon()} Continue with Google</button>`);
     const err = `<div class="auth-err" id="auth-err"></div>`;
     let body = "";
 
     if (this.authView === "login") {
       body = `${gbtn}
         ${gbtn ? `<div class="auth-or"><span>or</span></div>` : ""}
-        <div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
-        ${this.pwField("a-pass", "Password", "••••••••", "current-password")}
-        ${err}
-        <button class="btn wide" onclick="App.doLogin()">Log in</button>
+        <form id="login-form" novalidate onsubmit="return App.submitLogin(event)">
+          <div class="field"><label for="a-email">Email</label><input id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+          ${this.pwField("a-pass", "Password", "••••••••", "current-password")}
+          ${err}
+          <button class="btn wide" id="login-submit" type="submit" onclick="App.doLogin()">Log in</button>
+        </form>
         <div class="auth-switch"><a onclick="App.showAuth('forgot')">Forgot your password?</a></div>
         <div class="auth-switch">New here? <a onclick="App.showAuth('signup')">Create an account</a></div>
         <div class="auth-switch">Moving devices? <a onclick="App.restorePrompt()">Restore a backup</a></div>
@@ -307,9 +578,9 @@ const App = {
     } else if (this.authView === "signup") {
       body = `${gbtn}
         ${gbtn ? `<div class="auth-or"><span>or sign up with details</span></div>` : ""}
-        <div class="field"><label>Full name</label><input id="s-name" placeholder="Arindam"></div>
-        <div class="field"><label>Email</label><input id="s-email" type="email" placeholder="you@email.com"></div>
-        <div class="field"><label>Phone number <span class="inline-hint">(optional)</span></label><input id="s-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel"></div>
+        <div class="field"><label for="s-name">Full name</label><input id="s-name" placeholder="Arindam" autocomplete="name"></div>
+        <div class="field"><label for="s-email">Email</label><input id="s-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <div class="field"><label for="s-phone">Phone number <span class="inline-hint">(optional)</span></label><input id="s-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel"></div>
         ${this.pwField("s-pass", "Password", "min 6 characters", "new-password", true)}
         ${this.pwField("s-pass2", "Confirm password", "repeat password", "new-password")}
         ${err}
@@ -319,33 +590,33 @@ const App = {
     } else if (this.authView === "details") {
       body = `<div class="auth-sub">A few details so your plan fits <b>you</b> — you can change these anytime.</div>
         <div class="form-grid">
-          <div class="field"><label>Sex</label>
+          <div class="field"><label for="d-gender">Sex</label>
             <select id="d-gender" onchange="App.onDetailsGender()">
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select></div>
-          <div class="field"><label>Date of birth</label><input id="d-dob" type="date" value="2000-01-01"></div>
-          <div class="field"><label>Height (cm)</label><input id="d-h" type="number" inputmode="decimal" placeholder="175"></div>
-          <div class="field"><label>Current weight (kg)</label><input id="d-w" type="number" inputmode="decimal" placeholder="70"></div>
-          <div class="field"><label>Goal weight (kg)</label><input id="d-tw" type="number" inputmode="decimal" placeholder="optional"></div>
-          <div class="field"><label>Activity level</label>
+          <div class="field"><label for="d-dob">Date of birth</label><input id="d-dob" type="date" value="2000-01-01"></div>
+          <div class="field"><label for="d-h">Height (cm)</label><input id="d-h" type="number" inputmode="decimal" placeholder="175"></div>
+          <div class="field"><label for="d-w">Current weight (kg)</label><input id="d-w" type="number" inputmode="decimal" placeholder="70"></div>
+          <div class="field"><label for="d-tw">Goal weight (kg)</label><input id="d-tw" type="number" inputmode="decimal" placeholder="optional"></div>
+          <div class="field"><label for="d-act">Activity level</label>
             <select id="d-act">
               <option value="1.375">Light (1–2 days)</option>
               <option value="1.55" selected>Moderate (3–5 days)</option>
               <option value="1.725">High (6–7 days)</option>
             </select></div>
-          <div class="field"><label>Gym experience</label>
+          <div class="field"><label for="d-exp">Gym experience</label>
             <select id="d-exp">
               <option value="beginner">Beginner — new to the gym</option>
               <option value="intermediate">Intermediate — 6+ months</option>
               <option value="advanced">Advanced — 2+ years</option>
               <option value="returning">Returning after a break</option>
             </select></div>
-          <div class="field"><label>Diet preference</label>
+          <div class="field"><label for="d-diet">Diet preference</label>
             <select id="d-diet">
               ${Object.keys(DIETS).map((k) => `<option value="${k}">${DIETS[k]}</option>`).join("")}
             </select></div>
-          <div class="field"><label>Your goal physique <span class="inline-hint">(change anytime)</span></label>
+          <div class="field"><label for="d-physique">Your goal physique <span class="inline-hint">(change anytime)</span></label>
             <select id="d-physique">
               ${PHYSIQUES[this.detailsGender || "male"].map((ph) => `<option value="${ph.id}">${esc(ph.name)} — ${esc(ph.tagline)}</option>`).join("")}
             </select></div>
@@ -355,14 +626,14 @@ const App = {
         <div class="auth-switch">${this.onboardMode === "login" ? `<a onclick="App.confirmLogout()">← Log out</a>` : `<a onclick="App.showAuth('signup')">← Back</a>`}</div>`;
     } else if (this.authView === "google") {
       body = `<div class="auth-sub">Choose your Google account</div>
-        <div class="field"><label>Name</label><input id="g-name" placeholder="Your name"></div>
-        <div class="field"><label>Google email</label><input id="g-email" type="email" placeholder="you@gmail.com"></div>
+        <div class="field"><label for="g-name">Name</label><input id="g-name" placeholder="Your name" autocomplete="name"></div>
+        <div class="field"><label for="g-email">Google email</label><input id="g-email" type="email" placeholder="you@gmail.com" autocomplete="email"></div>
         ${err}
         <button class="btn wide" onclick="App.doGoogleContinue()">Continue</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back</a></div>`;
     } else if (this.authView === "forgot") {
       body = `<div class="auth-sub">Enter your account email and we'll send you a link to reset your password.</div>
-        <div class="field"><label>Email</label><input id="f-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
         ${err}
         <button class="btn wide" onclick="App.doForgot()">Send reset link</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
@@ -375,7 +646,7 @@ const App = {
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back to log in</a></div>`;
     } else if (this.authView === "phone") {
       body = `<div class="auth-sub">Verify your phone to finish signing in</div>
-        <div class="field"><label>Phone number</label><input id="p-phone" type="tel" placeholder="+91 98765 43210" value="${Auth.pending?.account?.phone || ""}"></div>
+        <div class="field"><label for="p-phone">Phone number</label><input id="p-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" value="${Auth.pending?.account?.phone || ""}"></div>
         ${err}
         <button class="btn wide" onclick="App.doSendOtp()">Send code</button>
         <div class="auth-switch"><a onclick="App.showAuth('login')">← Back</a></div>`;
@@ -392,7 +663,7 @@ const App = {
         : `📶 Demo mode (no SMS gateway) — your code is <b>${demoCode}</b>`;
       body = `<div class="auth-sub">${sub}</div>
         ${demoCode ? `<div class="otp-demo">${demoNote}</div>` : ""}
-        <div class="field"><input id="o-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000"></div>
+        <div class="field"><label for="o-code">Verification code</label><input id="o-code" class="otp-input" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"></div>
         ${err}
         <button class="btn wide" onclick="App.doVerifyOtp()">Verify &amp; continue</button>
         <div class="auth-switch">Didn't get it? <a onclick="App.doResend()">Resend code</a></div>`;
@@ -417,14 +688,44 @@ const App = {
     if (!s) { s = document.createElement("script"); s.id = "gsi-lib"; s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.defer = true; s.onload = draw; document.head.appendChild(s); }
     else setTimeout(draw, 300);
   },
+  // ---- sign-in continuation guards --------------------------------------
+  // SupaAuth aborts a request whose authentication state changed underneath it.
+  // Capture the intended owner before the first await so a late reply can never
+  // sign the app in as the wrong member (or blame the password for an abort).
+  _beginAuthIntent(email) {
+    if (typeof SupaAuth !== "undefined") SupaAuth.cancelAuthAttempt?.();
+    const intent = { email: (email || "").trim().toLowerCase(), n: this._authIntentN = (this._authIntentN || 0) + 1 };
+    this._authIntent = intent;
+    return intent;
+  },
+  _authIntentCurrent(intent) { return !!intent && this._authIntent === intent; },
+  _authAborted(error) { return !!(error && (error.cancelled || error.code === "AUTH_ATTEMPT_CANCELLED")); },
+  // the session we adopt must be the one this attempt asked for
+  _authOwnerMatches(intent) {
+    if (typeof SupaAuth === "undefined" || !SupaAuth.active()) return true;
+    if (!SupaAuth.uid()) return false;
+    return !intent.email || (SupaAuth.email() || "").toLowerCase() === intent.email;
+  },
+
   async onGoogleCredential(r) {
+    let intent = null;
     try {
       const p = JSON.parse(atob(r.credential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      // the client-side claim is only a hint: the exchanged session decides the identity
+      intent = this._beginAuthIntent("");
       // exchange the Google ID token for a secure Supabase session (the RLS identity)
-      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) await SupaAuth.signInWithGoogle(r.credential);
-      Auth.loginWithGoogle({ name: p.name, email: p.email });
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+        await SupaAuth.signInWithGoogle(r.credential);
+        if (!this._authIntentCurrent(intent)) return;
+        if (!this._authOwnerMatches(intent) || !SupaAuth.email()) return this.authErr("Google sign-in could not establish your account. Try again.");
+        Auth.loginWithGoogle({ name: p.name, email: SupaAuth.email() });
+      } else Auth.loginWithGoogle({ name: p.name, email: p.email });
+      if (!this._authIntentCurrent(intent)) return;
       this.enterApp();
-    } catch (e) { this.authErr("Google sign-in failed. Try again."); }
+    } catch (e) {
+      if (this._authAborted(e) || (intent && !this._authIntentCurrent(intent))) return;
+      this.authErr("Google sign-in failed. Try again.");
+    }
   },
 
   googleIcon() {
@@ -450,17 +751,30 @@ const App = {
   async goGoogleNative() {
     const SL = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.SocialLogin;
     if (!SL) return this.authErr("Google sign-in isn't available here — use email.");
-    if (!(await this._initSocialLogin())) return this.authErr("Google sign-in couldn't start — use email.");
+    const intent = this._beginAuthIntent("");
+    const ready = await this._initSocialLogin();
+    if (!this._authIntentCurrent(intent)) return;
+    if (!ready) return this.authErr("Google sign-in couldn't start — use email.");
     try {
       // No custom scopes: the plugin adds email/profile/openid by default (custom scopes would require a native MainActivity change).
       const res = await SL.login({ provider: "google", options: {} });
+      if (!this._authIntentCurrent(intent)) return;
       const r = (res && res.result) || {};
       let email = r.profile && r.profile.email, name = r.profile && r.profile.name;
       if (!email && r.idToken) { try { const p = JSON.parse(atob(r.idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); email = email || p.email; name = name || p.name; } catch (e) {} }
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
+        if (!r.idToken) return this.authErr("Google did not return a verifiable sign-in token. Please try email login.");
+        await SupaAuth.signInWithGoogle(r.idToken);
+        if (!this._authIntentCurrent(intent)) return;
+        email = SupaAuth.email();   // the verified session, not the provider's profile claim
+        if (!this._authOwnerMatches(intent) || !email) return this.authErr("Google sign-in could not establish your account. Please try again.");
+      }
       if (!email) return this.authErr("Google didn't return an email. Try again or use email login.");
+      if (!this._authIntentCurrent(intent)) return;
       Auth.loginWithGoogle({ name: name || email.split("@")[0], email });
       this.enterApp();
     } catch (e) {
+      if (this._authAborted(e) || !this._authIntentCurrent(intent)) return;
       const s = String((e && (e.message || e.errorMessage || e.code || e.error)) || e || "");
       if (/cancel/i.test(s)) return this.authErr("Google sign-in was cancelled — tap Continue with Google to retry.");
       this.authErr("Google: " + (s || "sign-in failed") + ". If you just enabled it, wait a few minutes then retry — or use email.");
@@ -550,32 +864,106 @@ const App = {
     } catch (e) { this.authErr(e.message); }
   },
 
+  // ---- DEF-060 / DEF-066: one guarded login submission path ---------------
+  // The rendered controls now live in a real <form>, so Enter uses the same handler as the button.
+  submitLogin(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    this.doLogin();
+    return false;
+  },
+  _clearAuthErr() { const e = document.getElementById("auth-err"); if (e && typeof e.textContent === "string") e.textContent = ""; },
+  // A login counts as pending only while its own auth intent is still the newest one, so an
+  // explicit new Google intent (or a logout) releases the guard instead of wedging the button.
+  _loginBusy() {
+    const attempt = this._loginPending;
+    if (!attempt) return false;
+    if (this._authIntentCurrent(attempt)) return true;
+    this._loginPending = null;
+    this._setLoginPending(false);
+    return false;
+  },
+  _setLoginPending(on) {
+    const btn = document.getElementById("login-submit");
+    if (!btn || typeof btn.setAttribute !== "function") return;
+    btn.disabled = !!on;
+    btn.setAttribute("aria-busy", on ? "true" : "false");
+    btn.textContent = on ? "Signing in\u2026" : "Log in";
+  },
+  _authFailureKind(error) {
+    if (!error) return "unknown";
+    if (error.status >= 500 || [408, 429].includes(error.status)) return "service";
+    if (error.status === 401) return "credentials";
+    if (error.name === "TypeError" || error.name === "AbortError") return "service";
+    const text = String(error.message || error.error_description || error.error || "").trim();
+    if (!text || text === "Invalid email or password." || text === "Sign-up failed.") return "unknown";
+    if (/(unavailable|bad gateway|gateway timeout|server error|timed out|timeout|network|failed to fetch|load failed|too many requests|rate limit|try again later|maintenance)/i.test(text)) return "service";
+    if (/(invalid login credentials|invalid credentials|invalid_grant|invalid grant|invalid email or password|incorrect|wrong password|not confirmed|user not found)/i.test(text)) return "credentials";
+    return "unknown";
+  },
+  _authFailureMessage(kind) {
+    if (kind === "credentials") return "Incorrect email or password.";
+    if (kind === "service") return "Sign-in is temporarily unavailable — check your connection and try again.";
+    return "We couldn't complete sign-in. Please try again in a moment.";
+  },
+
   async doLogin() {
-    const email = document.getElementById("a-email").value.trim();
-    const pass = document.getElementById("a-pass").value;
+    if (this._loginBusy()) return false;             // a second activation never starts a second request
+    const emailEl = document.getElementById("a-email"), passEl = document.getElementById("a-pass");
+    const email = ((emailEl && emailEl.value) || "").trim(), pass = (passEl && passEl.value) || "";
+    this._clearAuthErr();
+    if (!Auth.validEmail(email)) { this.authErr("Enter a valid email address."); return false; }
+    if (!pass) { this.authErr("Enter your password."); return false; }
+    const intent = this._beginAuthIntent(email);
+    this._loginPending = intent;
+    this._setLoginPending(true);
+    try { return await this._runLogin(email, pass, intent); }
+    finally { if (this._loginPending === intent) { this._loginPending = null; this._setLoginPending(false); } }
+  },
+  async _runLogin(email, pass, intent) {
     try {
       if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
-        let signedIn = false;
-        try { await SupaAuth.login(email, pass); signedIn = true; } catch (_) {}
-        if (!signedIn) {
+        let failure = null;
+        try { await SupaAuth.login(email, pass); }
+        catch (error) { if (this._authAborted(error)) return false; failure = error; }
+        if (!this._authIntentCurrent(intent)) return false;
+        if (failure) {
+          // DEF-066: asking to log in is not consent to create an account. The only remote signup
+          // here is the authorized migration of a known pre-Supabase account whose stored password
+          // this same attempt just verified locally.
           const local = Auth.findByEmail(email);
-          if (local && local.provider !== "supabase" && local.hash) {
-            let ok = false; try { await Auth.login({ email, password: pass }); ok = true; } catch (_) {}
-            if (!ok) return this.authErr("Incorrect password.");
-          }
+          const legacy = !!(local && local.provider !== "supabase" && local.hash);
+          const kind = this._authFailureKind(failure);
+          if (!legacy || kind !== "credentials") { this.authErr(this._authFailureMessage(kind)); return false; }
+          let verified = false;
+          try { await Auth.login({ email, password: pass }); verified = true; } catch (_) {}
+          if (!this._authIntentCurrent(intent)) return false;
+          if (!verified) { this.authErr("Incorrect email or password."); return false; }
           try {
-            const s = await SupaAuth.signup(email, pass, { name: local ? local.name : "" });
-            if (s && s.needsConfirm) return this.authErr("Check your email to confirm your account, then log in.");
-          } catch (_) {
-            return this.authErr("Incorrect email or password.");
+            const created = await SupaAuth.signup(email, pass, { name: local.name || "" });
+            if (!this._authIntentCurrent(intent)) return false;
+            if (created && created.needsConfirm) { this.authErr("Check your email to confirm your account, then log in."); return false; }
+          } catch (error) {
+            if (this._authAborted(error) || !this._authIntentCurrent(intent)) return false;
+            this.authErr(this._authFailureMessage(this._authFailureKind(error)));
+            return false;
           }
         }
-        Auth.supabaseSignIn({ email, name: (Auth.findByEmail(email) || {}).name });
-        return this.enterApp();
+        if (!this._authIntentCurrent(intent)) return false;
+        if (!this._authOwnerMatches(intent)) { this.authErr("That sign-in didn't complete. Please try again."); return false; }
+        Auth.supabaseSignIn({ email: SupaAuth.email() || email, name: (Auth.findByEmail(email) || {}).name });
+        this.enterApp();
+        return true;
       }
-      await Auth.login({ email, password: pass }); this.enterApp();
+      await Auth.login({ email, password: pass });
+      if (!this._authIntentCurrent(intent)) return false;
+      this.enterApp();
+      return true;
     }
-    catch (e) { this.authErr(e.message); }
+    catch (e) {
+      if (this._authAborted(e) || !this._authIntentCurrent(intent)) return false;
+      this.authErr(e.message);
+      return false;
+    }
   },
 
   doSendOtp() {
@@ -586,20 +974,27 @@ const App = {
   },
   async doVerifyOtp() {
     const code = document.getElementById("o-code").value.trim();
+    const draft = this.signupDraft || {}, intent = this._beginAuthIntent(draft.email || "");
     try {
       Auth.verifyOtp(code); this.pendingCode = null;
       // email verified → now create/adopt the secure Supabase session (RLS identity)
       if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
-        const d = this.signupDraft || {};
-        if (d.email && d.pass) {
-          try { await SupaAuth.signup(d.email, d.pass, { name: d.name }); }
-          catch (_) { try { await SupaAuth.login(d.email, d.pass); } catch (__) {} }
-          Auth.supabaseSignIn({ email: d.email, name: d.name });
+        if (!draft.email || !draft.pass) return this.authErr("Restart signup to establish a verified session.");
+        let session;
+        try { session = await SupaAuth.signup(draft.email, draft.pass, { name: draft.name }); }
+        catch (error) {
+          if (this._authAborted(error) || !this._authIntentCurrent(intent)) return;
+          session = await SupaAuth.login(draft.email, draft.pass);
         }
+        if (!this._authIntentCurrent(intent)) return;
+        if (session?.needsConfirm) return this.authErr("Check your email to confirm your account, then log in.");
+        if (!this._authOwnerMatches(intent)) return this.authErr("Sign in again to complete registration.");
+        Auth.supabaseSignIn({ email: SupaAuth.email(), name: draft.name });
       }
+      if (!this._authIntentCurrent(intent)) return;
       this.enterApp();
     }
-    catch (e) { this.authErr(e.message); }
+    catch (e) { if (!this._authAborted(e) && this._authIntentCurrent(intent)) this.authErr(e.message); }
   },
   async doResend() {
     Auth.resendOtp();
@@ -627,13 +1022,16 @@ const App = {
     if (p1 !== p2) return this.authErr("Those passwords don't match.");
     const t = this._recoverTokens;
     if (!t || !t.access_token) return this.authErr("This reset link has expired — request a new one from Forgot your password.");
+    const intent = this._beginAuthIntent("");
     try {
       const sess = await SupaAuth.setPasswordWithToken(t.access_token, t.refresh_token, t.expires_in, p1);
+      if (!this._authIntentCurrent(intent) || this._recoverTokens !== t) return;
+      if (!this._authOwnerMatches(intent) || !sess?.email || sess.email !== SupaAuth.email()) return this.authErr("Sign in again after updating your password.");
       this._recoverTokens = null;
       Auth.supabaseSignIn({ email: (sess && sess.email) || "", name: (Auth.findByEmail((sess && sess.email) || "") || {}).name });
       if (this.toast) this.toast("Password updated — you're logged in.");
       this.enterApp();
-    } catch (e) { this.authErr(e.message); }
+    } catch (e) { if (!this._authAborted(e) && this._authIntentCurrent(intent)) this.authErr(e.message); }
   },
 
   // floating energy particles in the animated background
@@ -678,7 +1076,13 @@ const App = {
       if (this.curTab && prevIdx !== -1 && nextIdx !== -1 && nextIdx !== prevIdx)
         wrap.classList.add(nextIdx > prevIdx ? "nav-r" : "nav-l");
     }
-    document.querySelectorAll("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+    if (this.curTab === "profile" && tab !== "profile") this._captureProfileDraft();
+    // DEF-068: the selected tab is a navigation state, so expose aria-current (these buttons are not in a tablist).
+    document.querySelectorAll("#tabbar .tab").forEach((t) => {
+      const on = t.dataset.tab === tab;
+      t.classList.toggle("active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
     document.querySelectorAll("#wrap > .view").forEach((v) => v.classList.toggle("active", v.id === viewId));
     this.curTab = tab;
     document.querySelector(".wrap").scrollTo ? window.scrollTo({ top: 0, behavior: "instant" }) : window.scrollTo(0, 0);
@@ -827,6 +1231,7 @@ const App = {
     apple: '<path d="M12 7C10 4 6 4 5 7c-1 2-1 5 1 8 1 2 3 4 6 4s5-2 6-4c2-3 2-6 1-8-1-3-5-3-7 0Z"/><path d="M12 7c.4-2 2-3.5 3.5-3.5"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',
     bell: '<path d="M6 9a6 6 0 1 1 12 0c0 5 2 7 2 7H4s2-2 2-7Z"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
+    close: '<path d="m18 6-12 12M6 6l12 12"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
@@ -857,32 +1262,98 @@ const App = {
   },
   // ---- premium action sheet (bottom sheet) for contextual options; actions:[{icon,label,fn,danger,on,sep}] ----
   openSheet(title, actions) {
-    const old = document.getElementById("sheet-wrap"); if (old && old.parentNode) old.parentNode.removeChild(old);
+    const prev = document.getElementById("sheet-wrap");
+    // replacing a live sheet: drop it now so two sheets can never stack, and keep the original return target
+    if (prev) this._dropSheetNode(prev);
+    if (this._sheetClosing) { this._dropSheetNode(this._sheetClosing); this._sheetClosing = null; }
+    this._detachSheetKey();
+    if (!prev) this._sheetReturn = this._focusedEl();
+
     const list = actions || [];
-    const opts = list.map((a, i) => a.sep
-      ? `<div class="sheet-sep"></div>`
-      : `<button class="sheet-opt${a.danger ? " danger" : ""}${a.on ? " on" : ""}" data-i="${i}">${a.icon ? this.ic(a.icon, { size: 20 }) : ""}<span>${esc(a.label)}</span></button>`).join("");
     const wrap = document.createElement("div");
     wrap.className = "sheet-wrap"; wrap.id = "sheet-wrap";
-    wrap.innerHTML = `<div class="sheet-back" onclick="App.closeSheet()"></div>
-      <div class="sheet" role="dialog" aria-modal="true">
-        ${title ? `<div class="sheet-title">${esc(title)}</div>` : ""}
-        <div class="sheet-opts">${opts}</div>
-        <button class="sheet-cancel" onclick="App.closeSheet()">Cancel</button>
-      </div>`;
-    document.body.appendChild(wrap);
-    wrap.querySelectorAll(".sheet-opt").forEach((btn) => {
-      const a = list[+btn.getAttribute("data-i")];
-      btn.addEventListener("click", () => { App.closeSheet(); if (a && typeof a.fn === "function") setTimeout(a.fn, 10); });
+    const back = document.createElement("div");
+    back.className = "sheet-back";
+    back.addEventListener("click", () => { if (document.getElementById("sheet-wrap") === wrap) App.closeSheet(); });
+    const sheet = document.createElement("div");
+    sheet.className = "sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    if (title) {
+      const head = document.createElement("div");
+      head.className = "sheet-title"; head.id = "sheet-title"; head.textContent = title;
+      sheet.setAttribute("aria-labelledby", "sheet-title");
+      sheet.appendChild(head);
+    } else {
+      sheet.setAttribute("aria-label", "Options");
+    }
+    const opts = document.createElement("div");
+    opts.className = "sheet-opts";
+    const items = [];
+    list.forEach((a) => {
+      if (!a) return;
+      if (a.sep) { const s = document.createElement("div"); s.className = "sheet-sep"; opts.appendChild(s); return; }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sheet-opt" + (a.danger ? " danger" : "") + (a.on ? " on" : "");
+      btn.innerHTML = (a.icon ? this.ic(a.icon, { size: 20 }) : "") + `<span>${esc(a.label)}</span>`;
+      btn.addEventListener("click", () => {
+        if (btn.disabled || document.getElementById("sheet-wrap") !== wrap) return;
+        App.closeSheet();
+        if (typeof a.fn === "function") setTimeout(a.fn, 10);
+      });
+      opts.appendChild(btn);
+      items.push(btn);
     });
-    this._sheetKey = (e) => { if (e.key === "Escape") App.closeSheet(); };
+    sheet.appendChild(opts);
+    const cancel = document.createElement("button");
+    cancel.type = "button"; cancel.className = "sheet-cancel"; cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => { if (document.getElementById("sheet-wrap") === wrap) App.closeSheet(); });
+    sheet.appendChild(cancel);
+    items.push(cancel);
+    wrap.appendChild(back); wrap.appendChild(sheet);
+    document.body.appendChild(wrap);
+
+    this._sheetItems = items;
+    this._sheetKey = (e) => App._onSheetKey(e);
     document.addEventListener("keydown", this._sheetKey);
-    requestAnimationFrame(() => wrap.classList.add("in"));
+    requestAnimationFrame(() => { if (document.getElementById("sheet-wrap") === wrap) wrap.classList.add("in"); });
+    const first = this._sheetEnabled()[0];
+    if (first) first.focus();
   },
   closeSheet() {
-    if (this._sheetKey) { document.removeEventListener("keydown", this._sheetKey); this._sheetKey = null; }
+    this._detachSheetKey();
+    const items = this._sheetItems || [];
+    this._sheetItems = null;
+    const back = this._sheetReturn; this._sheetReturn = null;
     const w = document.getElementById("sheet-wrap");
-    if (w) { w.classList.remove("in"); setTimeout(() => { if (w.parentNode) w.parentNode.removeChild(w); }, 200); }
+    // clear the id first so a sheet opened from this action isn't mistaken for the closing one
+    if (w) {
+      w.inert = true;
+      w.setAttribute("aria-hidden", "true");
+      items.forEach(item => { item.disabled = true; });
+      w.id = ""; w.classList.remove("in"); this._sheetClosing = w;
+      setTimeout(() => { if (App._sheetClosing === w) App._sheetClosing = null; App._dropSheetNode(w); }, 200);
+    }
+    const cur = this._focusedEl();
+    // only take focus back if it is still inside the sheet — never steal it from a dialog opened by the action
+    if (back && back.isConnected !== false && (!cur || cur === document.body || items.indexOf(cur) !== -1)) back.focus();
+  },
+  _dropSheetNode(node) { if (node && node.parentNode) node.parentNode.removeChild(node); },
+  _detachSheetKey() { if (this._sheetKey) { document.removeEventListener("keydown", this._sheetKey); this._sheetKey = null; } },
+  _focusedEl() { const el = document.activeElement; return el && typeof el.focus === "function" ? el : null; },
+  _sheetEnabled() { return (this._sheetItems || []).filter((el) => el && !el.disabled); },
+  _onSheetKey(e) {
+    if (e.key === "Escape") { this.closeSheet(); return; }
+    if (e.key !== "Tab") return;
+    const items = this._sheetEnabled();
+    if (!items.length) return;
+    if (e.preventDefault) e.preventDefault();
+    const at = items.indexOf(this._focusedEl());
+    const next = e.shiftKey
+      ? (at <= 0 ? items.length - 1 : at - 1)
+      : (at === -1 || at === items.length - 1 ? 0 : at + 1);
+    items[next].focus();
   },
   // slide-to-confirm control (iOS "slide to answer" feel) for commit moments. `action` is a live function.
   _slides: {},
@@ -960,7 +1431,7 @@ const App = {
   // password field with a show/hide eye toggle (inline-styled — no new CSS)
   pwField(id, label, ph, ac, meter) {
     return `<div class="field">
-        <label>${label}</label>
+        <label for="${id}">${label}</label>
         <div style="position:relative">
           <input id="${id}" type="password" placeholder="${ph}" autocomplete="${ac || "current-password"}"${meter ? ` oninput="App.pwStrength('${id}')"` : ""} style="width:100%;box-sizing:border-box;padding-right:42px">
           <button type="button" onclick="App.togglePw('${id}',this)" aria-label="Show password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);cursor:pointer;padding:6px;display:flex;line-height:0">${this.ic("eye", { size: 18 })}</button>
@@ -1014,14 +1485,13 @@ const App = {
   },
   _reelCommentsList(id) {
     if (!Social.cloudActive()) return `<div class="sub" style="padding:14px 4px;text-align:center">Sign in online to comment.</div>`;
-    const all = Social.commentsFor(id);
-    const tops = all.filter((c) => !c.parent_id);
-    if (!tops.length) return `<div class="sub" style="padding:18px 4px;text-align:center">No comments yet — be the first 👋</div>`;
+    const rows = Social.commentRows(id);
+    if (!rows.length) return `<div class="sub" style="padding:18px 4px;text-align:center">No comments yet — be the first 👋</div>`;
     const row = (c, isReply) => {
       const who = Social._commenter(c.author);
       return `<div class="cmt2 ${isReply ? "reply" : ""}"><span class="cmt2-av" onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${Social.avatar(who, isReply ? 26 : 30)}</span><div class="cmt2-body"><b onclick="App.closeReelComments();Social.viewProfile('${c.author}')">${esc(who.name)}</b> ${Social._renderMentions(c.body)} <span class="cmt2-time">${Social.timeAgo(c.ts)}</span>${isReply ? "" : ` <button class="cmt2-reply" onclick="App.reelReply('${c.author}')">Reply</button>`}</div></div>`;
     };
-    return tops.map((c) => row(c, false) + all.filter((r) => r.parent_id === c.id).map((r) => row(r, true)).join("")).join("");
+    return rows.map(item => row(item.comment, item.reply)).join("");
   },
   reelReply(author) {
     const i = document.getElementById("rc-input");
@@ -1063,7 +1533,7 @@ const App = {
     const s = this.coachSub;
     const nav = [["overview", this.ic("home", { size: 15 }) + " Overview"], ["today", this.ic("dumbbell", { size: 15 }) + " Today"], ["progress", this.ic("chart", { size: 15 }) + " Progress"], ["nutrition", this.ic("apple", { size: 15 }) + " Nutrition"]];
     const sn = document.getElementById("coach-subnav");
-    if (sn) sn.innerHTML = nav.map(([n, l]) => `<button class="ssub ${n === s ? "active" : ""}" onclick="App.renderCoach('${n}')">${l}</button>`).join("");
+    if (sn) sn.innerHTML = nav.map(([n, l]) => `<button type="button" class="ssub ${n === s ? "active" : ""}"${n === s ? ` aria-current="page"` : ""} onclick="App.renderCoach('${n}')">${l}</button>`).join("");
     const views = { overview: "view-home", today: "view-today", progress: "view-progress", nutrition: "view-nutrition" };
     Object.entries(views).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = k === s ? "block" : "none"; });
     if (s === "overview") this.renderHome();
@@ -1076,10 +1546,9 @@ const App = {
   renderAlerts() {
     const el = document.getElementById("view-alerts");
     if (!el) return;
-    el.innerHTML = `<div class="alerts-head"><h2>Activity</h2></div><div class="card" style="padding:0;overflow:hidden"><div class="notif-list" id="notif-list"></div></div>`;
+    el.innerHTML = `<div class="alerts-head"><h2>Activity</h2>${window.STORY_INTERACTIONS ? `<button class="btn ghost" onclick="App.openStoryNotifications()">${this.ic("bell", { size: 16 })} Story activity</button>` : ""}</div><div class="card" style="padding:0;overflow:hidden"><div class="notif-list" id="notif-list"></div></div>`;
     this.renderNotifPanel();
-    if (typeof Cloud !== "undefined" && Cloud.markNotifsRead) Cloud.markNotifsRead();
-    this.updateNotifBadge(0);
+    this.updateNotifBadge((Social.cloud.notifs || []).filter(row => !row.read).length);
   },
 
   // swipe left/right between tabs — the page follows your finger, then slides to the next tab (native pager feel)
@@ -1171,7 +1640,7 @@ const App = {
     const trainBadge = done ? "Done" : isRest ? "Rest" : "Planned";
     const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
     const ep = Engine.experiencePlan();
-    const programCard = `<div class="card program-cta">
+    const programCard = typeof Entitlements !== "undefined" && !Entitlements.ready() ? "" : `<div class="card program-cta">
         <div class="hc-head"><h2>Your training program</h2><span class="hc-badge">${isPro ? "Pro" : "Pro \u2728"}</span></div>
         <div class="hc-line">A periodised 4-week plan for your <b>${esc(phys.name)}</b> goal \u2014 ${ep.freq} days/week, auto-progressed each week.</div>
         <div class="hc-actions">${isPro
@@ -1307,7 +1776,7 @@ const App = {
       html += `<div class="focus-banner" style="margin-top:14px">
           <div><div class="ft">Session complete ✅</div>
           <div class="fs">${done.exercises.length} exercises · ${done.exercises.reduce((n,e)=>n+e.sets.length,0)} sets · ${Math.round(done.volume)} kg volume</div></div>
-          <span class="pill" style="background:var(--green)">${SPLITS[done.split].label}</span>
+          <span class="pill" style="background:var(--green)">${SPLITS[done.split]?.label || "Workout"}</span>
         </div>
         <button class="btn ghost wide" style="margin-top:12px" onclick="App.editSession()">✏️ Edit this session</button>
         </div>`;
@@ -1599,12 +2068,143 @@ const App = {
     p.physique = id;
     p.physiqueChosen = true;
     Store.save();
+    const genderField = document.getElementById("p-gender");
+    if (genderField && this._sameDraftOwner(this._profileViewOwner, this._draftOwner())) genderField.value = p.gender;
     this.closeModal();
     this.renderChips();
     const active = document.querySelector(".tab.active")?.dataset.tab || "today";
     this.renderTab(active);
   },
-  closeModal() { document.getElementById("modal").classList.add("hidden"); if (typeof Social !== "undefined" && Social._stopPreview) Social._stopPreview(); },
+  closeModal() {
+    document.getElementById("modal").classList.add("hidden");
+    this._finishRightsReauth(false);
+    this._accountRights?.close();
+    if (typeof SupportReceipts !== "undefined") SupportReceipts.close();
+    if (typeof Reports !== "undefined") Reports.close();
+    if (typeof Preferences !== "undefined") Preferences.close();
+    if (typeof Social !== "undefined" && Social._stopPreview) Social._stopPreview();
+    const supportMessage = document.getElementById("sp-msg");
+    if (supportMessage) {
+      supportMessage.value = "";
+      const supportSubject = document.getElementById("sp-subj");
+      if (supportSubject) supportSubject.value = "";
+      document.getElementById("modal-card").innerHTML = "";
+      this._supportPending = new Set();
+    }
+    this._syncModal();   // synchronous: drop the trap/inert and return focus before the observer runs
+  },
+
+  /* ---- shared modal accessibility ----------------------------------------
+     Dozens of call sites open #modal by writing #modal-card then removing
+     .hidden, so semantics/focus are applied centrally from a MutationObserver
+     instead of touching every caller. Action sheets keep their own handling. */
+  _bindModalA11y() {
+    const overlay = document.getElementById("modal");
+    if (!overlay || this._modalBound) return;
+    this._modalBound = true;
+    // remember the real activator: a re-render can blur it before the modal opens
+    const rememberOpener = event => {
+      const target = event.target?.closest?.("a[href],button,summary,[role=button],[tabindex]");
+      if (target && !overlay.contains(target)) App._modalOpener = target;
+    };
+    document.addEventListener("pointerdown", rememberOpener, true);
+    document.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") rememberOpener(event);
+      App._onModalKey(event);
+    }, true);
+    if (typeof MutationObserver === "function") {
+      this._modalWatch = new MutationObserver(() => App._syncModal());
+      this._modalWatch.observe(overlay, { attributes: true, attributeFilter: ["class"] });
+      const card = document.getElementById("modal-card");
+      if (card) this._modalWatch.observe(card, { childList: true, subtree: true });
+    }
+    this._syncModal();
+  },
+  _modalEl() { return document.getElementById("modal"); },
+  _modalOpen() { const m = this._modalEl(); return !!m && !m.classList.contains("hidden"); },
+  _syncModal() {
+    const overlay = this._modalEl();
+    if (!overlay) return;
+    const open = this._modalOpen();
+    if (open) {
+      const first = !this._modalActive;
+      if (first) { this._modalActive = true; this._modalReturn = this._modalReturnTarget(); this._setBackgroundInert(true); }
+      this._labelModal();
+      const card = document.getElementById("modal-card");
+      if (card && card.tabIndex !== -1) card.tabIndex = -1;
+      // never yank focus out of an input while the card re-renders around it
+      const cur = this._focusedEl();
+      if (!cur || cur === document.body || !overlay.contains(cur)) {
+        const target = this._modalFocusables()[0] || card;
+        if (target && typeof target.focus === "function") target.focus();
+      }
+    } else if (this._modalActive) {
+      this._modalActive = false;
+      this._setBackgroundInert(false);
+      const back = this._modalReturn; this._modalReturn = null;
+      const cur = this._focusedEl();
+      // only reclaim focus if the modal still held it (an action may have moved it on purpose)
+      if (back && back.isConnected && typeof back.focus === "function" &&
+        (!cur || cur === document.body || overlay.contains(cur))) back.focus();
+    }
+  },
+  _modalReturnTarget() {
+    const cur = this._focusedEl();
+    if (cur && cur !== document.body && cur.isConnected && !this._modalEl().contains(cur)) return cur;
+    const opener = this._modalOpener;
+    return opener && opener.isConnected ? opener : null;
+  },
+  _setBackgroundInert(on) {
+    for (const id of ["app-shell", "auth-overlay"]) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (on) { el.inert = true; el.setAttribute("aria-hidden", "true"); }
+      else { el.inert = false; el.removeAttribute("aria-hidden"); }
+    }
+  },
+  // Name the dialog from the open view's own first heading. Feature modules render into
+  // #modal-card and compare their own markup before applying async updates, so the name is
+  // taken from the heading WITHOUT rewriting the card.
+  _labelModal() {
+    const overlay = this._modalEl(), card = document.getElementById("modal-card");
+    if (!overlay) return;
+    const head = card && card.querySelector("h1,h2,h3,.sheet-title,.modal-head h2");
+    const title = head ? (head.textContent || "").replace(/\s+/g, " ").trim() : "";
+    if (head && head.id) {
+      overlay.setAttribute("aria-labelledby", head.id);
+      overlay.removeAttribute("aria-label");
+    } else if (title) {
+      overlay.removeAttribute("aria-labelledby");
+      overlay.setAttribute("aria-label", title);
+    } else {
+      overlay.removeAttribute("aria-labelledby");
+      overlay.setAttribute("aria-label", "Formora dialog");
+    }
+  },
+  _modalFocusables() {
+    const overlay = this._modalEl();
+    if (!overlay) return [];
+    const sel = "a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),summary,audio[controls],video[controls],[tabindex]:not([tabindex='-1'])";
+    return [...overlay.querySelectorAll(sel)].filter((el) => {
+      if (el.closest("[inert]")) return false;
+      if (typeof el.checkVisibility === "function") return el.checkVisibility();
+      return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    });
+  },
+  _onModalKey(e) {
+    if (!this._modalOpen()) return;
+    if (document.getElementById("sheet-wrap")) return;   // an action sheet on top owns the keyboard
+    if (e.key === "Escape") { if (e.preventDefault) e.preventDefault(); this.closeModal(); return; }
+    if (e.key !== "Tab") return;
+    const items = this._modalFocusables();
+    if (!items.length) return;
+    if (e.preventDefault) e.preventDefault();
+    const at = items.indexOf(this._focusedEl());
+    const next = e.shiftKey
+      ? (at <= 0 ? items.length - 1 : at - 1)
+      : (at === -1 || at === items.length - 1 ? 0 : at + 1);
+    items[next].focus();
+  },
   shareProgress() {
     const p = (typeof Store !== "undefined" && Store.state && Store.state.profile) || {};
     const meName = p.name || (typeof Social !== "undefined" && Social.me ? Social.me().name : "") || "Me";
@@ -1624,7 +2224,7 @@ const App = {
     x.fillStyle = bg; rr(96, 96, 108, 108, 26); x.fill();
     x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "800 72px -apple-system,Arial,sans-serif"; x.fillText("F", 150, 174);
     x.textAlign = "left"; x.fillStyle = "#fff"; x.font = "800 50px -apple-system,Arial,sans-serif"; x.fillText("FORMORA", 226, 150);
-    x.fillStyle = "#9aa4b2"; x.font = "600 23px -apple-system,Arial,sans-serif"; x.fillText("AI PHYSIQUE COACH", 228, 185);
+    x.fillStyle = "#9aa4b2"; x.font = "600 23px -apple-system,Arial,sans-serif"; x.fillText("TRAIN. TRACK. CONNECT.", 228, 185);
     x.fillStyle = "#fff"; x.font = "800 62px -apple-system,Arial,sans-serif"; x.fillText(String(meName).slice(0, 18), 96, 336);
     x.fillStyle = "#ff9d4d"; x.font = "700 33px -apple-system,Arial,sans-serif"; x.fillText("Chasing " + String(phys).slice(0, 26), 98, 388);
     const cardStat = (sx, val, lbl) => { x.fillStyle = "#191b25"; rr(sx, 448, 288, 210, 24); x.fill(); x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "800 74px -apple-system,Arial,sans-serif"; x.fillText(String(val), sx + 144, 556); x.fillStyle = "#9aa4b2"; x.font = "600 24px -apple-system,Arial,sans-serif"; x.fillText(lbl, sx + 144, 606); x.textAlign = "left"; };
@@ -1654,7 +2254,7 @@ const App = {
     const ep = Engine.experiencePlan();
     const name = ((p.name || "").split(" ")[0]) || "champ";
     const goalW = p.targetWeightKg ? `${Store.latestWeight()} \u2192 <b>${p.targetWeightKg}</b> kg` : `${Store.latestWeight()} kg`;
-    window.Track && Track.event("onboarding_completed", { physique: phys.name, goal_kg: p.targetWeightKg || null });
+    try { window.Track && Track.event("onboarding_completed"); } catch (_) {}
     document.getElementById("modal-card").innerHTML = `
       <div class="welcome">
         <div class="wc-emoji">\ud83c\udf89</div>
@@ -1674,7 +2274,7 @@ const App = {
         </ul>
         <div class="wc-pro" onclick="App.closeModal();App.openPricing()">
           <div class="wc-pro-badge">\u2728 Formora Pro</div>
-          <div class="wc-pro-t">Unlock AI multi-week programs, all 115 camera filters &amp; advanced analytics</div>
+          <div class="wc-pro-t">Unlock multi-week programs, Pro camera filters &amp; advanced analytics</div>
           <div class="wc-pro-p">See plans \u2192</div>
         </div>
         <button class="btn wide" onclick="App.closeModal()">Start training \ud83d\udcaa</button>
@@ -1717,6 +2317,11 @@ const App = {
   },
   // ---- Pricing / upgrade (T-28). Real checkout wires in once a Merchant-of-Record is live (office T-25). ----
   openPricing() {
+    if (typeof Entitlements !== "undefined" && !Entitlements.ready()) {
+      this.renderMembershipStatus();
+      this.toast(Entitlements.loading ? "Checking membership..." : "Membership unavailable. Retry before purchasing.");
+      return;
+    }
     window.Track && Track.event("paywall_opened");
     const P = (window.PRICING && window.PRICING.tiers) || [];
     const cur = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
@@ -1727,55 +2332,138 @@ const App = {
       <div class="ptier ${t.id === "pro" ? "featured" : ""}${t.comingSoon ? " pt-soon" : ""}">
         ${t.comingSoon ? `<div class="pt-badge pt-badge-soon">Coming soon</div>` : (t.badge ? `<div class="pt-badge">${esc(t.badge)}</div>` : "")}
         <div class="pt-name">${esc(t.name)}</div>
-        <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">${reg(t) ? esc(reg(t).sym + reg(t).mo) : "₹" + ((RAZORPAY.inr && RAZORPAY.inr[t.id]) || "")}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : (reg(t) ? esc(reg(t).sym + reg(t).mo) : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))))}<small>${offerOn(t) ? " launch offer" : (reg(t) ? "/mo" : esc(t.period || ""))}</small></div>
-        ${t.yearly && !offerOn(t) ? `<div class="pt-year">or ${reg(t) ? esc(reg(t).sym + reg(t).yr) + "/yr" : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.yearly(t.yearly) : esc(t.yearly)))}${(() => { const my = reg(t) ? reg(t).mo : parseFloat(t.price), yr = reg(t) ? reg(t).yr : parseFloat(String(t.yearly).replace(/[^\d.]/g, "")); const pct = my > 0 && yr > 0 ? Math.round((1 - yr / (my * 12)) * 100) : 0; return pct > 0 ? ` <span class="pt-save">Save ${pct}%</span>` : ""; })()}</div>` : ""}
+        <div class="pt-price">${t.price === "0" ? "Free" : offerOn(t) ? `<span style="text-decoration:line-through;opacity:.5;font-weight:600;font-size:.72em">${reg(t) ? esc(reg(t).sym + reg(t).mo) : "₹" + ((RAZORPAY.inr && RAZORPAY.inr[t.id]) || "")}</span> <span style="color:#ff5a4d;font-weight:900">₹1</span>` : (reg(t) ? esc(reg(t).sym + reg(t).mo) : ((typeof Currency !== "undefined" && Currency.isLocal() ? "≈" : "") + (typeof Currency !== "undefined" ? Currency.price(t.price) : "$" + esc(t.price))))}<small>${offerOn(t) ? " launch offer" : (reg(t) ? (t.comingSoon ? "/mo (planned)" : " one-time") : esc(t.period || ""))}</small></div>
         <ul class="pt-feats">${(t.features || []).map((f) => `<li${/^Everything in /.test(f) ? ' class="pt-inc"' : ""}>${esc(f)}</li>`).join("")}</ul>
         ${t.comingSoon ? `<button class="btn ghost wide" disabled>Coming soon ✨</button>` : (t.id === cur ? `<button class="btn ghost wide" disabled>Current plan</button>` : (window.RAZORPAY && RAZORPAY.enabled && t.id !== "free" && (typeof Currency !== "undefined" && Currency.cur === "INR") ? `<button class="btn wide" onclick="App.choosePlan('${esc(t.id)}','upi')">Pay with UPI</button><button class="btn ghost wide" style="margin-top:6px" onclick="App.choosePlan('${esc(t.id)}','card')">Card / PayPal</button>` : `<button class="btn ${t.id === "pro" ? "" : "ghost "}wide" onclick="App.choosePlan('${esc(t.id)}')">Choose ${esc(t.name)}</button>`))}
       </div>`).join("");
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Formora plans</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
-       <div class="pricing">${window.FOUNDING && window.FOUNDING.on ? `<div class="pt-founding">🚀 <b>Founding Member</b> — lock the launch price <b>forever</b>. First ${(window.FOUNDING.cap || 1000).toLocaleString()} only.</div>` : ""}<div class="pt-lead">Start free. Upgrade when you're ready — cancel anytime.</div>
+      <div class="pricing">${window.FOUNDING && window.FOUNDING.on ? `<div class="pt-founding">🚀 <b>Founding Member</b> — lock the launch price <b>forever</b>. First ${(window.FOUNDING.cap || 1000).toLocaleString()} only.</div>` : ""}<div class="pt-lead">Start free. Upgrade when you're ready.</div>
        <div class="ptiers">${tiers}</div>
-       <div class="pt-foot">Secure checkout · Cancel anytime · Powered by Lemon Squeezy</div>${typeof Currency !== "undefined" && Currency.isLocal() ? `<div class="pt-foot" style="opacity:.65;margin-top:6px">Prices shown in your local currency (${esc(Currency.cur)}). International cards are billed in USD.</div>` : ""}</div>`;
+      <div class="pt-foot">UPI is a one-time payment, not an automatic renewal. Card billing follows the checkout terms.${window.LEMONSQUEEZY && window.LEMONSQUEEZY.testMode ? " Card / PayPal is currently in test mode." : ""}</div>${typeof Currency !== "undefined" && Currency.isLocal() ? `<div class="pt-foot" style="opacity:.65;margin-top:6px">Prices shown in your local currency (${esc(Currency.cur)}). International cards are billed in USD.</div>` : ""}</div>`;
     document.getElementById("modal").classList.remove("hidden");
     if (typeof Currency !== "undefined" && !Currency.ready) { Currency.init().then(() => { if (!document.getElementById("modal").classList.contains("hidden")) this.openPricing(); }); }
   },
   // ---- Help & Support (real ticketing). Writes to Supabase support_tickets so the support
   // team sees every request; a mailto is offered as a fallback. Open to every member. ----
   openSupport() {
+    this.closeModal();
     window.Track && Track.event("support_opened");
     const tier = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
     const faqs = [
-      ["I paid but Pro / Elite isn't unlocked", "Pull to refresh, or log out and back in — your membership syncs within a minute of payment. Still stuck? Message us below with the time you paid and we'll fix it fast."],
-      ["How do I cancel or change my plan?", "Message us any time and we'll cancel or switch your plan — no questions asked."],
-      ["How is my data handled?", "Your biometrics stay on your device; only your public profile stats sync. Details are in Profile → About."],
-      ["I found a bug or have an idea", "Tell us below — every message reaches the team and we read all of them."],
+      ["I paid but Pro / Elite isn't unlocked", "Do not pay again. Retry the membership check, then send the payment receipt ID and time below if access is still missing. Never include card details, passwords or verification codes."],
+      ["How do I cancel or change my plan?", "Check the billing terms on your provider receipt. UPI orders are one-time payments, not automatic subscriptions. Send a request below for help with your payment or plan."],
+      ["How is my data handled?", "Your device stores your logs, and account backups may sync to your cloud account. Progress photos stay on the device. See the privacy policy in Profile → About for details."],
+      ["I found a bug or have an idea", "Include the steps, what you expected and what happened. Your request is submitted only when saving is confirmed."],
     ];
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Help &amp; support</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
        <div class="support">
-         <div class="sp-lead">We're a real team and we reply — usually within a day. You're on the <b>${esc(tier === "elite" ? "Elite" : tier === "pro" ? "Pro" : "Free")}</b> plan.</div>
+         <div class="sp-lead">${window.SUPPORT_RECEIPTS ? "Support availability and any response expectations are shown in your requests." : "Support is founder-operated; response times vary."} You're on the <b>${esc(tier === "elite" ? "Elite" : tier === "pro" ? "Pro" : "Free")}</b> plan.</div>
+         ${window.SUPPORT_RECEIPTS ? `<button class="btn ghost" onclick="App.openSupportReceipts()">${this.ic("info", { size: 16 })} Your support requests</button>` : ""}
          <div class="sp-faq">${faqs.map((f, i) => `<details class="sp-item"${i === 0 ? " open" : ""}><summary>${esc(f[0])}</summary><div class="sp-ans">${esc(f[1])}</div></details>`).join("")}</div>
          <div class="sp-form">
-           <div class="field"><label>Subject</label><input id="sp-subj" maxlength="80" placeholder="What do you need help with?"></div>
-           <div class="field"><label>Message</label><textarea id="sp-msg" maxlength="1000" rows="4" placeholder="Tell us what's happening…"></textarea></div>
-           <button class="btn wide" onclick="App.submitTicket()">Send to support</button>
-           <div class="sp-alt">Prefer email? <a href="mailto:support@formora.app?subject=Formora%20support">support@formora.app</a></div>
+           <div class="field"><label for="sp-subj">Subject</label><input id="sp-subj" maxlength="80" placeholder="What do you need help with?"></div>
+           <div class="field"><label for="sp-msg">Message</label><textarea id="sp-msg" maxlength="1000" rows="4" placeholder="Tell us what's happening…"></textarea></div>
+           <button id="sp-send" class="btn wide" onclick="App.submitTicket()">Send to support</button>
          </div>
        </div>`;
     document.getElementById("modal").classList.remove("hidden");
   },
   async submitTicket() {
-    const subj = ((document.getElementById("sp-subj") || {}).value || "").trim();
-    const msg = ((document.getElementById("sp-msg") || {}).value || "").trim();
+    const subjectInput = document.getElementById("sp-subj"), messageInput = document.getElementById("sp-msg");
+    const subj = (subjectInput?.value || "").trim(), msg = (messageInput?.value || "").trim();
     if (!msg) { this.toast("Please add a message"); return; }
-    const u = (typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {};
+    const owner = typeof Cloud !== "undefined" && Cloud.active() && Cloud._actionUid();
+    if (!owner) { this.toast("Please sign in before sending a support request"); return; }
+    const entry = this._entry, receiptsEnabled = window.SUPPORT_RECEIPTS === true;
+    const current = () => this._entry === entry && Cloud._actionUid() === owner &&
+      document.getElementById("sp-msg") === messageInput && (window.SUPPORT_RECEIPTS === true) === receiptsEnabled;
+    const pending = this._supportPending || (this._supportPending = new Set());
+    if (pending.has(owner)) return;
+    pending.add(owner);
+    const button = document.getElementById("sp-send");
+    if (button) button.disabled = true;
     const tier = (typeof Entitlements !== "undefined") ? Entitlements.tier() : "free";
-    const ticket = { uid: (typeof Cloud !== "undefined" && Cloud.me) || "", email: u.email || "", subject: subj.slice(0, 80) || "(no subject)", message: msg.slice(0, 1000), tier };
-    let ok = false;
-    try { if (typeof Cloud !== "undefined" && Cloud.active()) ok = await Cloud._write("/support_tickets", ticket, { Prefer: "return=minimal" }); } catch (e) {}
+    const user = (typeof Auth !== "undefined" && Auth.currentUser()) || {};
+    const ticket = { uid: owner, email: user.email || "", subject: subj.slice(0, 80) || "(no subject)", message: msg.slice(0, 1000), tier };
+    let ok = false, receipt = null;
+    try {
+      if (typeof SupaAuth !== "undefined" && SupaAuth.active() && !(await SupaAuth.token())) throw new Error("auth");
+      if (!current()) return;
+      if (receiptsEnabled) {
+        if (typeof SupportReceipts === "undefined") throw new Error("Support receipts unavailable");
+        receipt = await SupportReceipts.submit(ticket.subject, ticket.message);
+        ok = !!receipt;
+      } else ok = await Cloud._writeAction("/support_tickets", "POST", ticket);
+    } catch (_) { ok = false; }
+    finally {
+      pending.delete(owner);
+      if (button && document.getElementById("sp-send") === button) button.disabled = false;
+    }
+    if (!current()) return;
+    if (!ok) {
+      this.toast(window.SUPPORT_RECEIPTS && typeof SupportReceipts !== "undefined" ? SupportReceipts.errorFor(JSON.stringify([owner, "submit"])) : "Couldn't save your request. Your draft is kept; please try again.");
+      return;
+    }
+    if (messageInput.value.trim() === msg && (subjectInput?.value || "").trim() === subj) this.closeModal();
+    this.toast(receipt ? "Support request received. Reference " + receipt.id : "Support request saved. Response time may vary.");
+  },
+  openSupportReceipts() {
+    if (!window.SUPPORT_RECEIPTS || typeof SupportReceipts === "undefined") return this.toast("Support receipts are unavailable.");
+    this.closeModal(); return SupportReceipts.open();
+  },
+  async openAccountRights() {
+    if (!window.ACCOUNT_RIGHTS || typeof AccountRights === "undefined" || !SupaAuth.uid()) return;
     this.closeModal();
-    this.toast(ok ? "Sent ✓ We'll get back to you soon" : "Couldn't reach support — please email support@formora.app");
+    if (!this._accountRights) this._accountRights = AccountRights.create({
+      enabled: () => window.ACCOUNT_RIGHTS === true, getAuth: () => SupaAuth,
+      url: window.SUPABASE_URL, anonKey: window.SUPABASE_ANON_KEY,
+      icon: name => { const icon = document.createElement("span"); icon.innerHTML = this.ic(name, { size: 18 }); return icon; },
+      reauthenticate: ({ requester }) => this.reauthenticateAccountRights(requester),
+      openSupport: () => this.openSupport(), onClose: () => this.closeModal(),
+    });
+    const card = document.getElementById("modal-card");
+    document.getElementById("modal").classList.remove("hidden");
+    try { await this._accountRights.open(card); }
+    catch (error) { this.toast(error.message || "Account rights are unavailable."); }
+  },
+  _finishRightsReauth(ok) {
+    const pending = this._rightsReauth;
+    if (!pending) return;
+    const password = pending.form.querySelector("#rights-password");
+    if (password) password.value = "";
+    this._rightsReauth = null; clearTimeout(pending.timer); pending.form.remove(); pending.resolve(ok === true);
+  },
+  reauthenticateAccountRights(requester) {
+    if (requester !== SupaAuth.uid() || !SupaAuth.email()) return Promise.resolve(false);
+    this._finishRightsReauth(false);
+    const card = document.getElementById("modal-card"), form = document.createElement("form");
+    form.className = "account-rights-reauth";
+    form.innerHTML = `<h3>Confirm your sign-in</h3><label class="field" for="rights-password">Password<input id="rights-password" type="password" autocomplete="current-password" required></label><p class="sub">Use this account's password. Google-only accounts can close this view, sign in again with Google, and reopen Account rights.</p><p role="alert" id="rights-auth-error"></p><button class="btn" type="submit">${this.ic("lock", { size: 16 })} Confirm sign-in</button><button class="btn ghost" type="button" id="rights-auth-cancel">Cancel</button>`;
+    card.append(form);
+    return new Promise(resolve => {
+      const pending = this._rightsReauth = { requester, entry: this._entry, form, resolve };
+      pending.timer = setTimeout(() => { if (this._rightsReauth === pending) this._finishRightsReauth(false); }, 25000);
+      form.querySelector("#rights-auth-cancel").onclick = () => this._finishRightsReauth(false);
+      form.onsubmit = async event => {
+        event.preventDefault();
+        const button = form.querySelector('button[type="submit"]'), password = form.querySelector("#rights-password");
+        if (button.disabled || !password.value || this._rightsReauth !== pending) return;
+        button.disabled = true;
+        try {
+          const signIn = SupaAuth.login(SupaAuth.email(), password.value);
+          password.value = "";
+          await signIn;
+          if (this._rightsReauth === pending && this._entry === pending.entry && SupaAuth.uid() === requester) this._finishRightsReauth(true);
+        } catch (error) {
+          if (this._rightsReauth !== pending) return;
+          password.value = "";
+          form.querySelector("#rights-auth-error").textContent = this._authAborted(error) ? "Sign-in changed. Close and reopen Account rights." : this._authFailureMessage(this._authFailureKind(error));
+        } finally { password.value = ""; button.disabled = false; }
+      };
+      form.querySelector("#rights-password").focus();
+    });
   },
   // Pro → Elite upgrade. During the ₹1 launch offer Elite is ₹1; afterwards the edge function
   // charges only the prorated difference for the days left in the member's current Pro plan.
@@ -1783,7 +2471,8 @@ const App = {
     const rp = (typeof Currency !== "undefined" && Currency.regionPrice) ? { pro: Currency.regionPrice("pro"), elite: Currency.regionPrice("elite") } : null;
     if (!rp || !rp.pro || !rp.elite) return null;
     const pe = (typeof Entitlements !== "undefined" && Entitlements._e && Entitlements._e.current_period_end) ? new Date(Entitlements._e.current_period_end) : null;
-    const daysLeft = pe && !isNaN(pe.getTime()) ? Math.max(0, Math.ceil((pe.getTime() - Date.now()) / 864e5)) : 30;
+    if (!pe || !Number.isFinite(pe.getTime())) return null;
+    const daysLeft = Math.max(0, Math.ceil((pe.getTime() - Date.now()) / 864e5));
     const frac = Math.min(1, daysLeft / 30);
     const delta = Math.max(1, Math.round((rp.elite.mo - rp.pro.mo) * frac));
     return { sym: rp.elite.sym, delta, daysLeft, mo: rp.elite.mo };
@@ -1794,7 +2483,7 @@ const App = {
     const q = this._proQuote();
     let est = "";
     if (offer) est = `<div class="up-est"><div class="up-amt">₹1</div><div class="up-note">launch offer — upgrade to Elite for ₹1 right now ✨</div></div>`;
-    else if (q) est = `<div class="up-est"><div class="up-amt">${esc(q.sym + q.delta)}</div><div class="up-note">to upgrade today · prorated for the ${q.daysLeft} day${q.daysLeft === 1 ? "" : "s"} left in your Pro plan. Elite then renews at ${esc(q.sym + q.mo)}/mo.</div></div>`;
+    else if (q) est = `<div class="up-est"><div class="up-amt">${esc(q.sym + q.delta)}</div><div class="up-note">estimated upgrade for the ${q.daysLeft} day${q.daysLeft === 1 ? "" : "s"} left in your Pro period. Final amount and billing terms are confirmed at checkout; UPI does not renew automatically.</div></div>`;
     document.getElementById("modal-card").innerHTML =
       `<div class="modal-head"><h2>Upgrade to Elite</h2><button class="icon-btn" onclick="App.closeModal()">✕</button></div>
        <div class="upgrade-elite">
@@ -1821,52 +2510,74 @@ const App = {
     });
   },
   async choosePlan(tier, rail) {
-    window.Track && Track.event("plan_selected", { tier: tier, rail: rail || "card" });
+    const measurementGeneration = typeof Preferences !== "undefined" ? Preferences.generation : null;
+    if (!["pro", "elite"].includes(tier)) { this.toast("That plan is not available for purchase"); return; }
+    try { window.Track && Track.event("plan_selected", { tier: tier, rail: rail === "upi" ? "upi" : "card" }); } catch (_) {}
     // India UPI rail (Razorpay Standard Checkout) — order made server-side, charged in ₹,
     // uid+tier in notes; the razorpay-webhook grants the entitlement on payment.captured.
     if (rail === "upi" && window.RAZORPAY && RAZORPAY.enabled) {
+      if (this._checkoutBusy) return;
       const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
-      const meR = ((typeof SupaAuth !== "undefined" && SupaAuth.active && SupaAuth.active() && SupaAuth.uid()) || ((typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : ""));
+      const meR = typeof SupaAuth !== "undefined" && SupaAuth.active() ? SupaAuth.uid() : "";
       const emailR = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
       if (!base || !meR) { this.toast("Please log in first"); return; }
+      this._checkoutBusy = true;
       this.toast("Opening UPI checkout…");
       // Pro→Elite mid-cycle → ask the server to charge only the prorated difference.
       const upgrade = !!(typeof Entitlements !== "undefined" && tier === "elite" && Entitlements.isPro() && !Entitlements.isElite());
       try {
+        const token = await SupaAuth.token();
+        if (!token || SupaAuth.uid() !== meR) { this.toast("Please sign in again before purchasing"); return; }
         const r = await fetch(base + "/functions/v1/razorpay-create-order", {
-          method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "" },
-          body: JSON.stringify({ tier, uid: meR, email: emailR, upgrade }),
+          method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "", Authorization: "Bearer " + token },
+          body: JSON.stringify({ tier, uid: meR, upgrade }), signal: AbortSignal.timeout(15000),
         });
         const o = await r.json();
-        if (!o || !o.order_id) { this.toast("UPI isn't ready yet — use Card / PayPal"); return; }
+        if (!r.ok || !o || typeof o.order_id !== "string" || !o.order_id || !o.key_id || !Number.isSafeInteger(o.amount) || o.amount < 100 || o.currency !== "INR") {
+          this.toast(r.status === 401 ? "Your session expired. Sign in and try again." : "Checkout is unavailable. Please try again."); return;
+        }
         await this._loadRzp();
+        if (SupaAuth.uid() !== meR) { this.toast("Your account changed. Open checkout again from the current account."); return; }
         const rzp = new Razorpay({
           key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency || "INR",
           name: "Formora", description: (tier === "elite" ? "Elite" : "Pro") + " membership",
-          prefill: { email: emailR }, notes: { uid: meR, tier }, theme: { color: "#ff5a4d" },
-          handler: function () { App.closeModal(); App._afterUpgrade(tier); },
+          prefill: { email: emailR }, theme: { color: "#ff5a4d" },
+          handler: function () {
+            if (SupaAuth.uid() !== meR) return;
+            App.closeModal(); App._afterUpgrade(tier, meR);
+          },
         });
         this.closeModal();
+        try { if (SupaAuth.uid() === meR) { if (window.SERVER_MEASUREMENT) { if (typeof Preferences !== "undefined") Preferences.checkoutStarted(tier, "upi", meR, measurementGeneration); } else window.Track && Track.event("checkout_started", { tier, rail: "upi" }); } } catch (_) {}
         rzp.open();
-      } catch (_) { this.toast("Couldn't open UPI checkout — use Card / PayPal"); }
+      } catch (_) { this.toast("Couldn't open checkout. Check your connection and try again."); }
+      finally { this._checkoutBusy = false; }
       return;
     }
-    // Global rail — Lemon Squeezy hosted checkout (Merchant of Record). Opens the tier's
-    // checkout with the member's email + uid prefilled; the billing-webhook then
-    // grants the entitlement server-side. No API key needed on the client.
     const ls = window.LEMONSQUEEZY || {};
     const link = (ls.buy || {})[tier];
     if (link) {
-      const me = (typeof Cloud !== "undefined" && Cloud.me) ? Cloud.me : "";
-      const email = ((typeof Auth !== "undefined" && Auth.currentUser && Auth.currentUser()) || {}).email || "";
-      const q = [];
-      if (email) q.push("checkout[email]=" + encodeURIComponent(email));
-      if (me) q.push("checkout[custom][uid]=" + encodeURIComponent(me));
-      q.push("checkout[custom][tier]=" + encodeURIComponent(tier));
-      const url = link + (link.indexOf("?") > -1 ? "&" : "?") + q.join("&");
-      this.closeModal();
-      const w = window.open(url, "_blank", "noopener");
-      if (!w) location.href = url;
+      if (this._checkoutBusy) return;
+      const base = (window.SUPABASE_URL || "").replace(/\/$/, "");
+      const owner = typeof SupaAuth !== "undefined" && SupaAuth.active() ? SupaAuth.uid() : "";
+      if (!base || !owner) { this.toast("Please log in first"); return; }
+      this._checkoutBusy = true;
+      try {
+        const token = await SupaAuth.token();
+        if (!token || SupaAuth.uid() !== owner) { this.toast("Please sign in again before purchasing"); return; }
+        const response = await fetch(base + "/functions/v1/create-checkout", {
+          method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "", Authorization: "Bearer " + token },
+          body: JSON.stringify({ tier }), signal: AbortSignal.timeout(15000),
+        });
+        const result = await response.json();
+        if (!response.ok || typeof result.url !== "string") throw new Error("checkout_unavailable");
+        const url = new URL(result.url);
+        if (url.protocol !== "https:" || url.username || url.password || !url.hostname.endsWith(".lemonsqueezy.com")) throw new Error("invalid_checkout_url");
+        if (SupaAuth.uid() !== owner) { this.toast("Your account changed. Open checkout again from the current account."); return; }
+        try { if (window.SERVER_MEASUREMENT) { if (typeof Preferences !== "undefined") Preferences.checkoutStarted(tier, "card", owner, measurementGeneration); } else window.Track && Track.event("checkout_started", { tier, rail: "card" }); } catch (_) {}
+        window.location.assign(url.href);
+      } catch (_) { this.toast("Card checkout is unavailable. Please try again; no order has been confirmed here."); }
+      finally { this._checkoutBusy = false; }
       return;
     }
     // Fallback (no link configured for this tier): capture interest locally.
@@ -1877,22 +2588,42 @@ const App = {
 
   // After a successful payment: the webhook grants the entitlement server-side, which can
   // lag a few seconds — so poll, then celebrate + re-render the current view so gates re-open.
-  _afterUpgrade(tier) {
+  _afterUpgrade(tier, owner) {
+    const entry = this._entry, user = Auth.currentUser();
+    if (!user) return;
+    const uid = owner || (typeof SupaAuth !== "undefined" && SupaAuth.uid());
     const label = tier === "elite" ? "Elite" : "Pro";
     this._upgradeCelebrated = false;
     this.toast("Payment received — unlocking " + label + " …");
     let tries = 0;
     const poll = () => {
+      if (!this._isCurrentEntry(entry, user)) return;
       tries++;
-      if (typeof Entitlements === "undefined") return;
-      Entitlements.load().then(() => {
+      if (typeof Entitlements === "undefined" || (uid && (typeof SupaAuth === "undefined" || SupaAuth.uid() !== uid))) return;
+      Entitlements.load().then((membership) => {
+        if (!this._isCurrentEntry(entry, user) || (uid && SupaAuth.uid() !== uid)) return;
+        this.applyTierTheme();
+        this.renderMembershipStatus();
         const ok = tier === "elite" ? Entitlements.isElite() : Entitlements.isPro();
-        if (ok) { this._celebrateUpgrade(label); }
-        else if (tries < 8) { setTimeout(poll, 3500); }
+        if (ok) {
+          try {
+            if (window.Track && uid && SupaAuth.active() && Entitlements._owner === uid && !Entitlements.loading && !Entitlements.error && membership && membership === Entitlements._e && membership.status === "active" && membership.tier === tier) {
+              if (!this._membershipMeasurements || this._membershipMeasurements.entry !== entry || this._membershipMeasurements.owner !== uid) {
+                this._membershipMeasurements = { entry, owner: uid, tiers: new Set() };
+              }
+              if (!this._membershipMeasurements.tiers.has(tier)) {
+                this._membershipMeasurements.tiers.add(tier);
+                Track.event("membership_synced", { tier, rail: "upi", confirmation: "access" });
+              }
+            }
+          } catch (_) {}
+          this._celebrateUpgrade(label);
+        }
+        else if (tries < 8) { this._upgradeTimer = setTimeout(poll, 3500); }
         else { this.toast("Payment received. If " + label + " doesn't show, reopen the app — it'll sync."); }
       });
     };
-    setTimeout(poll, 2500);
+    this._upgradeTimer = setTimeout(poll, 2500);
   },
   _celebrateUpgrade(label) {
     if (this._upgradeCelebrated) return;
@@ -1948,6 +2679,7 @@ const App = {
       split: done.split,
       editing: true,
       origDate: done.date,
+      finalizationRequestId: done.finalizationRequestId || null,
       items: done.exercises.map((e) => {
         const known = EXERCISES[e.id];
         const it = {
@@ -2255,7 +2987,8 @@ const App = {
     const { exercises, volume } = this._buildEntry();
     const date = this.session.editing ? this.session.origDate : todayISO();
     Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
-    if (exercises.length) Store.logWorkout({ date, split: this.session.split, exercises, volume });
+    if (exercises.length) Store.logWorkout({ date, split: this.session.split, exercises, volume,
+      ...(this.session.finalizationRequestId ? { finalizationRequestId: this.session.finalizationRequestId } : {}) });
     Store.state.draftSession = { date: todayISO(), session: this.session };
     Store.save();
     this.renderChips();
@@ -2267,8 +3000,9 @@ const App = {
     if (!exercises.length) { alert("Log at least one set before finishing."); return; }
     const isEdit = !!this.session.editing;
     const date = isEdit ? this.session.origDate : todayISO();
+    const finalizationRequestId = isEdit ? this.session.finalizationRequestId : typeof Preferences !== "undefined" ? Preferences.prepareWorkoutFinalization(date) : null;
     Store.state.workoutLog = Store.state.workoutLog.filter((w) => w.date !== date);
-    Store.logWorkout({ date, split: this.session.split, exercises, volume });
+    Store.logWorkout({ date, split: this.session.split, exercises, volume, ...(finalizationRequestId ? { finalizationRequestId } : {}) });
     this.session = null;
     Store.state.draftSession = null;
     Store.save();
@@ -2369,7 +3103,7 @@ const App = {
           <div class="sub">Estimated 1-rep max per lift (Epley) · change since you started logging it</div>
           ${lifts.length ? `<div class="lift-tbl">${lifts.map((l) => `<div class="lift-row"><span class="lift-n">${esc(l.name)}</span><span class="lift-1rm">${this._fromKg(l.e1rm)} ${this._unit()}</span><span class="lift-d ${l.delta >= 0 ? "up" : "down"}">${l.delta >= 0 ? "▲" : "▼"} ${this._fromKg(Math.abs(l.delta))}</span></div>`).join("")}</div>` : `<div class="chart-empty">Log the same lift on 2+ days to see progression.</div>`}
         </div>`
-      : `<div class="card upgrade-card" onclick="App.openPricing()">
+        : typeof Entitlements !== "undefined" && !Entitlements.ready() ? "" : `<div class="card upgrade-card" onclick="App.openPricing()">
           <div class="uc-glow"></div>
           <div class="uc-badge">✨ Formora Pro</div>
           <div class="uc-title">Unlock analytics &amp; progress photos</div>
@@ -2508,8 +3242,8 @@ const App = {
       ${arr.length ? `<div class="pp-strip">${strip}</div>` : `<div class="chart-empty">Add your first progress photo — then one every 1–2 weeks to watch your body change.</div>`}
       <button class="btn wide" style="margin-top:12px" onclick="App.addProgressPhoto()">${this.ic("camera", { size: 16 })} Add progress photo</button>
       ${isElite
-        ? `<button class="btn wide" style="margin-top:10px" onclick="EliteReview.open()">${this.ic("target", { size: 16 })} Get your AI Progress Review</button>`
-        : `<button class="btn ghost wide" style="margin-top:10px" onclick="App.openPricing()">${this.ic("target", { size: 16 })} AI Progress Review · <b>Elite ★</b></button>`}
+        ? `<button class="btn wide" style="margin-top:10px" onclick="EliteReview.open()">${this.ic("target", { size: 16 })} Review your logged progress</button>`
+        : `<button class="btn ghost wide" style="margin-top:10px" onclick="App.openPricing()">${this.ic("target", { size: 16 })} Progress review · <b>Elite ★</b></button>`}
     </div>`;
   },
 
@@ -2589,7 +3323,7 @@ const App = {
             ${Object.keys(DIETS).map((d) => `<button class="${d === diet ? "active" : ""}" onclick="App.setDiet('${d}')">${DIETS[d]}</button>`).join("")}
           </div>
         </div>
-        <div class="sub">${tp.icon} It's ${tp.label.toLowerCase()} — ${DIETS[diet].toLowerCase()} ${slot.toLowerCase()} ideas. Tap ⇄ for an alternative, ＋ to log.</div>
+        <div class="sub">${tp.icon} It's ${tp.label.toLowerCase()} — ${DIETS[diet].toLowerCase()} ${slot.toLowerCase()} ideas.</div>
         <div class="cuisine-row">
           ${MEAL_SLOTS.map((sl) => `<button class="cuisine-chip ${sl === slot ? "active" : ""}" onclick="App.setMealSlot('${sl}')">${sl}${sl === nowSlot ? " • now" : ""}</button>`).join("")}
         </div>
@@ -2599,7 +3333,7 @@ const App = {
               <div class="mi-body"><div class="mi-name">${esc(m.name)}</div>
                 <div class="mi-macros">${m.kcal} kcal · ${m.protein}g · <span class="mi-diet ${m.diet}">${m.diet}</span></div></div>
               <div class="mi-actions">
-                <button class="mi-swap" title="Show an alternative" onclick="App.swapMeal('${slot}',${pos})">⇄</button>
+                <button class="mi-swap" title="${mealSel.pool.length > mealSel.picks.length ? 'Show an alternative' : 'No other meals for this diet'}" aria-label="${mealSel.pool.length > mealSel.picks.length ? 'Show an alternative' : 'No other meals for this diet'}" ${mealSel.pool.length > mealSel.picks.length ? '' : 'disabled'} onclick="App.swapMeal('${slot}',${pos})">⇄</button>
                 <button class="mi-add" title="Log this" onclick="App.logSlotMeal('${slot}',${pos})">＋</button>
               </div>
             </div>`; }).join("")}
@@ -2651,6 +3385,7 @@ const App = {
   // AI meal plans are a Pro feature. Free members get a few tastes, then the
   // paywall opens — Pro/Elite generate & regenerate without limit.
   _planGate() {
+    if (typeof Entitlements !== "undefined" && !Entitlements.ready()) { this.openPricing(); return false; }
     if (typeof Entitlements !== "undefined" && Entitlements.isPro()) return true;
     const FREE = 3;
     const used = +(localStorage.getItem("fm_plan_gens") || 0);
@@ -2784,7 +3519,8 @@ const App = {
   },
   swapMeal(slot, pos) {
     const { pool, picks } = this.ensurePicks(slot);
-    if (pool.length <= picks.length) return; // no spare alternatives
+    if (pool.length <= picks.length) { this.toast("No other meals for this diet and meal time."); return false; }
+    if (!Number.isInteger(pos) || pos < 0 || pos >= picks.length) return false;
     let next = (picks[pos] + 1) % pool.length;
     while (picks.includes(next)) next = (next + 1) % pool.length;
     picks[pos] = next;
@@ -2894,187 +3630,146 @@ const App = {
   removeFood(i) { if (!confirm("Remove this item from today's food?")) return; Store.removeFood(todayISO(), i); this.renderNutrition(); },
 
   /* ---------------- PROFILE ---------------- */
-  renderProfile() {
-    const el = document.getElementById("view-profile");
-    const p = Store.state.profile;
-    const s = Engine.stats();
-    const u = Auth.currentUser() || {};
-    const cloudOn = typeof Cloud !== "undefined" && Cloud.active();
-    const myTier = (typeof Entitlements !== "undefined") ? (Entitlements.isElite() ? "elite" : Entitlements.isPro() ? "pro" : "free") : "free";
-    const myPosts = cloudOn ? Social.cloud.feed.filter((x) => x.author === Cloud.me) : Social.feed().filter((x) => x.author === "me");
-    el.innerHTML = `
-      <div class="card profile-hero" data-tier="${myTier}">
-        <div class="ph-cover"${p.cover ? ` style="background-image:url('${esc(p.cover)}');background-size:cover;background-position:center"` : ""}>
-          <label class="ph-cover-edit" title="Change cover photo"><input type="file" accept="image/*" onchange="App.uploadCover(event)" hidden>${this.ic("camera", { size: 14 })}<span>Cover</span></label>
-          <button class="ph-logout-ic" onclick="App.confirmLogout()" title="Log out" aria-label="Log out">${this.ic("logout", { size: 17 })}</button>
-        </div>
-        <div class="ph-main">
-          <label class="ph-avatar" title="Change photo">
-            ${Social.avatar(Social.me(), 92)}
-            <span class="ph-cam">${this.ic("camera", { size: 13 })}</span>
-            <input type="file" accept="image/*" onchange="App.uploadAvatar(event)" hidden>
-          </label>
-          <div class="ph-id">
-            <div class="ph-name">${esc(p.name || "User")}</div>
-            <div class="ph-handle">@${esc(p.username || (u.email || "you").split("@")[0])}${u.provider === "google" ? " · via Google" : ""}</div>
-          </div>
-        </div>
-        <div class="ph-chips">
-          ${(typeof Entitlements !== "undefined" && Entitlements.isPro()) ? Social.tierBadge({ tier: Entitlements.isElite() ? "elite" : "pro" }) : ""}
-          <span class="lvl">${esc(Social.me().level)}</span>
-        </div>
-        <div class="ph-stats">
-          <div><b>${cloudOn ? Social.connectionsCount() : Social.crewList().length}</b><span>Connections</span></div>
-          <div><b>${cloudOn ? Social.followersCount() : 0}</b><span>Followers</span></div>
-          <div><b>${cloudOn ? Social.followingCount() : 0}</b><span>Following</span></div>
-          <div><b>${myPosts.length}</b><span>Posts</span></div>
-        </div>
-        <div class="ph-bio-field field"><label>Username <span class="inline-hint">(your unique @handle)</span></label>
-          <input id="p-username" maxlength="20" value="${esc(p.username || "")}" placeholder="e.g. arindam.fit">
-        </div>
-        <div class="ph-bio-field field"><label>Bio</label>
-          <input id="p-bio" maxlength="120" placeholder="Add a short bio — e.g. Lean-bulk szn · chasing the shelf" value="${esc(p.bio || "")}">
-        </div>
-        <div class="ph-bio-field field"><label>Who can see your profile &amp; posts</label>
-          <select id="p-privacy">
-            <option value="public" ${(p.privacy || "public") === "public" ? "selected" : ""}>🌍 Public — anyone on Formora</option>
-            <option value="friends" ${p.privacy === "friends" ? "selected" : ""}>👥 Friends only — just your crew</option>
-          </select>
-        </div>
-        <div class="ph-socials">
-          <div class="soc"><span class="soc-ic ig">📷</span><input id="soc-ig" placeholder="Instagram username" value="${esc((p.socials && p.socials.instagram) || "")}"></div>
-          <div class="soc"><span class="soc-ic li">in</span><input id="soc-li" placeholder="LinkedIn profile URL" value="${esc((p.socials && p.socials.linkedin) || "")}"></div>
-          <div class="soc"><span class="soc-ic fb">f</span><input id="soc-fb" placeholder="Facebook profile URL" value="${esc((p.socials && p.socials.facebook) || "")}"></div>
-        </div>
-        <div class="ph-actions">
-          <button class="btn" onclick="App.saveSocialProfile()">Save profile</button>
-          <button class="btn ghost" onclick="App.goTab('feed')">Open Feed →</button>
-          <button class="btn ghost" onclick="Social.inviteFriends()">Invite friends 🎁</button>
-          <button class="btn ghost" onclick="Social.openSaved()">🔖 Saved</button>
-        </div>
-        <div class="sub">Real LinkedIn/Facebook sign-in can be wired later (needs app setup) — for now these are your public links.</div>
-      </div>
-      ${(() => {
-        const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
-        if (!isPro) {
-          return `<div class="card upgrade-card" onclick="App.openPricing()">
-        <div class="uc-glow"></div>
-        <div class="uc-badge">✨ Formora Pro</div>
-        <div class="uc-title">Unlock AI plans, all filters &amp; advanced analytics</div>
-        <div class="uc-price">From <b>$7.99</b>/mo · 5-day free trial</div>
-        <button class="btn wide uc-btn" onclick="event.stopPropagation();App.openPricing()">See plans →</button>
-      </div>`;
-        }
-        const elite = Entitlements.isElite();
-        const pe = (Entitlements._e && Entitlements._e.current_period_end) ? new Date(Entitlements._e.current_period_end) : null;
-        const renew = pe && !isNaN(pe.getTime()) ? pe.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
-        return `<div class="card member-card" data-tier="${elite ? "elite" : "pro"}">
-        <div class="mc-row"><span class="tier-badge ${elite ? "tb-elite" : "tb-pro"}">${elite ? "★ Elite" : "◆ Pro"}</span><span class="mc-status">Active${renew ? " · renews " + esc(renew) : ""}</span></div>
-        <div class="mc-title">You're a Formora ${elite ? "Elite" : "Pro"} member 🎉</div>
-        <div class="mc-sub">${elite ? "Every feature unlocked — the complete Formora experience." : "AI plans, every filter &amp; advanced analytics are yours."}</div>
-        ${elite ? "" : `<button class="btn wide" onclick="App.upgradeToElite()">Upgrade to Elite →</button>`}
-        <button class="btn ghost wide" style="margin-top:6px" onclick="App.openSupport()">Help &amp; support</button>
-      </div>`;
-      })()}
-      ${myPosts.length ? `<div class="card"><div class="card-head"><h2>Your posts</h2><span class="tag">${myPosts.length}</span></div>${myPosts.map((x) => Social.postCard(cloudOn ? Social._cloudPost(x) : x)).join("")}</div>` : ""}
-      <div class="card">
-        <h2>Your fitness dashboard</h2>
-        <div class="sub">Auto-calculated from your profile, workouts &amp; latest weight</div>
-        <div class="stat-grid">
-          <div class="stat"><div class="v">${Store.latestWeight()}<small>kg</small></div><div class="l">${p.targetWeightKg ? "Goal " + p.targetWeightKg + "kg" : "Current weight"}</div></div>
-          <div class="stat"><div class="v">${s.bmi}</div><div class="l">BMI · ${s.bmiClass}</div></div>
-          <div class="stat"><div class="v">${s.bodyFat}<small>%</small></div><div class="l">Body fat · ${Engine.bodyComp().bfClass}</div></div>
-          <div class="stat"><div class="v">${Engine.streak()}</div><div class="l">Day streak 🔥</div></div>
-          <div class="stat"><div class="v">${(Store.state.workoutLog || []).length}</div><div class="l">Workouts logged</div></div>
-          <div class="stat"><div class="v">${s.proteinG}<small>g</small></div><div class="l">Protein / day</div></div>
-          <div class="stat"><div class="v">${s.calTarget}</div><div class="l">Target kcal</div></div>
-          <div class="stat"><div class="v">${s.bmr}</div><div class="l">BMR kcal</div></div>
-          <div class="stat"><div class="v">${s.tdee}</div><div class="l">TDEE kcal</div></div>
-        </div>
-        <div class="comp-advice">${esc(Engine.bodyComp().advice)}</div>
-      </div>
-      <div class="card">
-        <h2>Target physique</h2>
-        <div class="sub">The look you're training for — your plan &amp; nutrition adapt to this</div>
-        <div class="phys-current">
-          <div class="phys-fig-mini">${this.physiqueFigure(Engine.getPhysique().fig)}</div>
-          <div>
-            <div class="phys-name">${Engine.getPhysique().name}</div>
-            <div class="phys-tag">${Engine.getPhysique().tagline} · ${p.gender === "female" ? "Women" : "Men"}</div>
-            <div class="phys-desc">${Engine.getPhysique().desc}</div>
-          </div>
-        </div>
-        <button class="btn wide" style="margin-top:14px" onclick="App.openPhysiquePicker()">Change my target look</button>
-      </div>
-      <div class="card">
-        <h2>Profile</h2>
-        <div class="sub">Update anytime — targets recalculate instantly</div>
-        <div class="form-grid">
-          <div class="field"><label>Name</label><input id="p-name" value="${esc(p.name)}"></div>
-          <div class="field"><label>Date of birth</label><input id="p-dob" type="date" value="${p.dob}"></div>
-          <div class="field"><label>Height (cm)</label><input id="p-h" type="number" value="${p.heightCm}"></div>
-          <div class="field"><label>Target weight (kg)</label><input id="p-tw" type="number" value="${p.targetWeightKg}"></div>
-          <div class="field"><label>Gender</label>
-            <select id="p-gender">
-              <option value="male" ${p.gender === "male" ? "selected" : ""}>Male</option>
-              <option value="female" ${p.gender === "female" ? "selected" : ""}>Female</option>
-            </select>
-          </div>
-          <div class="field"><label>Diet <span class="inline-hint">(applies instantly)</span></label>
-            <select id="p-diet" onchange="App.quickSetDiet(this.value)">
-              ${Object.keys(DIETS).map((d) => `<option value="${d}" ${(p.diet || "nonveg") === d ? "selected" : ""}>${DIETS[d]}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Activity level</label>
-            <select id="p-act">
-              <option value="1.375" ${p.activityFactor == 1.375 ? "selected" : ""}>Light (1–2 days)</option>
-              <option value="1.55" ${p.activityFactor == 1.55 ? "selected" : ""}>Moderate (3–5 days)</option>
-              <option value="1.725" ${p.activityFactor == 1.725 ? "selected" : ""}>High (6–7 days)</option>
-            </select>
-          </div>
-        </div>
-        <button class="btn wide" style="margin-top:14px" onclick="App.saveProfile()">Save profile</button>
-      </div>
-      <div class="card">
-        <h2>Backup &amp; move devices</h2>
-        <div class="sub">Your data now syncs across devices automatically — just log in with the same account (Google works on any device). This download is an extra offline copy.</div>
-        <button class="btn wide" onclick="App.exportData()">⬇️ Download my backup</button>
-        <label class="photo-btn" style="margin-top:10px">📂 Restore from a backup file
-          <input type="file" accept="application/json,.json" onchange="App.importFile(event)" hidden>
-        </label>
-      </div>
-      <div class="card">
-        <h2 class="danger">Reset</h2>
-        <div class="sub">Erase all logs and start fresh. This cannot be undone.</div>
-        <button class="btn ghost wide" onclick="App.resetAll()">Reset all data</button>
-      </div>
-      <div class="card about-card">
-        <div class="about-brand"><svg viewBox="0 0 44 44" width="26" height="26" fill="none" aria-hidden="true"><defs><linearGradient id="alg" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#alg)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg><span>Formora</span></div>
-        <div class="about-ver">Version ${window.APP_VERSION || "1.0.0"}</div>
-        <div class="about-sub">Your aesthetic physique coach — train · track · connect.</div>
-        <button class="btn ghost sm" style="margin:10px auto 2px" onclick="App.openSupport()">${this.ic("info", { size: 15 })} Help &amp; support</button>
-        <div class="about-legal"><a href="legal.html#terms" target="_blank" rel="noopener">Terms</a> · <a href="legal.html#privacy" target="_blank" rel="noopener">Privacy</a> · <a href="legal.html#disclaimer" target="_blank" rel="noopener">Health disclaimer</a></div>
-      </div>`;
+  _profileScript: document.currentScript?.src,
+  _loadProfile() {
+    if (window.AppProfile) return Promise.resolve(window.AppProfile);
+    if (this._profileLoad) return this._profileLoad;
+    this._profileLoad = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      const appUrl = new URL(this._profileScript || "js/app.js", document.baseURI);
+      const moduleUrl = new URL("mod/profile.js", appUrl);
+      moduleUrl.search = appUrl.search;
+      script.src = moduleUrl.href;
+      const finish = error => {
+        clearTimeout(timer);
+        script.onload = script.onerror = null;
+        if (error) { script.remove(); reject(error); }
+        else resolve(window.AppProfile);
+      };
+      const timer = setTimeout(() => finish(new Error("profile_unavailable")), 10000);
+      script.onload = () => finish(window.AppProfile ? null : new Error("profile_unavailable"));
+      script.onerror = () => finish(new Error("profile_unavailable"));
+      document.head.appendChild(script);
+    }).catch(error => { this._profileLoad = null; throw error; });
+    return this._profileLoad;
+  },
+  _profileGuard() {
+    const owner = this._draftOwner();
+    const uid = typeof SupaAuth === "undefined" ? null : SupaAuth.uid?.();
+    const cloud = typeof Cloud === "undefined" ? null : Cloud.me;
+    return () => this._sameDraftOwner(owner, this._draftOwner()) &&
+      (typeof SupaAuth === "undefined" || SupaAuth.uid?.() === uid) &&
+      (typeof Cloud === "undefined" || Cloud.me === cloud);
+  },
+  async _profileAction(method, args) {
+    if (!Auth.currentUser()) return false;
+    const current = this._profileGuard();
+    let profile;
+    try { profile = await this._loadProfile(); }
+    catch (_) {
+      if (current()) this.toast("Could not load profile tools. Please try again.");
+      return false;
+    }
+    return current() ? profile[method].apply(this, args) : false;
+  },
+  renderProfile(preserveDraft = true) {
+    const request = this._profileRenderRequest = {};
+    const view = document.getElementById("view-profile");
+    if (!view) return;
+    if (window.AppProfile) {
+      view.removeAttribute("aria-busy");
+      return window.AppProfile.renderProfile.call(this, preserveDraft);
+    }
+    if (!preserveDraft) this._profileDraft = null;
+    const owner = this._profileGuard(), tab = this.curTab;
+    const current = () => owner() && this.curTab === tab && this._profileRenderRequest === request &&
+      document.getElementById("view-profile") === view;
+    view.setAttribute("aria-busy", "true");
+    view.innerHTML = '<p role="status">Loading profile...</p>';
+    this._loadProfile().then(profile => {
+      if (!current()) return;
+      view.removeAttribute("aria-busy");
+      profile.renderProfile.call(this, preserveDraft);
+    }).catch(() => {
+      if (!current()) return;
+      view.removeAttribute("aria-busy");
+      view.innerHTML = '<p role="alert">Profile could not be loaded.</p><button type="button" class="btn" onclick="App.renderProfile()">Retry</button>';
+    });
+  },
+
+  // ---- DEF-062: account-scoped, in-memory Profile drafts ------------------
+  // Leaving Profile for another tab must not silently discard what was typed. The draft lives in
+  // RAM only (never localStorage) and is owned by one entry + account id + store key, so it can
+  // never be restored into a different member's form or paper over an incoming cloud restore.
+  _profileFieldIds: ["p-name", "p-dob", "p-h", "p-tw", "p-gender", "p-diet", "p-act", "p-username", "p-bio", "p-privacy", "soc-ig", "soc-li", "soc-fb"],
+  _draftOwner() {
+    const user = (typeof Auth !== "undefined" && Auth.currentUser) ? Auth.currentUser() : null;
+    return { entry: this._entry, id: user ? user.id : null, key: (typeof Store !== "undefined") ? Store.key : null };
+  },
+  _sameDraftOwner(a, b) { return !!a && !!b && a.entry === b.entry && a.id === b.id && a.key === b.key; },
+  _profileFields() {
+    const view = document.getElementById("view-profile");
+    if (!view) return [];
+    return this._profileFieldIds.map((id) => document.getElementById(id))
+      .filter((el) => el && (!view.contains || view.contains(el)));
+  },
+  _captureProfileDraft() {
+    if (this._profileViewOwner && !this._sameDraftOwner(this._profileViewOwner, this._draftOwner())) return;
+    const fields = this._profileFields();
+    if (!fields.length) return;
+    const values = {};
+    for (const el of fields) values[el.id] = el.type === "checkbox" ? !!el.checked : el.value;
+    this._profileDraft = { owner: this._draftOwner(), values };
+  },
+  _restoreProfileDraft() {
+    const draft = this._profileDraft;
+    if (!draft) return;
+    if (!this._sameDraftOwner(draft.owner, this._draftOwner())) { this._profileDraft = null; return; }
+    for (const el of this._profileFields()) {
+      if (!(el.id in draft.values)) continue;
+      if (el.type === "checkbox") el.checked = !!draft.values[el.id];
+      else el.value = draft.values[el.id];
+    }
+  },
+
+  renderCheckoutDiagnostics() {
+    if (window.SERVER_MEASUREMENT) return "";
+    if (!window.Track || typeof Track.measurementConsent !== "function" || typeof SupaAuth === "undefined" || !SupaAuth.active()) return "";
+    return `<label style="display:flex;align-items:center;gap:10px;min-height:44px;text-align:left;margin-top:12px"><input id="checkout-diagnostics" type="checkbox" style="width:20px;height:20px;flex:none;accent-color:var(--accent)" onchange="App.setCheckoutDiagnostics(this.checked)" ${Track.measurementConsent() ? "checked" : ""}><span>Share checkout diagnostics this session</span></label><p class="sub" style="text-align:left">These optional events use your existing PostHog account identifier. No payment IDs or health details are added. Existing app analytics are separate and are not disabled by this option.</p>`;
+  },
+  setCheckoutDiagnostics(enabled) {
+    if (window.SERVER_MEASUREMENT) return;
+    if (!window.Track || typeof Track.setMeasurementConsent !== "function") return;
+    Track.setMeasurementConsent(enabled === true);
+    this.toast(Track.measurementConsent() ? "Checkout diagnostics enabled for this session" : "Checkout diagnostics disabled");
   },
 
   // give every member a unique @handle (unique vs the demo crew; global uniqueness needs the backend)
   async ensureUsername() {
     const p = Store.state.profile;
     if (p.username) return;
+    const entry = this._entry, user = Auth.currentUser();
     const base = ((p.email || p.name || "user").split("@")[0] || "user").toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 18) || "user";
     const taken = new Set(SOCIAL_PERSONAS.map((x) => x.handle.toLowerCase()));
     let u = base, n = 1;
     while (taken.has(u)) u = base + (++n);
-    p.username = u; Store.save();                 // set immediately so login never blocks
+    p.username = u; Store.save({ touch: false });
+    const initial = u;
     if (typeof Cloud !== "undefined" && Cloud.active()) {   // refine for global uniqueness in the background
       let guard = 0;
-      while ((await Cloud.usernameTaken(u)) && guard++ < 25) u = base + (++n);
-      if (u !== p.username) { p.username = u; Store.save(); Cloud.registerMe(p); }
+      while ((await Cloud.usernameTaken(u)) && guard++ < 25) {
+        if (!user || !this._isCurrentEntry(entry, user) || Store.state.profile !== p) return;
+        u = base + (++n);
+      }
+      if (!user || !this._isCurrentEntry(entry, user) || Store.state.profile !== p || p.username !== initial) return;
+      if (u !== p.username) { p.username = u; Store.save({ touch: false }); Cloud.registerMe(p); }
     }
   },
   toast(msg) {
     let t = document.getElementById("toast");
     if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+    // DEF-068: a toast is a non-urgent asynchronous result, so announce it politely instead of relying on the visual style alone.
+    t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite");
     t.textContent = msg; t.classList.add("show");
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => t.classList.remove("show"), 2200);
@@ -3082,25 +3777,106 @@ const App = {
   // Premium tier theme: reflects the member's paid tier (free/pro/elite) on <html data-tier>,
   // caches it for the launch screen, and publishes it to their public profile so others see it.
   applyTierTheme() {
-    const t = (typeof Entitlements !== "undefined") ? (Entitlements.isElite() ? "elite" : Entitlements.isPro() ? "pro" : "free") : "free";
+    const t = typeof Entitlements !== "undefined" ? Entitlements.tier() : "free";
+    if (typeof Entitlements !== "undefined" && !Entitlements.ready()) {
+      document.documentElement.setAttribute("data-tier", "free");
+      const pending = document.getElementById("la-tier"); if (pending) pending.textContent = "Checking membership";
+      return "free";
+    }
     try { document.documentElement.setAttribute("data-tier", t); localStorage.setItem("fm_tier", t); } catch (e) {}
     const lt = document.getElementById("la-tier"); if (lt) lt.textContent = t !== "free" ? "You're " + (t === "elite" ? "Elite" : "Pro") + " \u2728" : "";
     try {
       if (typeof Store !== "undefined" && Store.state.profile.tier !== t) {
-        Store.state.profile.tier = t; Store.save();
+        Store.state.profile.tier = t; Store.save({ touch: false });
         if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.registerMe && Cloud.me) Cloud.registerMe(Store.state.profile);
       }
     } catch (e) {}
     return t;
   },
+  renderMembershipStatus() {
+    const shell = document.getElementById("app-shell");
+    if (!shell || typeof Entitlements === "undefined") return;
+    let notice = document.getElementById("membership-status");
+    if (Entitlements.ready() && !this._accountSyncError && !this._membershipRetry) { if (notice) notice.remove(); return; }
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.id = "membership-status";
+      notice.className = "card";
+      notice.style.cssText = "margin:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap";
+      shell.insertBefore(notice, shell.querySelector("nav"));
+    }
+    const messages = [];
+    if (this._accountSyncError) messages.push("Cloud restore unavailable. Changes stay on this device until sync resumes.");
+    if (!Entitlements.ready()) messages.push("Membership unavailable. Paid features are temporarily locked; no billing changes were made.");
+    notice.innerHTML = `<span role="status" style="flex:1;min-width:180px">${this._membershipRetry ? "Checking account..." : messages.join(" ")}</span><button class="btn ghost" onclick="App.retryMembership()"${this._membershipRetry ? " disabled" : ""}>${this.ic("undo", { size: 16 })} Retry</button>`;
+  },
+  async retryMembership() {
+    if (this._membershipRetry || typeof Entitlements === "undefined") return;
+    if (this._accountSyncError) return this.enterApp();
+    const entry = this._entry, user = Auth.currentUser();
+    if (!user) return;
+    const retry = {};
+    this._membershipRetry = retry;
+    this.renderMembershipStatus();
+    try { await Entitlements.load(); } finally {
+      if (this._membershipRetry === retry) this._membershipRetry = null;
+    }
+    if (!this._isCurrentEntry(entry, user)) return;
+    this.applyTierTheme();
+    if (this.curTab) this.selectTab(this.curTab);
+    this.renderMembershipStatus();
+  },
+  // Cloud._get() answers a failed shared-state read with null, which is indistinguishable
+  // from "this member simply has no posts". Record the outcome around the read so the feed
+  // can tell loading / empty / failed apart and offer a real retry.
+  _watchCloudReads() {
+    if (typeof Cloud === "undefined" || Cloud._readOutcomeWatched) return;
+    const original = Cloud._get;
+    if (typeof original !== "function") return;
+    Cloud._readOutcomeWatched = true;
+    const app = this;
+    Cloud._get = function (...args) {
+      return Promise.resolve(original.apply(this, args)).then(
+        (state) => { app._noteFeedRead(!!state); return state; },
+        (error) => { app._noteFeedRead(false); throw error; });
+    };
+  },
+  _noteFeedRead(ok) {
+    this._feedReads = (this._feedReads || 0) + 1;
+    if (typeof Social !== "undefined" && Social.noteFeedRead) Social.noteFeedRead(ok);
+  },
+  _renderFeedIfActive() {
+    const v = document.getElementById("view-feed");
+    if (v && v.classList.contains("active") && typeof Social !== "undefined" && Social.render) Social.render();
+  },
+  async retryFeed() {
+    if (this._feedRetry || typeof Cloud === "undefined" || !Cloud.active()) return;
+    if (typeof Social === "undefined" || !Social.noteFeedRead) return;
+    const before = this._feedReads || 0, previous = Social.feedReadState();
+    this._feedRetry = true;
+    try {
+      Social._feedRead = "loading";
+      this._renderFeedIfActive();
+      await Cloud._tick();
+    } catch (_) {}
+    finally {
+      this._feedRetry = false;
+      // a poll already in flight short-circuits _tick: report the real state, never a fake success
+      if ((this._feedReads || 0) === before && Social.feedReadState() === "loading") Social._feedRead = previous;
+    }
+    this._renderFeedIfActive();
+  },
   // connect the shared backend when configured (no-op otherwise)
-  initCloud(u) {
+  async initCloud(u) {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
-    Cloud.init(u, Store.state.profile);
-    // Load the paid tier, then re-render so Pro/Elite unlock immediately (no stale "unlock Pro").
-    if (typeof Entitlements !== "undefined") Entitlements.load().then(() => { try { this.applyTierTheme(); if (this.curTab) this.selectTab(this.curTab); } catch (e) {} });
+    const entry = this._entry;
+    Cloud._ensureIdentity(u.email);
+    if (typeof Entitlements !== "undefined") await Entitlements.load();
+    if (!this._isCurrentEntry(entry, u)) return;
+    Cloud.registerMe(Store.state.profile);
     let last = "";
     Cloud.start((s) => {
+      if (!this._isCurrentEntry(entry, u)) return;
       Social.cloud.users = Object.values(s.users || {}).filter((x) => x.uid !== Cloud.me);
       Social.cloud.requests = Object.values(s.requests || {}).filter((r) => r.to === Cloud.me && r.status === "pending");
       Social.cloud.sent = Object.values(s.requests || {}).filter((r) => r.from === Cloud.me).map((r) => r.to);
@@ -3110,7 +3886,7 @@ const App = {
       Social.cloud.stories = Object.values(s.stories || {}).sort((a, b) => (a.ts || 0) - (b.ts || 0));
       Social.syncAutoFollow();
       this.pollNotifs();
-      if (Social.sub === "chat" && Social._dmWith) Social.refreshDM();
+      if (Social.sub === "chat" && Social._dmWith) Social.refreshDM(true);
       const sig = JSON.stringify(s);
       if (sig === last) return;
       last = sig;
@@ -3118,34 +3894,107 @@ const App = {
       if (v && v.classList.contains("active")) Social.render();
     });
     Cloud.setPaused(false);
+    if (window.STORY_INTERACTIONS && typeof Stories !== "undefined") {
+      Stories.onChange = () => this._renderFeedIfActive();
+      Stories.onClose = () => this.refreshStories();
+      void this.refreshStories();
+    }
     this.pollNotifs();
     // presence heartbeat — refresh my profile.seen so others see me "online"
     if (this._hb) clearInterval(this._hb);
     this._hb = setInterval(() => { if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.me) Cloud.registerMe(Store.state.profile); }, 60000);
   },
+  async refreshStories() {
+    if (!window.STORY_INTERACTIONS || typeof Stories === "undefined") return;
+    try { await Stories.refresh(); } catch (error) { if (Stories.owner()) this.toast(error.message || "Stories unavailable."); }
+    this._renderFeedIfActive();
+  },
+  openStoryNotifications() {
+    if (!window.STORY_INTERACTIONS || typeof Stories === "undefined") return;
+    const entry = this._entry;
+    this.closeModal(); return Stories.openNotifications().catch(error => {
+      if (this._entry === entry) this.toast(error.message || "Story activity is unavailable.");
+    });
+  },
+  openStorySettings() {
+    if (!window.STORY_INTERACTIONS || typeof Stories === "undefined") return;
+    const entry = this._entry;
+    this.closeModal(); return Stories.openSettings().catch(error => {
+      if (this._entry === entry) this.toast(error.message || "Story settings are unavailable.");
+    });
+  },
   async pollNotifs() {
-    if (typeof Cloud === "undefined" || !Cloud.active()) return;
-    const list = await Cloud.getNotifications();
-    Social.cloud.notifs = list || [];
-    // message sound: chime once per NEW unread message notif (seed on first poll so we don't blast on load)
-    if (!Social._pinged) Social._pinged = new Set();
-    const nkey = (n) => n.id || (n.type + "|" + n.actor + "|" + n.ts);
-    if (this._notifSeeded) {
-      (list || []).forEach((n) => {
-        if (n.type === "message" && !n.read && !Social._pinged.has(nkey(n))) {
-          Social._pinged.add(nkey(n));
-          const chatOpen = Social.sub === "chat" && Social._dmWith === n.actor;
-          if (!chatOpen && !Social.isMuted(n.actor) && Social.playPing) Social.playPing();
+    const scope = this._notifScope();
+    if (!scope) return false;
+    const request = this._notifRequest = (this._notifRequest || 0) + 1;
+    const current = () => scope === this._notifScope() && request === this._notifRequest;
+    try {
+      const received = await Cloud.getNotifications();
+      if (!current()) return false;
+      const list = Cloud._notificationRows(received);
+      if (!list) throw new Error("notification_unavailable");
+      for (const row of list) if (this._notifReadAcks?.has(row.id)) row.read = true;
+      Social.cloud.notifs = list;
+      this._notifListError = false;
+      const pinged = Social._pinged || (Social._pinged = new Set());
+      for (const row of list) {
+        const fresh = !pinged.has(row.id);
+        pinged.add(row.id);
+        const chatOpen = Social.sub === "chat" && Social._dmWith === row.actor;
+        if (this._notifSeeded && fresh && row.type === "message" && !row.read && !chatOpen && !Social.isMuted(row.actor) && !Social.msgSoundOff()) {
+          try { Promise.resolve(Social.playPing()).catch(() => {}); } catch (_) {}
         }
-      });
-    } else { (list || []).forEach((n) => Social._pinged.add(nkey(n))); this._notifSeeded = true; }
-    // instant connect: if someone accepted my request, reflect it now (don't wait for the 12s state poll)
-    let gained = false;
-    (list || []).forEach((n) => { if (n.type === "accept" && n.actor && !(Social.cloud.connections || []).includes(n.actor)) { (Social.cloud.connections = Social.cloud.connections || []).push(n.actor); gained = true; } });
-    if (gained) { Social.syncAutoFollow(); const v = document.getElementById("view-feed"); if (v && v.classList.contains("active")) Social.render(); }
-    const unread = (list || []).filter((n) => !n.read).length;
-    if (this.curTab === "alerts") { this.renderNotifPanel(); this.updateNotifBadge(0); if (Cloud.markNotifsRead) Cloud.markNotifsRead(); }
-    else this.updateNotifBadge(unread);
+      }
+      Social._pinged = new Set(Array.from(pinged).slice(-300));
+      this._notifSeeded = true;
+      this.updateNotifBadge(list.filter(row => !row.read).length);
+      if (this.curTab === "alerts") this.renderNotifPanel();
+      return true;
+    } catch (_) {
+      if (current()) { this._notifListError = true; if (this.curTab === "alerts") this.renderNotifPanel(); }
+      return false;
+    }
+  },
+  _notifScope() {
+    if (typeof Cloud === "undefined" || !Cloud.active() || !Cloud.me || typeof Auth === "undefined") return null;
+    const user = Auth.currentUser(), uid = Cloud._publishingUid();
+    if (!user || !uid || uid !== Cloud.me) return null;
+    return JSON.stringify([this._entry, user.id, typeof Store !== "undefined" ? Store.key : null, uid, Cloud._publishingGeneration, Cloud._notificationGeneration]);
+  },
+  markDisplayedNotifsRead() {
+    if (this._notifDisplayedScope !== this._notifScope()) return Promise.resolve(false);
+    const rows = Cloud._notificationRows(Social.cloud.notifs) || [];
+    return this._markNotifIds(rows.filter(row => !row.read && this._notifDisplayed.includes(row.id)).map(row => row.id));
+  },
+  retryNotifRead() {
+    const retry = this._notifReadRetry;
+    return retry && retry.scope === this._notifScope() ? this._markNotifIds(retry.ids) : Promise.resolve(false);
+  },
+  async _markNotifIds(ids) {
+    const scope = this._notifScope();
+    if (!scope || this._notifReadPending || !Array.isArray(ids) || !ids.length || ids.length > 60 || new Set(ids).size !== ids.length
+      || ids.some(id => !Cloud._notificationId(id) || !(this._notifDisplayedScope === scope && this._notifDisplayed.includes(id))
+        && !(this._notifReadRetry?.scope === scope && this._notifReadRetry.ids.includes(id)))) return false;
+    const action = { scope, ids: ids.slice() };
+    this._notifReadPending = action;
+    this._notifReadRetry = null;
+    this.renderNotifPanel();
+    try {
+      let ok = false;
+      try { ok = await Cloud.markNotifsRead(action.ids); } catch (_) {}
+      if (scope !== this._notifScope() || this._notifReadPending !== action) return false;
+      if (ok !== true) {
+        this._notifReadRetry = action;
+        if (this.curTab !== "alerts") this.toast("Could not confirm read status. Try again.");
+        return false;
+      }
+      this._notifReadAcks = new Set([...Array.from(this._notifReadAcks || []), ...action.ids].slice(-120));
+      Social.cloud.notifs = (Cloud._notificationRows(Social.cloud.notifs) || []).map(row => ({ ...row, read: row.read || action.ids.includes(row.id) }));
+      this.updateNotifBadge(Social.cloud.notifs.filter(row => !row.read).length);
+      return true;
+    } finally {
+      if (scope === this._notifScope() && this._notifReadPending === action) { this._notifReadPending = null; this.renderNotifPanel(); }
+    }
   },
   updateNotifBadge(n) {
     const b = document.getElementById("tab-notif-badge");
@@ -3158,40 +4007,114 @@ const App = {
   },
   notifText(n) {
     const who = (Social.cloudUser(n.actor) || {}).name || "Someone";
-    const map = { like: "❤️ liked your post", comment: "💬 commented on your post", reply: "↩️ replied to you", mention: "@ mentioned you", connect: "🤝 wants to connect", accept: "✅ accepted your request — you're connected", reshare: "🔁 reshared your post", message: "✉️ sent you a message", follow: "➕ started following you" };
-    return `<b>${esc(who)}</b> ${map[n.type] || esc(n.type)}${n.body ? ` — “${esc((n.body || "").slice(0, 40))}”` : ""}`;
+    const map = { like: "liked your post", comment: "commented on your post", reply: "replied to you", mention: "mentioned you", connect: "wants to connect", accept: "accepted your request", reshare: "reshared your post", message: "sent you a message", follow: "started following you" };
+    return `<b>${esc(who)}</b> ${Object.hasOwn(map, n.type) ? map[n.type] : "sent an update"}`;
   },
   renderNotifPanel() {
-    const list = Social.cloud.notifs || [];
-    const body = list.length ? list.map((n) => `<div class="notif-item ${n.read ? "" : "unread"}" onclick="App.openNotif('${n.actor}','${n.type}')">${Social.avatar(Social.cloudUser(n.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(n)}<div class="notif-time">${Social.timeAgo(n.ts)}</div></div></div>`).join("") : this.emptyState("bell", "No activity yet", "Likes, comments and new connections will show up here.");
+    const scope = this._notifScope();
+    const list = scope ? Cloud._notificationRows(Social.cloud.notifs || []) || [] : [];
+    Social.cloud.notifs = list;
     const el = document.getElementById("notif-list");
-    if (el) el.innerHTML = body;
+    if (!el) return;
+    this._notifDisplayed = list.map(row => row.id);
+    this._notifDisplayedScope = scope;
+    const busy = !!this._notifReadPending, unread = list.some(row => !row.read);
+    const focusId = document.activeElement?.dataset?.notifId, focusAction = document.activeElement?.dataset?.notifAction;
+    const status = this._notifListError ? `<div role="alert" style="padding:12px">Could not refresh activity. <button class="btn ghost" type="button" data-notif-action="refresh">${this.ic("undo", { size: 16 })} Retry</button></div>` : "";
+    const retry = this._notifReadRetry ? `<div role="status" style="padding:12px">Read status not confirmed. <button class="btn ghost" type="button" data-notif-action="retry-read"${busy ? " disabled" : ""}>${this.ic("undo", { size: 16 })} Retry read</button></div>` : "";
+    const rows = list.length ? list.map(row => `<div class="notif-item ${row.read ? "" : "unread"}" role="button" tabindex="0" data-notif-id="${esc(row.id)}"${busy ? ` aria-disabled="true"` : ""}>${Social.avatar(Social.cloudUser(row.actor) || { name: "?", colors: ["#8b93a7", "#262c3a"] }, 38)}<div class="notif-txt">${this.notifText(row)}<div class="notif-time">${Social.timeAgo(row.ts)}</div></div></div>`).join("")
+      : this._notifListError ? "" : this.emptyState("bell", "No activity yet", "");
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px"><button type="button" class="btn ghost" data-notif-action="mark"${busy || !unread ? " disabled" : ""}>${this.ic("bell", { size: 16 })} ${busy ? "Confirming read..." : "Mark displayed read"}</button><button type="button" class="icon-btn" data-notif-action="refresh" aria-label="Refresh alerts" title="Refresh alerts">${this.ic("undo", { size: 18 })}</button>${list.length === 60 ? `<span class="sub">Latest 60 alerts</span>` : ""}</div>${status}${retry}${rows}`;
+    el.querySelectorAll("[data-notif-id]").forEach(row => {
+      row.addEventListener("click", () => { if (scope && scope === this._notifScope()) void this.openNotif(row.dataset.notifId); });
+      row.addEventListener("keydown", event => this.rowKey(event));
+      if (focusId === row.dataset.notifId) row.focus({ preventScroll: true });
+    });
+    el.querySelectorAll("[data-notif-action]").forEach(button => {
+      button.addEventListener("click", () => {
+        if (!scope || scope !== this._notifScope()) return;
+        const action = button.dataset.notifAction;
+        if (action === "mark") void this.markDisplayedNotifsRead();
+        else if (action === "retry-read") void this.retryNotifRead();
+        else void this.pollNotifs();
+      });
+      if (focusAction === button.dataset.notifAction && !button.disabled) button.focus({ preventScroll: true });
+    });
   },
-  openNotif(actor, type) {
-    if (type === "connect" || type === "accept") { this.selectTab("search"); }
-    else if (type === "message" && actor) { Social.openDM(actor); }
-    else if (actor) { Social.viewProfile(actor); }
+  // Enter/Space activation for rows that stay <div role="button"> so their layout (and nested links) are preserved.
+  rowKey(ev) {
+    if (!ev || (ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar")) return;
+    const row = ev.currentTarget;
+    if (!row || (ev.target !== row && ev.target.closest && ev.target.closest("a,button,input,select,textarea"))) return;
+    ev.preventDefault();
+    row.click();
   },
+  async openNotif(id, type) {
+    const scope = this._notifScope();
+    if (!scope || this._notifReadPending || this._notifDisplayedScope !== scope) return false;
+    const rows = Cloud._notificationRows(Social.cloud.notifs) || [];
+    const matches = rows.filter(row => this._notifDisplayed.includes(row.id) && (type === undefined ? row.id === id : row.actor === id && row.type === type));
+    const action = this._notifOpen = (this._notifOpen || 0) + 1;
+    const current = () => scope === this._notifScope() && action === this._notifOpen;
+    try {
+      if (matches.length !== 1) throw new Error("notification_unavailable");
+      const row = matches[0];
+      if (Social.isBlocked(row.actor) || Social._isBanned(row.actor)) throw new Error("notification_unavailable");
+      if (row.type === "message") {
+        if (!Cloud._messageRecipient(row.actor) || row.actor === Cloud.me || !await Cloud.notificationMessageAvailable(row.actor)) throw new Error("notification_unavailable");
+        if (!current()) return false;
+        await Social.openDM(row.actor);
+        if (!current()) return false;
+        if (Social._dmWith !== row.actor || Social._dmReadError || Social._dmThreadLoading) throw new Error("notification_unavailable");
+      } else if (["like", "comment", "reply", "mention", "reshare"].includes(row.type)) {
+        const post = (Social.cloud.feed || []).find(post => post.id === row.post_id);
+        if (!post || !Cloud._notificationId(post.author) || (post.author !== Cloud.me && !Social.cloudUser(post.author)) || !Social._canSeePost(post)) throw new Error("notification_unavailable");
+        const previousTab = this.curTab;
+        this.selectTab("home");
+        const feed = document.getElementById("view-feed");
+        const target = feed && Array.from(feed.querySelectorAll("[data-saved-post]")).find(button => button.dataset.savedPost === row.post_id)?.closest(".post");
+        if (!target) { if (previousTab) this.selectTab(previousTab); throw new Error("notification_unavailable"); }
+        target.tabIndex = -1; target.scrollIntoView({ block: "center" }); target.focus({ preventScroll: true });
+      } else if (row.type === "connect" || row.type === "accept") this.selectTab("search");
+      else if (row.type === "follow" && Social.cloudUser(row.actor)) Social.viewProfile(row.actor);
+      else throw new Error("notification_unavailable");
+      if (!current()) return false;
+      return row.read ? true : await this._markNotifIds([row.id]);
+    } catch (_) {
+      if (current()) this.toast("This activity is unavailable. Try again.");
+      return false;
+    }
+  },
+  // The resize is async, so an account switch (or a newer pick) can land first.
+  // Capture the owner + storage key + selection generation up front and drop stale results,
+  // exactly like the guarded cover-photo path.
   uploadAvatar(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
+    const entry = this._entry, key = (typeof Store !== "undefined") ? Store.key : null;
+    const user = (typeof Auth !== "undefined" && Auth.currentUser) ? Auth.currentUser() : null;
+    const uid = (typeof Cloud !== "undefined") ? Cloud.me : null;
+    const version = this._avatarVersion = (this._avatarVersion || 0) + 1;
+    const current = () => entry === this._entry && this._avatarVersion === version &&
+      (typeof Store === "undefined" || Store.key === key) &&
+      (!user || (typeof Auth === "undefined" || Auth.currentUser()?.id === user.id)) &&
+      (typeof Cloud === "undefined" || Cloud.me === uid);
+    if (!current()) return;
     resizeImage(f, 256, 0.85).then((data) => {
+      if (!current()) return;   // a different member is signed in now — their avatar stays theirs
       Store.state.profile.avatar = data;
       Store.save();
       this.renderProfile();
-    }).catch(() => alert("Couldn't read that image. Try another one."));
+    }).catch(() => { if (current()) alert("Couldn't read that image. Try another one."); });
   },
-  uploadCover(e) {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    resizeImage(f, 900, 0.82).then((data) => {
-      Store.state.profile.cover = data;
-      Store.save();
-      this.renderProfile();
-      // Sync to the public profile so others see it — upload to Storage + store the URL only (never the base64 blob).
-      if (typeof Cloud !== "undefined" && Cloud.active() && Cloud.uploadMedia) {
-        fetch(data).then((r) => r.blob()).then((blob) => Cloud.uploadMedia(new File([blob], "cover.jpg", { type: "image/jpeg" }), "covers"))
-          .then((url) => { if (url) { Store.state.profile.coverUrl = url; Store.save(); if (Cloud.registerMe) Cloud.registerMe(Store.state.profile); } }).catch(() => {});
-      }
-    }).catch(() => alert("Couldn't read that image. Try another one."));
+  async uploadCover(e) {
+    if (window.AppProfile) return window.AppProfile.uploadCover.call(this, e);
+    const file = e.target.files && e.target.files[0]; if (!file) return false;
+    return this._profileAction("uploadCover", [{ target: { files: [file] } }]);
+  },
+  async syncCover() {
+    if (window.AppProfile) return window.AppProfile.syncCover.call(this);
+    if (typeof Cloud === "undefined" || !Cloud.active()) return false;
+    return this._profileAction("syncCover", []);
   },
   async saveSocialProfile() {
     const p = Store.state.profile;
@@ -3214,35 +4137,123 @@ const App = {
       facebook: (document.getElementById("soc-fb").value || "").trim(),
     };
     Store.save();
+    // The draft is intentionally kept: this button only saves the header fields, so any edit
+    // still open in the Profile form below must survive the re-render.
     if (typeof Cloud !== "undefined" && Cloud.active()) Cloud.registerMe(p);
     this.renderProfile();
   },
 
-  saveProfile() {
-    const p = Store.state.profile;
-    p.name = document.getElementById("p-name").value.trim() || p.name;
-    p.dob = document.getElementById("p-dob").value || p.dob;
-    p.heightCm = parseFloat(document.getElementById("p-h").value) || p.heightCm;
-    p.targetWeightKg = parseFloat(document.getElementById("p-tw").value) || p.targetWeightKg;
-    const newGender = document.getElementById("p-gender").value;
-    if (newGender !== p.gender) {
-      p.gender = newGender;
-      if (!PHYSIQUES[newGender].some((x) => x.id === p.physique)) p.physique = PHYSIQUES[newGender][0].id;
+  // ---- DEF-061: validate the complete Profile patch before any mutation ---
+  // Uses the same bounds as onboarding (_readDetails): height 90–250 cm, weight 25–400 kg.
+  // HTML input types alone do not reject these values, so the check lives here.
+  // Calendar age: the 365.25-day approximation rejects an exact birthday, so it must not gate eligibility.
+  _calendarAge(dob, today) {
+    const born = String(dob).split("-").map(Number), now = String(today).split("-").map(Number);
+    if (born.length !== 3 || now.length !== 3 || born.some((n) => !Number.isFinite(n))) return NaN;
+    let years = now[0] - born[0];
+    if (now[1] < born[1] || (now[1] === born[1] && now[2] < born[2])) years--;
+    return years;
+  },
+  _validateProfileForm() {
+    const read = (id) => { const el = document.getElementById(id); return el ? el.value : null; };
+    if (read("p-name") === null) return null;                 // the Profile form is not on screen
+    const saved = (typeof Store !== "undefined" && Store.state) ? Store.state.profile : {};
+    const errors = {}, patch = {};
+
+    const name = (read("p-name") || "").trim();
+    if (name.length > 60) errors["p-name"] = "Name must be 60 characters or fewer.";
+    else patch.name = name || saved.name;
+
+    const dob = (read("p-dob") || "").trim();
+    const today = todayISO();
+    const age = dob ? this._calendarAge(dob, today) : NaN;
+    if (!dob || !Number.isFinite(Date.parse(dob + "T00:00:00"))) errors["p-dob"] = "Enter your date of birth.";
+    else if (dob > today) errors["p-dob"] = "Date of birth cannot be in the future.";
+    else if (!Number.isFinite(age) || age < 13) errors["p-dob"] = "You need to be at least 13 to use Formora.";
+    else if (age > 120) errors["p-dob"] = "Enter a real date of birth.";
+    else { patch.dob = dob; patch.age = age; }
+
+    const height = parseFloat(read("p-h"));
+    if (!Number.isFinite(height) || height < 90 || height > 250) errors["p-h"] = "Enter a height between 90 and 250 cm.";
+    else patch.heightCm = height;
+
+    const goalText = (read("p-tw") || "").trim();
+    if (!goalText) patch.targetWeightKg = saved.targetWeightKg;   // optional: blank keeps the saved goal
+    else {
+      const goal = parseFloat(goalText);
+      if (!Number.isFinite(goal) || goal < 25 || goal > 400) errors["p-tw"] = "Enter a target weight between 25 and 400 kg.";
+      else patch.targetWeightKg = goal;
     }
-    p.activityFactor = parseFloat(document.getElementById("p-act").value);
-    p.diet = document.getElementById("p-diet").value;
-    p.age = Math.floor(daysBetween(p.dob, todayISO()) / 365.25);
+
+    const gender = read("p-gender");
+    if (!gender || !PHYSIQUES[gender]) errors["p-gender"] = "Choose a gender.";
+    else patch.gender = gender;
+
+    const activity = parseFloat(read("p-act"));
+    if (!Number.isFinite(activity) || activity < 1 || activity > 2.5) errors["p-act"] = "Choose an activity level.";
+    else patch.activityFactor = activity;
+
+    const diet = read("p-diet");
+    if (!diet || !DIETS[diet]) errors["p-diet"] = "Choose a diet preference.";
+    else patch.diet = diet;
+
+    return { patch, errors, invalid: Object.keys(errors) };
+  },
+  // Field-level feedback that keeps every typed value in place (no re-render).
+  _showProfileErrors(errors) {
+    const view = document.getElementById("view-profile");
+    if (view && view.querySelectorAll) view.querySelectorAll(".field-error").forEach((node) => node.remove());
+    for (const el of this._profileFields()) { el.removeAttribute("aria-invalid"); el.removeAttribute("aria-describedby"); }
+    const ids = Object.keys(errors || {});
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.setAttribute("aria-invalid", "true");
+      const note = document.createElement("div");
+      note.className = "field-error";
+      note.id = id + "-error";
+      note.setAttribute("role", "alert");
+      note.style.cssText = "color:#ff6b61;font-size:12.5px;margin-top:6px";
+      note.textContent = errors[id];
+      el.setAttribute("aria-describedby", note.id);
+      const host = (el.closest && el.closest(".field")) || el.parentNode;
+      if (host && host.appendChild) host.appendChild(note);
+    }
+    return ids.length;
+  },
+
+  saveProfile() {
+    const result = this._validateProfileForm();
+    if (!result) return false;
+    if (result.invalid.length) {
+      this._showProfileErrors(result.errors);
+      const first = document.getElementById(result.invalid[0]);
+      if (first && first.focus) first.focus();
+      this.toast("Check the highlighted fields — nothing was saved.");
+      return false;                       // no partial update: the saved profile keeps its previous values
+    }
+    this._showProfileErrors({});
+    const p = Store.state.profile;
+    Object.assign(p, result.patch);
+    if (!PHYSIQUES[p.gender].some((x) => x.id === p.physique)) p.physique = PHYSIQUES[p.gender][0].id;
     Store.save();
+    this._profileDraft = null;            // saved values are now the truth
     this.renderChips();
-    this.renderProfile();
+    this.renderProfile(false);
+    this.toast("Profile saved");
+    return true;
   },
 
   resetAll() {
     if (!confirm("Erase all your workouts, weight and food logs?")) return;
     Store.reset();
     this.session = null;
+    this._profileDraft = null;         // the erased profile must not be repopulated from a stale draft
     this.renderChips();
-    document.querySelector('.tab[data-tab="today"]').click();
+    if (this.curTab === "profile") this.renderProfile(false);   // refresh the screen the reset was started from
+    this.goTab("today");               // Today lives inside the Coach hub — there is no top-level "today" tab
+    this._profileDraft = null;
+    this.toast("All logs erased");
   },
 };
 
