@@ -201,25 +201,70 @@ test('R1: two-object cancellation requires complete exact mapping and refuses pa
   await db.exec('RESET ROLE');
   const { epoch } = (await db.query('SELECT epoch FROM public.story_media_reservations WHERE id=$1', [reservation.reservation_id])).rows[0];
   const target = { ...reservation, stored, epoch }, ids = [stored.id, reservation.public_object_id];
-  const plan = await prepare(db, target, ids);
-  await confirm(db, plan);
+  const plan = await prepare(db, target, ids), approval = randomUUID();
+  const approved = await confirm(db, plan, approval);
+  const previousWorker = await rpc(db, 'claim_story_media_cleanup', [plan.operation_id, plan.plan_id]);
+  const previousArgs = [previousWorker.operation_id, previousWorker.claim_id, previousWorker.objects[0].intent_id, previousWorker.lease_token];
   const object = plan.objects[1];
   await rejectMutation(db, plan, 'DELETE FROM public.story_media_cleanup_intents WHERE plan_id=$1 AND object_id=$2', [plan.plan_id, object.object_id]);
   for (const mutation of ["object_version='wrong-version'", 'owner=gen_random_uuid()', "state='unknown'"]) {
     await rejectMutation(db, plan, `UPDATE public.story_media_cleanup_intents SET ${mutation} WHERE plan_id=$1 AND object_id=$2`, [plan.plan_id, object.object_id]);
   }
   await rejectMutation(db, plan, 'UPDATE public.story_media_cleanup_plans SET objects=jsonb_build_array(objects->0,objects->0) WHERE id=$1', [plan.plan_id]);
-  await rejectMutation(db, plan, 'UPDATE public.story_media_reservations SET epoch=epoch+1 WHERE id=$1', [reservation.reservation_id]);
+  await db.exec('RESET ROLE');
+  const { epoch: nextEpoch } = (await db.query('UPDATE public.story_media_reservations SET epoch=epoch+1 WHERE id=$1 RETURNING epoch', [reservation.reservation_id])).rows[0];
+  await assert.rejects(confirm(db, plan, approval),
+    error => error.code === 'PT409' && /Cleanup request changed/.test(error.message));
+  await assert.rejects(rpc(db, 'request_story_media_cleanup_object', previousArgs), { code: 'PT409' });
+  for (const objectId of ids) {
+    await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [objectId]),
+      error => error.code === 'PT409' && /Cleanup request changed/.test(error.message));
+  }
+  for (const mutation of ['owner=gen_random_uuid()', 'request_id=gen_random_uuid()', 'object_id=gen_random_uuid()', 'public_object_id=gen_random_uuid()']) {
+    await rejectMutation(db, plan, `UPDATE public.story_media_reservations SET ${mutation} WHERE id=$1`, [reservation.reservation_id]);
+  }
   const before = await records(db), retired = await cancelPlan(db, plan);
   const after = await records(db);
+  assert.ok(retired.superseded_at);
+  assert.equal(retired.storage_delete_authorized, false);
+  assert.equal(retired.physical_delete_confirmed, false);
   assert.equal(after.intents.length, 2);
   assert.ok(after.intents.every(intent => intent.cancelled_at === retired.superseded_at));
+  assert.deepEqual(after.intents, before.intents.map(intent => ({ ...intent, cancelled_at: retired.superseded_at })));
+  assert.deepEqual(after.plans, before.plans.map(previous => ({
+    ...previous, superseded_at: retired.superseded_at, cancellation_ref: retired.cancellation_ref
+  })));
   assert.deepEqual(after.objects, before.objects);
-  const fresh = await prepare(db, target, ids);
-  await confirm(db, fresh);
+  assert.deepEqual(after.reservations, before.reservations);
+  await assert.rejects(prepare(db, target, ids), { code: 'PT409' });
+  const fresh = await prepare(db, { ...target, epoch: nextEpoch }, ids);
+  assert.notEqual(fresh.plan_id, plan.plan_id);
+  assert.notEqual(fresh.operation_id, plan.operation_id);
+  assert.notEqual(fresh.snapshot_sha256, plan.snapshot_sha256);
+  assert.equal(fresh.reservation_epoch, nextEpoch);
+  assert.deepEqual(fresh.objects, plan.objects);
+  assert.equal(fresh.dry_run, true);
+  assert.equal(fresh.approval_ref, null);
+  assert.equal(fresh.lease_token, null);
+  assert.equal(fresh.storage_delete_authorized, false);
+  await assert.rejects(confirm(db, plan, approval), { code: 'PT409' });
+  await assert.rejects(rpc(db, 'claim_story_media_cleanup', [plan.operation_id, plan.plan_id]), { code: 'PT409' });
+  await assert.rejects(rpc(db, 'request_story_media_cleanup_object', previousArgs), { code: 'PT409' });
+  await assert.rejects(rpc(db, 'finish_story_media_cleanup_object', [...previousArgs, 'unknown', 0, null, 0]), { code: 'PT409' });
+  for (const objectId of ids) await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [objectId]), { code: 'PT403' });
+  await assert.rejects(confirm(db, fresh, approval),
+    error => error.code === 'PT409' && /Fresh independent cleanup approval reference required/.test(error.message));
+  const next = await confirm(db, fresh);
+  assert.equal(next.storage_delete_authorized, true);
+  assert.notEqual(next.approval_ref, approval);
+  assert.notEqual(next.lease_token, approved.lease_token);
+  await assert.rejects(rpc(db, 'request_story_media_cleanup_object', previousArgs), { code: 'PT409' });
   const worker = await rpc(db, 'claim_story_media_cleanup', [fresh.operation_id, fresh.plan_id]);
-  await rpc(db, 'request_story_media_cleanup_object', [worker.operation_id, worker.claim_id, worker.objects[0].intent_id, worker.lease_token]);
+  await assert.rejects(rpc(db, 'request_story_media_cleanup_object', [worker.operation_id, worker.claim_id, worker.objects[0].intent_id, previousWorker.lease_token]), { code: 'PT409' });
+  const requested = await rpc(db, 'request_story_media_cleanup_object', [worker.operation_id, worker.claim_id, worker.objects[0].intent_id, worker.lease_token]);
+  assert.equal(requested.delete_allowed, true);
   const attempted = await records(db);
+  assert.deepEqual(attempted.objects, before.objects);
   await assert.rejects(cancelPlan(db, fresh), { code: 'PT409' });
   assert.deepEqual(await records(db), attempted);
 });

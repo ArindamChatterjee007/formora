@@ -829,19 +829,45 @@ const LABELLED_CONTROLS = [
   'p-name', 'p-dob', 'p-h', 'p-tw', 'p-gender', 'p-diet', 'p-act',
 ];
 
+/* The audited screens are rendered by two modules since the Profile screen was
+   extracted: js/app.js (authentication, onboarding, support) and the lazily-loaded
+   js/mod/profile.js. The module is read as markup TEXT for this static audit only —
+   it is never concatenated into the VM-executed App source above. */
+const profileMarkup = source('js/mod/profile.js');
+const RENDERED_MARKUP = [
+  { file: 'js/app.js', markup: appSource },
+  { file: 'js/mod/profile.js', markup: profileMarkup },
+];
+const PASSWORD_FIELDS = ['a-pass', 's-pass', 's-pass2', 'r-pass', 'r-pass2'];
+const rendersControl = (markup, id) => (PASSWORD_FIELDS.includes(id)
+  ? markup.includes(`pwField("${id}"`)
+  : markup.includes(`id="${id}"`));
+const labelsControl = (markup, id) => (PASSWORD_FIELDS.includes(id)
+  ? markup.includes(`pwField("${id}"`) && /<label for="\$\{id\}">/.test(markup)
+  : markup.includes(`<label for="${id}">`) || markup.includes(`aria-label="${id}"`));
+const ownersOf = id => RENDERED_MARKUP.filter(({ markup }) => rendersControl(markup, id));
+
+test('DEF-040: every audited control is rendered by exactly one inspected module', () => {
+  const unowned = LABELLED_CONTROLS
+    .map(id => ({ id, modules: ownersOf(id).map(({ file }) => file) }))
+    .filter(entry => entry.modules.length !== 1);
+  assert.deepEqual(unowned, [], 'Each audited control must be rendered by exactly one inspected source');
+});
+
 test('DEF-040: every audited authentication, onboarding, support and profile control has an associated label', () => {
-  const passwordFields = ['a-pass', 's-pass', 's-pass2', 'r-pass', 'r-pass2'];
   const missing = LABELLED_CONTROLS.filter(id => {
-    if (passwordFields.includes(id)) return !/<label for="\$\{id\}">/.test(appSource);
-    return !appSource.includes(`<label for="${id}">`) && !appSource.includes(`aria-label="${id}"`);
+    const owners = ownersOf(id);
+    return !owners.length || !owners.every(({ markup }) => labelsControl(markup, id));
   });
-  assert.deepEqual(missing, [], 'Visible labels must point at their control id');
+  assert.deepEqual(missing, [], 'Visible labels must point at their control id in the module that renders it');
 });
 
 test('DEF-040: labels are not silently replaced by placeholders', () => {
   for (const id of ['p-name', 'sp-msg', 'd-dob']) {
+    const owners = ownersOf(id);
+    assert.equal(owners.length, 1, `${id} must be rendered by exactly one inspected source`);
     const association = new RegExp(`<label for="${id}">([^<]|<span[^>]*>[^<]*</span>)+</label>`);
-    assert.match(appSource, association, `${id} keeps a visible label, not only a placeholder`);
+    assert.match(owners[0].markup, association, `${id} keeps a visible label in ${owners[0].file}, not only a placeholder`);
   }
 });
 

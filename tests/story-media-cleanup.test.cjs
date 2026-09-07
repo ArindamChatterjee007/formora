@@ -131,16 +131,44 @@ test('rights and report evidence holds are rechecked at confirmation and at the 
   await assert.rejects(confirm(db, plan), { code: 'PT409' });
   await db.exec('RESET ROLE');
   await db.query('DELETE FROM public.account_rights_holds WHERE request_ref=$1', [rightsId]);
-  const claimed = await confirm(db, plan);
+  const approval = randomUUID(), claimed = await confirm(db, plan, approval);
+  assert.equal(claimed.storage_delete_authorized, true);
   await db.exec('RESET ROLE');
   await db.query('INSERT INTO public.report_cases VALUES($1,$2,$3)', [reportId, owner, owner]);
   await db.query('INSERT INTO public.report_evidence_holds VALUES($1,$2)', [reportId, randomUUID()]);
   await identity(db, null, 'service_role');
-  await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [reservation.stored.id]), { code: 'PT409' });
+  await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [reservation.stored.id]),
+    error => error.code === 'PT409' && /Active or unknown evidence holds block cleanup/.test(error.message));
   await db.exec('RESET ROLE');
   const before = JSON.stringify((await db.query('SELECT * FROM public.account_rights_requests')).rows);
   await db.query('DELETE FROM public.report_evidence_holds WHERE case_id=$1', [reportId]);
+  assert.equal((await rpc(db, 'account_rights_hold_state', [owner])).hold_status, 'clear');
+  await assert.rejects(confirm(db, plan, approval),
+    error => error.code === 'PT409' && /Evidence hold state changed/.test(error.message));
+  await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [reservation.stored.id]),
+    error => error.code === 'PT409' && /Evidence hold state changed/.test(error.message));
+  const retired = await rpc(db, 'cancel_story_media_cleanup', [plan.plan_id, plan.snapshot_sha256, randomUUID()]);
+  assert.ok(retired.superseded_at);
+  assert.equal(retired.storage_delete_authorized, false);
+  assert.equal(retired.physical_delete_confirmed, false);
+  assert.deepEqual((await db.query('SELECT id,version FROM storage.objects')).rows, [reservation.stored]);
+  const fresh = await prepare(db, reservation);
+  assert.notEqual(fresh.plan_id, plan.plan_id);
+  assert.notEqual(fresh.operation_id, plan.operation_id);
+  assert.notEqual(fresh.snapshot_sha256, plan.snapshot_sha256);
+  assert.deepEqual(fresh.objects, plan.objects);
+  assert.equal(fresh.dry_run, true);
+  assert.equal(fresh.approval_ref, null);
+  assert.equal(fresh.lease_token, null);
+  await assert.rejects(confirm(db, fresh, approval),
+    error => error.code === 'PT409' && /Fresh independent cleanup approval reference required/.test(error.message));
   await identity(db, null, 'service_role');
+  await assert.rejects(db.query('DELETE FROM storage.objects WHERE id=$1', [reservation.stored.id]), { code: 'PT403' });
+  const freshApproval = randomUUID(), reclaimed = await confirm(db, fresh, freshApproval);
+  assert.equal(reclaimed.storage_delete_authorized, true);
+  assert.equal(reclaimed.approval_ref, freshApproval);
+  assert.notEqual(reclaimed.lease_token, claimed.lease_token);
+  await assert.rejects(confirm(db, plan, approval), { code: 'PT409' });
   assert.equal((await db.query('DELETE FROM storage.objects WHERE id=$1 RETURNING id', [reservation.stored.id])).rows.length, 1);
   await db.exec('RESET ROLE');
   assert.equal(JSON.stringify((await db.query('SELECT * FROM public.account_rights_requests')).rows), before);

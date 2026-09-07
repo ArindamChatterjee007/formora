@@ -174,6 +174,7 @@ test('no PUBLIC, anon or inherited grant reaches the new media tables or routine
     claim_story_media_validation: ['service_role'], attest_story_media: ['service_role'], preview_story_media_cleanup: ['service_role'],
     claim_story_media_promotion: ['service_role'], finalize_story_media: ['service_role'],
     prepare_story_media_cleanup: ['service_role'], confirm_story_media_cleanup: ['service_role'],
+    cancel_story_media_cleanup: ['service_role'],
     claim_story_media_cleanup: ['service_role'], request_story_media_cleanup_object: ['service_role'], finish_story_media_cleanup_object: ['service_role'],
     _story_media_settings_epoch: [], _story_media_ready: [], _story_media_receipt: [], _story_media_storage_guard: [],
     _story_media_storage_bound: [], _story_media_publication_gate: [],
@@ -196,6 +197,17 @@ test('no PUBLIC, anon or inherited grant reaches the new media tables or routine
     assert.equal(await held('inherited_member', routine.signature), expected.includes('authenticated'), 'inherited_member -> ' + routine.signature);
     assert.equal(await held('inherited_anon', routine.signature), expected.includes('anon'), 'inherited_anon -> ' + routine.signature);
   }
+  const cancellation = routines.find(routine => routine.name === 'cancel_story_media_cleanup');
+  assert.ok(cancellation);
+  assert.equal(await held('inherited_service', cancellation.signature), true, 'inherited EXECUTE must still be fenced by the exact service-role guard');
+  const cancellationArgs = [randomUUID(), 'a'.repeat(64), randomUUID()];
+  for (const role of ['anon', 'authenticated', 'inherited_member', 'inherited_anon', 'inherited_service']) {
+    await identity(db, null, role);
+    await assert.rejects(rpc(db, 'cancel_story_media_cleanup', cancellationArgs), { code: '42501' }, role + ' cannot cancel cleanup');
+  }
+  await identity(db, null, 'service_role');
+  await assert.rejects(rpc(db, 'cancel_story_media_cleanup', cancellationArgs),
+    error => error.code === 'PT409' && /Exact cleanup snapshot and cancellation reference required/.test(error.message));
 });
 
 // ---------------------------------------------------------------------------

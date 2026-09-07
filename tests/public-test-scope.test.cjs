@@ -86,9 +86,9 @@ test('every exclusion is documented and reported as unverified rather than passi
 });
 
 test('no unlisted suite reads a private office record', () => {
-  const discovered = fs.readdirSync(path.join(root, 'tests')).map(file => 'tests/' + file);
+  const discovered = fs.readdirSync(path.join(root, 'tests'), { recursive: true }).map(file => 'tests/' + file);
   const detected = discovered
-    .filter(file => /\.(test|e2e)\.cjs$/.test(file) && officeReference.test(fs.readFileSync(path.join(root, file), 'utf8')));
+    .filter(file => /\.(cjs|js)$/.test(file) && officeReference.test(fs.readFileSync(path.join(root, file), 'utf8')));
   for (const fixtureOnly of FIXTURE_ONLY_OFFICE_LITERALS) {
     if (discovered.includes(fixtureOnly)) assert.ok(detected.includes(fixtureOnly), fixtureOnly + ' no longer mentions office/; drop the allowance');
   }

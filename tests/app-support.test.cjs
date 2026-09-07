@@ -5,6 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
+/* Membership and profile copy now renders from the lazily-loaded Profile module. It is
+   read as markup TEXT for the static copy audit only and is never added to the VM
+   context, which keeps executing js/app.js alone. */
+const profileSource = fs.readFileSync(path.join(__dirname, '../js/mod/profile.js'), 'utf8');
+const CUSTOMER_COPY = [{ file: 'js/app.js', text: source }, { file: 'js/mod/profile.js', text: profileSource }];
 
 function setup() {
   const state = { uid: 'account-a', writes: [], closed: 0, messages: [] };
@@ -75,9 +80,13 @@ test('Support rejects empty content and signed-out submissions without a write',
 });
 
 test('Customer copy avoids invented trials, automatic renewal and unstaffed support guarantees', () => {
-  assert.doesNotMatch(source, /5-day free trial|all 115 camera filters|Elite then renews|usually within a day|mailto:support@formora\.app/);
-  assert.doesNotMatch(source, /AI plans, every filter/);
-  assert.match(source, /access until/);
+  assert.equal(CUSTOMER_COPY.length, 2, 'Every module that renders customer copy is inspected');
+  for (const { file, text } of CUSTOMER_COPY) {
+    assert.doesNotMatch(text, /5-day free trial|all 115 camera filters|Elite then renews|usually within a day|mailto:support@formora\.app/, file);
+    assert.doesNotMatch(text, /AI plans, every filter/, file);
+  }
+  const stating = CUSTOMER_COPY.filter(({ text }) => /access until/.test(text)).map(({ file }) => file);
+  assert.deepEqual(stating, ['js/mod/profile.js'], 'The membership card states when paid access ends');
 });
 
 test('flag-on support never falls back to the legacy table on missing or failed receipts',async()=>{

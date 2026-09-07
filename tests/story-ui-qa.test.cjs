@@ -1,18 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const Module = require('node:module');
-
-const filename = path.join(__dirname, 'stories-client.test.cjs');
-const fixtureModule = new Module(filename, module);
-fixtureModule.filename = filename;
-fixtureModule.paths = Module._nodeModulePaths(__dirname);
-const originalRequire = fixtureModule.require.bind(fixtureModule);
-fixtureModule.require = name => name === 'node:test' ? () => {} : originalRequire(name);
-fixtureModule._compile(fs.readFileSync(filename, 'utf8') + '\nmodule.exports = { renderedPlayback };', filename);
-const { renderedPlayback } = fixtureModule.exports;
+const { renderedPlayback } = require('./helpers/story-playback.cjs');
 
 function video(duration) {
   const state = renderedPlayback({}, 'video');
