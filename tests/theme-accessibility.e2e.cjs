@@ -594,6 +594,24 @@ function assertTargets(controls) {
   'Every scoped standalone control needs 44px, five reachable hit points, and no password-text intrusion');
 }
 
+probe('Compact header wraps fallback-font widths without hiding counters', { width: 320, signedIn: true }, async (page, record) => {
+  const geometry = await page.locator('.topbar').evaluate(header => {
+    const logo = header.querySelector('.logo'), counters = header.querySelector('.topbar-right');
+    logo.style.minWidth = '173px';
+    counters.style.minWidth = '139px';
+    const parent = header.getBoundingClientRect(), brand = logo.getBoundingClientRect(), controls = counters.getBoundingClientRect();
+    return { width: innerWidth, documentWidth: document.documentElement.scrollWidth, headerRight: parent.right,
+      logoBottom: brand.bottom, countersTop: controls.top, countersRight: controls.right,
+      visibleCounters: [...counters.children].filter(element => element.checkVisibility()).length };
+  });
+  record.observations.push(geometry);
+  assert.equal(geometry.width, 320);
+  assert.ok(geometry.documentWidth <= 320);
+  assert.ok(geometry.countersTop >= geometry.logoBottom);
+  assert.ok(geometry.countersRight <= geometry.headerRight);
+  assert.equal(geometry.visibleCounters, 2);
+});
+
 for (const width of [320, 390, 1366]) {
   probe('DEF042 password targets ' + width, { width }, async (page, record) => {
     const controls = [];

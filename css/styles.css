@@ -1039,11 +1039,11 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
   .chal-new { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 480px) {
-  .topbar { padding: 12px 14px; }
-  .logo-sub { display: none; }
-  .wrap { padding: 8px 12px 82px; }
-  .card { padding: 15px; }
-  .hh-top { flex-direction: column; }
+  .topbar{padding:12px 14px;flex-wrap:wrap;gap:8px}
+  .logo-sub{display:none}
+  .wrap{padding:8px 12px 82px}
+  .card{padding:15px}
+  .hh-top{flex-direction:column}
   .hh-goal { text-align: left; }
   .chal-new { grid-template-columns: 1fr; }
   .crew-card { flex-wrap: wrap; }
