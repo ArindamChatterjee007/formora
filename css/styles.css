@@ -859,7 +859,7 @@ input[autocomplete$=password]{padding-right:60px!important}
 .btn:active { transform: translateY(0) scale(.98); }
 
 @media (prefers-reduced-motion: reduce) {
-  .view.active, .wrap.nav-r .view.active, .wrap.nav-l .view.active, .view.active > *, .home-hero, .home-hero::after, .bar-f::after, .hc-badge { animation: none !important; }
+  .modal-card,.view.active,.wrap.nav-r .view.active,.wrap.nav-l .view.active,.view.active>*,.home-hero,.home-hero::after,.bar-f::after,.hc-badge{animation:none!important}
   .card:hover, .hh-stats .stat:hover { transform: none; }
 }
 

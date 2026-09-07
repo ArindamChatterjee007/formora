@@ -191,6 +191,7 @@ test('a lost decision acknowledgement replays once and a revoked moderator canno
   assert.equal((await db.query('SELECT count(*)::int AS count FROM report_case_actions WHERE case_id=$1',[caseId])).rows[0].count,1);
   const requests=admin.fault.requests.filter(request=>request.name==='review_report');assert.equal(requests[0].body.p_request_id,requests[1].body.p_request_id);
   await db.query('UPDATE report_moderators SET enabled=false');
+  assert.equal(await admin.page.locator('#modal-card').evaluate(card=>getComputedStyle(card).animationName),'none','Reduced motion keeps the refreshed moderation controls stationary');
   await admin.page.getByRole('button',{name:'Review case',exact:true}).click();
   await admin.page.getByText('You do not have permission for this action.',{exact:true}).waitFor();
   assert.doesNotMatch(await admin.page.locator('#modal-card').innerText(),/Private report fixture|Investigating fixture/);
