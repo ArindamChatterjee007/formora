@@ -10,10 +10,61 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  functional:
+    name: functional-fixtures
+    runs-on: ubuntu-latest
+    # Public-scope fixtures only; bounded so a hung browser fails instead of burning the runner.
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      FORMORA_QA_SCOPE: public-product
+      FORMORA_QA_STAGE: ci-${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Reserve an isolated evidence directory
+        # runner.temp does not resolve in job-level env, and every attempt needs its own directory.
+        run: echo "FORMORA_QA_OUTPUT=$RUNNER_TEMP/formora-qa-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run public-scope unit and browser fixtures
+        # The runner executes every suite serially (--test-concurrency=1) and excludes the catalogued
+        # private-office suites, which stay explicitly unverified here rather than counted as passing.
+        # No screenshot directory is exported, so these fixtures capture no images at all.
+        run: npm test
+
+      - name: Retain the public verification record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-fixtures-${{ github.sha }}-${{ github.run_attempt }}
+          # Allowlisted relative paths only: the scope/verification record and the JUnit reports.
+          # Never the whole run directory, office screenshots or any private report output.
+          path: |
+            ${{ env.FORMORA_QA_OUTPUT }}/verification.json
+            ${{ env.FORMORA_QA_OUTPUT }}/run-*/verification.json
+            ${{ env.FORMORA_QA_OUTPUT }}/run-*/unit.xml
+            ${{ env.FORMORA_QA_OUTPUT }}/run-*/browser.xml
+          if-no-files-found: error
+          retention-days: 14
+
   validate:
     name: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -62,13 +113,15 @@ jobs:
           echo "OK - no unescaped src/href interpolations"
 
       - name: No leftover merge conflict markers
+        # Scanned paths are the shipped product surface only: never tests/, office/ or an installed
+        # dependency tree. This job also does not run `npm ci`, so node_modules is not present at all.
         run: |
           set -euo pipefail
-          if grep -RnE '^(<<<<<<< |=======$|>>>>>>> )' --include='*.js' --include='*.css' --include='*.html' .; then
+          if grep -RnE '^(<<<<<<< |=======$|>>>>>>> )' --include='*.js' --include='*.css' --include='*.html' js css guides index.html legal.html; then
             echo "::error::merge conflict markers present"
             exit 1
           fi
-          echo "OK - no conflict markers"
+          echo "OK - no conflict markers in the shipped product surface"
 
       - name: Performance budget (payload size)
         run: |
@@ -84,8 +137,115 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
-          if grep -rnE 'AIza[0-9A-Za-z_-]{35}' --include='*.js' --include='*.html' .; then echo "::error::Google API key committed"; fail=1; fi
-          if grep -rnE '\bservice_role\b' --include='*.js' .; then echo "::error::service_role reference in client code"; fail=1; fi
+          if grep -rnE 'AIza[0-9A-Za-z_-]{35}' --include='*.js' --include='*.html' js css guides index.html legal.html; then echo "::error::Google API key committed"; fail=1; fi
+          if grep -rnE '\bservice_role\b' --include='*.js' js; then echo "::error::service_role reference in client code"; fail=1; fi
           if grep -nE 'PEXELS_KEY[[:space:]]*=[[:space:]]*"[A-Za-z0-9]{20,}"' js/config.js; then echo "::error::hardcoded PEXELS_KEY in config.js"; fail=1; fi
-          if grep -rnE '(sk_live_|sk_test_|xox[baprs]-)' --include='*.js' .; then echo "::error::secret token committed"; fail=1; fi
-          if [ "$fail" -eq 0 ]; then echo "OK - no hardcoded secrets (Supabase anon key is public-by-design)"; else exit 1; fi
+          if grep -rnE '(sk_live_|sk_test_|xox[baprs]-)' --include='*.js' --include='*.html' js css guides index.html legal.html; then echo "::error::secret token committed"; fail=1; fi
+          if [ "$fail" -eq 0 ]; then echo "OK - no hardcoded secrets in the shipped product surface (Supabase anon key is public-by-design)"; else exit 1; fi
+
+  promotion-gate:
+    name: promotion-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check the stage-promotion path and prior-stage acceptance
+        # dev -> release -> beta -> main, same repository only. Promotions into beta and main additionally
+        # require a successful `formora-qat-accepted` / `formora-beta-accepted` deployment recorded against
+        # this exact head commit. One bounded API read, never a poll. A push payload is reported as
+        # not-applicable: branch state is not stage acceptance.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-stage-promotion.cjs --event "$GITHUB_EVENT_PATH"
+
+  stage-preview:
+    name: stage-preview
+    needs: [functional, validate, promotion-gate]
+    # Opt-in, push-only, stage branches only. Nothing here runs until the repository owner sets the
+    # variable and supplies the Cloudflare account, project and token; there is no fallback path.
+    if: >-
+      github.event_name == 'push' &&
+      contains(fromJSON('["dev","release","beta"]'), github.ref_name) &&
+      vars.FORMORA_STAGE_PREVIEWS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: ${{ github.ref_name == 'dev' && 'formora-dev' || (github.ref_name == 'release' && 'formora-qat' || 'formora-beta') }}
+      url: ${{ steps.publish.outputs.url }}
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Require the stage configuration before anything is published
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF_NAME" in
+            dev) stage=dev ;;
+            release) stage=qat ;;
+            beta) stage=beta ;;
+            *) echo "::error::$GITHUB_REF_NAME is not a stage branch"; exit 1 ;;
+          esac
+          missing=
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || missing="$missing vars.CLOUDFLARE_ACCOUNT_ID"
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || missing="$missing secrets.CLOUDFLARE_API_TOKEN"
+          [ -n "${PAGES_PROJECT:-}" ] || missing="$missing vars.CLOUDFLARE_PAGES_PROJECT"
+          if [ -n "$missing" ]; then
+            echo "::error::Stage previews are enabled but these are unset:$missing"
+            exit 1
+          fi
+          if ! printf '%s' "$PAGES_PROJECT" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+            echo "::error::CLOUDFLARE_PAGES_PROJECT must be a lowercase Cloudflare Pages project name"
+            exit 1
+          fi
+          # Each stage must own a separate project (formora-dev, formora-qat-preview, ...) so no stage can
+          # ever publish over another stage's origin.
+          if ! printf -- '-%s-' "$PAGES_PROJECT" | grep -q -- "-$stage-"; then
+            echo "::error::Project '$PAGES_PROJECT' must contain '$stage' as its own name segment so each stage has a distinct origin"
+            exit 1
+          fi
+          echo "stage=$stage" >> "$GITHUB_ENV"
+          echo "STAGE_ORIGIN=https://$PAGES_PROJECT.pages.dev" >> "$GITHUB_ENV"
+          echo "Stage $stage -> $PAGES_PROJECT.pages.dev"
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Build the offline stage bundle
+        # The builder is offline-preview only: it strips indexing metadata, installs a fail-closed CSP and
+        # freezes every backend, auth and payment global off. It refuses unless HEAD, the branch and the
+        # tracked app files all match this commit.
+        run: node tools/build-stage-site.cjs "$stage" "$GITHUB_SHA" "$STAGE_ORIGIN" dist/stage-site
+
+      - name: Publish the stage preview
+        id: publish
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.129.0 pages deploy dist/stage-site \
+            --project-name "$PAGES_PROJECT" --branch "$GITHUB_REF_NAME" | tee wrangler.log
+          url="$(grep -oE 'https://[A-Za-z0-9.-]+\.pages\.dev[^[:space:]]*' wrangler.log | tail -n 1)"
+          [ -n "$url" ] || { echo "::error::wrangler reported no deployment URL"; exit 1; }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Published $url"
+          echo "Unless the project's production branch is $GITHUB_REF_NAME, this is a branch alias and $STAGE_ORIGIN keeps serving the configured production branch."
+
+      - name: State what this preview is not
+        run: |
+          echo "Offline preview of $GITHUB_SHA on $GITHUB_REF_NAME."
+          echo "No backend, auth, payment or provider is configured, and this is not QAT, beta or production acceptance."

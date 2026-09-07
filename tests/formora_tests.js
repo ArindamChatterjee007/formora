@@ -1,23 +1,118 @@
 /* ============================================================
    FORMORA test harness — unit + end-to-end.
-   Run in the browser (all app globals must be loaded):
-     window.runFormoraTests().then(r => console.log(r));
-   Uses throwaway localStorage keys and restores real state after.
+   Run through the isolated browser fixture:
+     node --test tests/legacy-functional.e2e.cjs
+   Restores globals, DOM, and every storage key after each run.
    ============================================================ */
 window.runFormoraTests = async function () {
+  if (!window.__FORMORA_TEST_ISOLATED__ || location.hostname !== "127.0.0.1") {
+    throw new Error("Run this harness through tests/legacy-functional.e2e.cjs, never a live browser session.");
+  }
   const results = [];
   const ok = (name, cond, extra) => results.push({ name, pass: !!cond, extra: cond ? "" : (extra || "") });
   const approx = (a, b, tol) => Math.abs(a - b) <= tol;
-
-  // snapshot every app key so we can fully restore afterwards
-  const snap = {};
-  Object.keys(localStorage).forEach((k) => { if (/^(gymcoach_|formora_)/.test(k)) snap[k] = localStorage.getItem(k); });
+  const native = {
+    setTimeout: window.setTimeout, clearTimeout: window.clearTimeout,
+    setInterval: window.setInterval, clearInterval: window.clearInterval,
+    requestAnimationFrame: window.requestAnimationFrame, cancelAnimationFrame: window.cancelAnimationFrame,
+    addEventListener: EventTarget.prototype.addEventListener, removeEventListener: EventTarget.prototype.removeEventListener,
+  };
+  const within = async (promise, label = "asynchronous operation") => {
+    let timer;
+    try {
+      return await Promise.race([promise, new Promise((resolve, reject) => {
+        timer = native.setTimeout(() => {
+          const message = label + " exceeded 6000ms";
+          ok("Harness deadline exceeded", false, message);
+          reject(new Error(message));
+        }, 6000);
+      })]);
+    } finally { native.clearTimeout(timer); }
+  };
+  const storageSnapshots = [localStorage, sessionStorage].map((storage) => ({
+    storage, entries: Object.keys(storage).map((key) => [key, storage.getItem(key)]),
+  }));
+  const objects = new Map();
+  const capture = (target, deep = true) => {
+    if (!target || typeof target !== "object" || objects.has(target)) return;
+    if (deep && ![Object.prototype, Array.prototype, Map.prototype, Set.prototype, null].includes(Object.getPrototypeOf(target))) return;
+    const descriptors = Object.getOwnPropertyDescriptors(target);
+    const entries = target instanceof Map ? [...target.entries()] : target instanceof Set ? [...target] : null;
+    objects.set(target, { descriptors, entries });
+    if (deep) {
+      Object.values(descriptors).forEach((descriptor) => capture(descriptor.value));
+      if (entries) entries.forEach((entry) => Array.isArray(entry) ? entry.forEach((value) => capture(value)) : capture(entry));
+    }
+  };
+  capture(window, false);
+  capture(Storage.prototype, false);
+  capture(EventTarget.prototype, false);
+  [App, Auth, Store, Social, Cloud, SupaAuth, Entitlements, Exercises, Camera, Engine, FoodEstimator, MealPlanner,
+    window.Currency, window.Track, window.CameraLoader, window.ChartsLoader].forEach((target) => capture(target));
+  const bodyNodes = [...document.body.childNodes];
+  const attributes = [document.documentElement, document.body].map((element) => ({
+    element, values: [...element.attributes].map((attribute) => [attribute.name, attribute.value]),
+  }));
+  const timeouts = new Set(), intervals = new Set(), frames = new Set(), listeners = [], observers = new Set();
   const restore = () => {
-    Object.keys(localStorage).forEach((k) => { if (/^(gymcoach_|formora_)/.test(k)) localStorage.removeItem(k); });
-    Object.keys(snap).forEach((k) => localStorage.setItem(k, snap[k]));
+    timeouts.forEach((timer) => native.clearTimeout(timer));
+    intervals.forEach((timer) => native.clearInterval(timer));
+    frames.forEach((frame) => native.cancelAnimationFrame(frame));
+    listeners.forEach(([target, type, listener, options]) => native.removeEventListener.call(target, type, listener, options));
+    observers.forEach((observer) => observer.disconnect());
+    document.querySelectorAll("video,audio").forEach((media) => media.pause());
+    for (const target of [Social, Camera]) {
+      Object.values(target).forEach((value) => { if (value instanceof HTMLMediaElement) value.pause(); });
+    }
+    for (const [target, { descriptors, entries }] of objects) {
+      Reflect.ownKeys(target).forEach((key) => { if (!Object.hasOwn(descriptors, key)) Reflect.deleteProperty(target, key); });
+      Object.defineProperties(target, descriptors);
+      if (target instanceof Map) { target.clear(); entries.forEach(([key, value]) => target.set(key, value)); }
+      if (target instanceof Set) { target.clear(); entries.forEach((value) => target.add(value)); }
+    }
+    document.body.replaceChildren(...bodyNodes);
+    attributes.forEach(({ element, values }) => {
+      [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
+      values.forEach(([name, value]) => element.setAttribute(name, value));
+    });
+    storageSnapshots.forEach(({ storage, entries }) => {
+      storage.clear();
+      entries.forEach(([key, value]) => storage.setItem(key, value));
+    });
   };
 
   try {
+    window.setTimeout = (callback, delay, ...args) => {
+      const timer = native.setTimeout(() => { timeouts.delete(timer); callback(...args); }, delay);
+      timeouts.add(timer); return timer;
+    };
+    window.clearTimeout = (timer) => { timeouts.delete(timer); native.clearTimeout(timer); };
+    window.setInterval = (callback, delay, ...args) => {
+      const timer = native.setInterval(callback, delay, ...args); intervals.add(timer); return timer;
+    };
+    window.clearInterval = (timer) => { intervals.delete(timer); native.clearInterval(timer); };
+    window.requestAnimationFrame = (callback) => {
+      const frame = native.requestAnimationFrame((time) => { frames.delete(frame); callback(time); });
+      frames.add(frame); return frame;
+    };
+    window.cancelAnimationFrame = (frame) => { frames.delete(frame); native.cancelAnimationFrame(frame); };
+    EventTarget.prototype.addEventListener = function (type, listener, options) {
+      listeners.push([this, type, listener, typeof options === "boolean" ? options : !!(options && options.capture)]);
+      return native.addEventListener.call(this, type, listener, options);
+    };
+    for (const name of ["IntersectionObserver", "MutationObserver", "ResizeObserver"]) {
+      const Original = window[name];
+      if (Original) window[name] = class extends Original {
+        constructor(...args) { super(...args); observers.add(this); }
+      };
+    }
+    document.body.replaceChildren(...bodyNodes.map((node) => node.cloneNode(true)));
+    localStorage.clear(); sessionStorage.clear();
+    Object.assign(window, { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", USE_SUPABASE_AUTH: false,
+      GOOGLE_CLIENT_ID: "", POSTHOG_KEY: "", EMAILJS_PUBLIC_KEY: "", EMAIL_FN_URL: "", SHEETS_API: "", PEXELS_KEY: "" });
+    Cloud.me = null;
+    App.session = null; App.onboardMode = null; App._slideBound = false;
+
     /* ---------------- UNIT ---------------- */
     ok("DEFAULT_PROFILE has no hardcoded person", DEFAULT_PROFILE.name === "" && DEFAULT_PROFILE.onboarded === false, "name=" + DEFAULT_PROFILE.name);
     ok("validEmail works", Auth.validEmail("a@b.com") && !Auth.validEmail("nope"));
@@ -38,10 +133,10 @@ window.runFormoraTests = async function () {
     // image resize
     const cv = document.createElement("canvas"); cv.width = 1200; cv.height = 900;
     cv.getContext("2d").fillStyle = "#e33"; cv.getContext("2d").fillRect(0, 0, 1200, 900);
-    const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
-    const resized = await resizeImage(new File([blob], "t.png", { type: "image/png" }), 256, 0.8);
+    const blob = await within(new Promise((res) => cv.toBlob(res, "image/png")), "canvas.toBlob");
+    const resized = await within(resizeImage(new File([blob], "t.png", { type: "image/png" }), 256, 0.8), "resizeImage");
     ok("resizeImage returns jpeg dataURL", resized.startsWith("data:image/jpeg"), resized.slice(0, 24));
-    const rimg = new Image(); await new Promise((res, rej) => { rimg.onload = res; rimg.onerror = rej; rimg.src = resized; });
+    const rimg = new Image(); await within(new Promise((res, rej) => { rimg.onload = res; rimg.onerror = rej; rimg.src = resized; }), "resized image load");
     ok("resizeImage caps longest side to 256", rimg.width <= 256 && rimg.height <= 256, rimg.width + "x" + rimg.height);
 
     /* ---------------- MODULE COVERAGE: storage / engine / nutrition / auth ---------------- */
@@ -155,23 +250,23 @@ window.runFormoraTests = async function () {
 
     // ---- Auth ----
     Auth.load();
-    const h1 = await Auth.hash("pw", "salt"), h2 = await Auth.hash("pw", "salt"), h3 = await Auth.hash("pw", "other");
+    const h1 = await within(Auth.hash("pw", "salt")), h2 = await within(Auth.hash("pw", "salt")), h3 = await within(Auth.hash("pw", "other"));
     ok("hash deterministic + 64 hex", h1 === h2 && h1 !== h3 && h1.length === 64);
     ok("randHex length", Auth.randHex(8).length === 16);
     ok("genOtp 6 digits", /^\d{6}$/.test(Auth.genOtp()));
     ok("validEmail cases", Auth.validEmail("a@b.co") && !Auth.validEmail("a@b") && !Auth.validEmail("") && !Auth.validEmail("no"));
     ok("validPhone cases", Auth.validPhone("9876543210") && Auth.validPhone("+91 98765-43210") && !Auth.validPhone("123"));
     const em2 = "cov_auth_" + Date.now() + "@x.com";
-    const su = await Auth.signup({ name: "T", email: em2, phone: "9876543210", password: "secret1" });
+    const su = await within(Auth.signup({ name: "T", email: em2, phone: "9876543210", password: "secret1" }));
     ok("signup returns otp (local)", su.direct === false && /^\d{6}$/.test(su.otp));
     const vu = Auth.verifyOtp(Auth.pending.otp);
     ok("verifyOtp commits + sets current", vu.email === em2 && Auth.currentUser().email === em2);
-    let dupThrew = false; try { await Auth.signup({ name: "T", email: em2, phone: "9", password: "y" }); } catch (e) { dupThrew = true; }
+    let dupThrew = false; try { await within(Auth.signup({ name: "T", email: em2, phone: "9", password: "y" })); } catch (e) { dupThrew = true; }
     ok("signup duplicate throws", dupThrew);
-    let badPw = false; try { await Auth.login({ email: em2, password: "wrong" }); } catch (e) { badPw = true; }
+    let badPw = false; try { await within(Auth.login({ email: em2, password: "wrong" })); } catch (e) { badPw = true; }
     ok("login wrong password throws", badPw);
-    ok("login correct works", (await Auth.login({ email: em2, password: "secret1" })).email === em2);
-    let noAcc = false; try { await Auth.login({ email: "nobody" + Date.now() + "@x.com", password: "x" }); } catch (e) { noAcc = true; }
+    ok("login correct works", (await within(Auth.login({ email: em2, password: "secret1" }))).email === em2);
+    let noAcc = false; try { await within(Auth.login({ email: "nobody" + Date.now() + "@x.com", password: "x" })); } catch (e) { noAcc = true; }
     ok("login no account throws", noAcc);
     Auth.pending = null;
     let noPending = false; try { Auth.verifyOtp("123456"); } catch (e) { noPending = true; }
@@ -193,10 +288,10 @@ window.runFormoraTests = async function () {
     window.SHEETS_API = "https://fake.example";
     ok("Auth.remote() true when configured", Auth.remote() === true);
     Auth.postSheet = async (payload) => (payload.action === "signup" ? { ok: true } : { ok: true, user: { name: "R", phone: "9" } });
-    ok("remote signup direct", (await Auth.signup({ name: "R", email: "rem_" + Date.now() + "@x.com", phone: "9", password: "p" })).direct === true);
-    ok("remote login creates account", (await Auth.login({ email: "rem2_" + Date.now() + "@x.com", password: "p" })).remote === true);
+    ok("remote signup direct", (await within(Auth.signup({ name: "R", email: "rem_" + Date.now() + "@x.com", phone: "9", password: "p" }))).direct === true);
+    ok("remote login creates account", (await within(Auth.login({ email: "rem2_" + Date.now() + "@x.com", password: "p" }))).remote === true);
     Auth.postSheet = async () => ({ ok: false, error: "nope" });
-    let remoteErr = false; try { await Auth.signup({ name: "x", email: "e" + Date.now() + "@x.com", phone: "9", password: "p" }); } catch (e) { remoteErr = true; }
+    let remoteErr = false; try { await within(Auth.signup({ name: "x", email: "e" + Date.now() + "@x.com", phone: "9", password: "p" })); } catch (e) { remoteErr = true; }
     ok("remote signup error throws", remoteErr);
     Auth.postSheet = _postSheet; window.SHEETS_API = "";
     ok("Auth.remote() false when unset", Auth.remote() === false);
@@ -207,14 +302,23 @@ window.runFormoraTests = async function () {
 
     // Store.save quota-exceeded → sheds on-device avatar to protect logs
     Store.load("gymcoach_v1_COV_QUOTA_" + Date.now());
-    Store.state.profile.avatar = "data:image/jpeg;base64,AAAA";
-    const _setItem = localStorage.setItem.bind(localStorage);
-    let qcalls = 0;
-    localStorage.setItem = function (k, v) { if (k === Store.key && qcalls++ === 0) throw new Error("QuotaExceeded"); return _setItem(k, v); };
-    const _alert = window.alert; window.alert = () => {};
-    Store.save();
-    localStorage.setItem = _setItem; window.alert = _alert;
-    ok("save sheds avatar on quota (logs safe)", Store.state.profile.avatar === null);
+    Store.state.workoutLog = [{ date: todayISO(), split: "push", exercises: [], volume: 400 }];
+    const saveWithQuotaFailures = (failures) => {
+      const originalSetItem = Storage.prototype.setItem, originalAlert = window.alert;
+      let attempts = 0;
+      Storage.prototype.setItem = function (key, value) {
+        if (this === localStorage && key === Store.key && attempts++ < failures) throw new DOMException("Fixture quota exceeded", "QuotaExceededError");
+        return originalSetItem.call(this, key, value);
+      };
+      window.alert = () => {};
+      try { Store.save(); } finally { Storage.prototype.setItem = originalSetItem; window.alert = originalAlert; }
+      return attempts;
+    };
+    Store.state.profile.cover = Store.state.profile.avatar = "data:image/jpeg;base64,AAAA";
+    ok("save sheds cover before avatar on quota", saveWithQuotaFailures(1) === 2 && Store.state.profile.cover === null && Store.state.profile.avatar !== null);
+    Store.state.profile.cover = "data:image/jpeg;base64,AAAA";
+    ok("save sheds avatar on quota (logs safe)", saveWithQuotaFailures(2) === 3 && Store.state.profile.avatar === null);
+    ok("quota recovery persists workout logs", JSON.parse(localStorage.getItem(Store.key)).workoutLog[0].volume === 400);
 
     /* ---------------- E2E ---------------- */
     // account unify by email (fixes diet/data forking between login methods)
@@ -251,7 +355,7 @@ window.runFormoraTests = async function () {
     Social.addComment(pid, "nice");
     ok("addComment adds a comment", Social.post(pid).comments.some((c) => c.text === "nice"));
     Social.crewAdd("p1"); ok("crewAdd connects", Social.inCrew("p1"));
-    Social.toggleFollow("p2"); ok("follow works", Social.isFollowing("p2"));
+    await within(Social.toggleFollow("p2")); ok("follow works", Social.isFollowing("p2"));
     Social.sendMessage("p1", "yo"); ok("chat auto-replies", Social.messages("p1").length === 2);
     Social.createChallenge({ withId: "p1", title: "t", days: 7 }); ok("createChallenge", Social.state.challenges.length === 1);
     Social.requestConnect("p3"); ok("requestConnect adds to crew", Social.inCrew("p3"));
@@ -262,8 +366,8 @@ window.runFormoraTests = async function () {
       // stub network + render so we test pure logic (no Supabase writes)
       Cloud.active = () => true; // exercise cloud-gated paths even when the runner forces local-only
       Cloud.addPost = (post) => ({ id: "np_" + Math.floor(Math.random() * 1e9), author: Cloud.me, likes: {}, ts: Date.now(), ...post });
-      Cloud.deletePost = () => true; Cloud.notify = () => {}; Cloud.registerMe = () => {};
-      Cloud.sendRequest = () => {}; Cloud.acceptRequest = () => {}; Cloud.declineRequest = () => {}; Cloud.cancelRequest = () => {};
+      Cloud.deletePost = async () => true; Cloud.notify = async () => true; Cloud.registerMe = async () => true;
+      Cloud.sendRequest = async () => true; Cloud.acceptRequest = async () => true; Cloud.declineRequest = async () => true; Cloud.cancelRequest = async () => true;
       Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {};
       const me = "u_me"; Cloud.me = me;
       const origFollowing = Store.state.profile.following;
@@ -312,32 +416,43 @@ window.runFormoraTests = async function () {
       // reshare once + undo + impossible cases
       setState();
       const len0 = Social.cloud.feed.length;
-      Social.resharePost("P1"); // already reshared (R1) → undo
+      await within(Social.resharePost("P1")); // already reshared (R1) → undo
       ok("reshare undo removes my reshare", !Social.cloud.feed.some((p) => p.id === "R1") && Social.cloud.feed.length === len0 - 1);
-      Social.resharePost("P1"); // now create one
+      await within(Social.resharePost("P1")); // now create one
       ok("reshare creates exactly one", Social.cloud.feed.filter((p) => p.reshareOf === "P1" && p.author === me).length === 1);
-      Social.resharePost("P1"); // toggle off again
+      await within(Social.resharePost("P1")); // toggle off again
       ok("reshare toggles back to zero", Social.cloud.feed.filter((p) => p.reshareOf === "P1" && p.author === me).length === 0);
       setState();
       const own0 = Social.cloud.feed.length;
-      Social.resharePost("P2"); // impossible: reshare own post
+      await within(Social.resharePost("P2")); // impossible: reshare own post
       ok("cannot reshare own post", Social.cloud.feed.length === own0);
-      Social.resharePost("does_not_exist"); // impossible: non-existent id
+      await within(Social.resharePost("does_not_exist")); // impossible: non-existent id
       ok("reshare non-existent is safe", Social.cloud.feed.length === own0);
 
-      // delete button visibility (own vs others)
-      ok("delete btn on own cloud post", Social.postCard(Social._cloudPost({ id: "P2", author: me })).includes("removePost"));
-      ok("no delete btn on others' post", !Social.postCard(Social._cloudPost({ id: "P1", author: "u_a" })).includes("removePost"));
+      // delete action visibility (own vs others)
+      const ownCard = document.createElement("template"), otherCard = document.createElement("template");
+      ownCard.innerHTML = Social.postCard(Social._cloudPost({ id: "P2", author: me }));
+      otherCard.innerHTML = Social.postCard(Social._cloudPost({ id: "P1", author: "u_a" }));
+      ok("own post has overflow menu, no inline delete", !!ownCard.content.querySelector('.post-more[onclick*="postMenu"]') && !ownCard.content.querySelector('[onclick*="removePost"]'));
+      Social.postMenu("P2");
+      const ownMenu = document.querySelector(".sheet-wrap");
+      ok("own post menu offers edit and delete", !!ownMenu && /Edit caption/.test(ownMenu.textContent) && /Delete post/.test(ownMenu.textContent));
+      ok("opening post menu does not delete", Social.cloud.feed.some((post) => post.id === "P2"));
+      App.closeSheet();
+      Social.postMenu("P1");
+      const otherMenu = document.querySelector(".sheet-wrap");
+      ok("others' overflow menu cannot edit or delete", !!otherCard.content.querySelector('.post-more[onclick*="postMenu"]') && !!otherMenu && /Report post/.test(otherMenu.textContent) && !/Edit caption|Delete post/.test(otherMenu.textContent));
+      App.closeSheet();
 
       // follow / counts + impossible self-follow
       setState();
       ok("not following initially", !Social.isFollowing("u_a") && Social.followingCount() === 0);
-      Social.toggleFollow("u_a");
+      await within(Social.toggleFollow("u_a"));
       ok("toggleFollow follows + count", Social.isFollowing("u_a") && Social.followingCount() === 1);
       ok("followers includes my own follow (self excluded from users)", Social.followersCount("u_a") === 1);
-      Social.toggleFollow("u_a");
+      await within(Social.toggleFollow("u_a"));
       ok("toggleFollow unfollows", !Social.isFollowing("u_a") && Social.followingCount() === 0);
-      Social.toggleFollow(me); // impossible: follow self
+      await within(Social.toggleFollow(me)); // impossible: follow self
       ok("cannot follow self", !Social.isFollowing(me) && Social.followingCount() === 0);
       ok("followers from users list (u_b follows me)", Social.followersCount(me) === 1);
       ok("connectionsCount = 1", Social.connectionsCount() === 1);
@@ -369,20 +484,20 @@ window.runFormoraTests = async function () {
       {
         const _ad = Auth.data, _ap = Auth.pending;
         Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
-        const sr = await Auth.signup({ name: "Ver Ify", email: "verify_test@example.com", phone: "+919812345670", password: "test1234" });
+        const sr = await within(Auth.signup({ name: "Ver Ify", email: "verify_test@example.com", phone: "+919812345670", password: "test1234" }));
         ok("signup opens an EMAIL-channel code (email unverified)", Auth.pending && Auth.pending.channel === "email" && Auth.pending.account.emailVerified === false);
         Auth.pending.delivered = false;                 // no mail backend → demo code shown on screen
         Auth.verifyOtp(sr.otp);
         ok("demo code does NOT mark email verified", Auth.currentUser() && Auth.currentUser().emailVerified === false);
 
         Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
-        const sr2 = await Auth.signup({ name: "Ver Two", email: "verify_test2@example.com", phone: "+919812345671", password: "test1234" });
+        const sr2 = await within(Auth.signup({ name: "Ver Two", email: "verify_test2@example.com", phone: "+919812345671", password: "test1234" }));
         Auth.pending.delivered = true;                  // code actually emailed
         Auth.verifyOtp(sr2.otp);
         ok("emailed code marks email verified", Auth.currentUser() && Auth.currentUser().emailVerified === true);
 
         Auth.data = { accounts: [], currentUserId: null }; Auth.pending = null;
-        await Auth.signup({ name: "X", email: "x_test@example.com", phone: "+919812345672", password: "test1234" });
+        await within(Auth.signup({ name: "X", email: "x_test@example.com", phone: "+919812345672", password: "test1234" }));
         let rejected = false; try { Auth.verifyOtp("000000"); } catch { rejected = true; }
         ok("wrong code rejected", rejected === true);
 
@@ -405,6 +520,66 @@ window.runFormoraTests = async function () {
       Social.cloud = { users: [], requests: [], feed: [], sent: [], connections: [], comments: [], notifs: [], stories: [] };
     }
 
+    {
+      const saved = { base: Cloud.base, key: Cloud.key, me: Cloud.me, active: Cloud.active,
+        fetch: window.fetch, confirm: window.confirm, render: Social.render, toast: App.toast, cloud: Social.cloud,
+        authActive: SupaAuth.active, authUid: SupaAuth.uid, bearer: SupaAuth.bearer, token: SupaAuth.token };
+      const owner = "11111111-1111-4111-8111-111111111111";
+      const requests = [];
+      let status = 200, rows = [], releaseReply;
+      const response = () => new Response(JSON.stringify(rows), { status, headers: { "Content-Type": "application/json" } });
+      const receive = (url, options) => {
+        const parsed = new URL(url);
+        if (parsed.origin !== location.origin || !["/rest/v1/posts", "/rest/v1/content_reports"].includes(parsed.pathname)) throw new Error("Unexpected mutation fixture request: " + url);
+        requests.push({ url: parsed, options });
+      };
+      try {
+        Cloud.base = location.origin + "/rest/v1"; Cloud.key = "fixture-public"; Cloud.me = owner; Cloud.active = () => true;
+        SupaAuth.active = () => true; SupaAuth.uid = () => owner; SupaAuth.bearer = () => "fixture-token"; SupaAuth.token = async () => "fixture-token";
+        Social.render = () => {}; App.toast = () => {};
+        Social.cloud = { ...Social.cloud, feed: [{ id: "ACK1", author: owner, text: "Original", photo: "fixture.jpg", likes: {} }] };
+        window.fetch = async (url, options) => { receive(url, options); return response(); };
+        window.confirm = () => false;
+        ok("cancelled deletion preserves post without a request", await within(Social.removePost("ACK1")) === false && Social.cloud.feed.length === 1 && requests.length === 0);
+        window.confirm = () => true;
+        ok("empty row acknowledgement cannot delete a post", await within(Social.removePost("ACK1")) === false && Social.cloud.feed.length === 1);
+        const deletionRequest = requests.at(-1);
+        ok("deletion uses authenticated owner and return representation", deletionRequest.options.method === "DELETE" && deletionRequest.options.headers.Prefer === "return=representation" && deletionRequest.options.headers.Authorization === "Bearer fixture-token" && deletionRequest.url.searchParams.get("author") === "eq." + owner && deletionRequest.url.searchParams.get("id") === "eq.ACK1" && deletionRequest.url.searchParams.get("select") === "id");
+        let requestStarted;
+        const started = new Promise((resolve) => { requestStarted = resolve; });
+        const pendingReply = new Promise((resolve) => { releaseReply = resolve; });
+        window.fetch = (url, options) => { receive(url, options); requestStarted(); return pendingReply; };
+        const deleting = Social.removePost("ACK1");
+        await within(started, "delete request");
+        ok("pending deletion keeps post until acknowledgement", Social.cloud.feed.length === 1 && Social._actionPending("delete-post", "ACK1"));
+        rows = [{ id: "ACK1" }]; releaseReply(response());
+        ok("acknowledged deletion removes exactly the owned post", await within(deleting) === true && Social.cloud.feed.length === 0 && !Social._actionPending("delete-post", "ACK1"));
+
+        Social.cloud.feed = [{ id: "ACK2", author: owner, text: "Original", photo: "fixture.jpg", likes: {} }];
+        window.fetch = async (url, options) => { receive(url, options); return response(); };
+        Social.editPost("ACK2");
+        document.getElementById("edit-cap").value = "  Revised caption  ";
+        status = 403;
+        ok("rejected caption edit keeps original and draft", await within(Social.saveEditPost("ACK2")) === false && Social.cloud.feed[0].text === "Original" && document.getElementById("edit-cap").value === "  Revised caption  ");
+        status = 200; rows = [{ id: "ACK2" }];
+        ok("caption edit commits only after matching row acknowledgement", await within(Social.saveEditPost("ACK2")) === true && Social.cloud.feed[0].text === "Revised caption" && Social.cloud.feed[0].photo === "fixture.jpg" && document.getElementById("modal").classList.contains("hidden"));
+        const editRequest = requests.at(-1);
+        ok("caption edit sends owner-filtered media-preserving data", editRequest.options.method === "PATCH" && editRequest.url.searchParams.get("author") === "eq." + owner && JSON.parse(editRequest.options.body).data.photo === "fixture.jpg");
+
+        status = 403;
+        ok("rejected report does not hide or mark the post reported", await within(Social._doReport("ACK2", "Spam or scam")) === false && !Social.isHidden("ACK2") && !Social._list("fm_reported").includes("ACK2"));
+        status = 201; rows = [];
+        ok("acknowledged report updates account-scoped preferences", await within(Social._doReport("ACK2", "Spam or scam")) === true && Social.isHidden("ACK2") && Social._list("fm_reported").includes("ACK2") && localStorage.getItem("fm_hidden_cloud_" + owner) === '["ACK2"]' && localStorage.getItem("fm_reported") === null);
+      } finally {
+        if (releaseReply) releaseReply(new Response(null, { status: 503 }));
+        Object.assign(Cloud, { base: saved.base, key: saved.key, me: saved.me, active: saved.active });
+        Object.assign(SupaAuth, { active: saved.authActive, uid: saved.authUid, bearer: saved.bearer, token: saved.token });
+        window.fetch = saved.fetch; window.confirm = saved.confirm;
+        Social.render = saved.render; Social.cloud = saved.cloud; App.toast = saved.toast;
+        App.closeModal();
+      }
+    }
+
     /* ---------- CLOUD RENDER SMOKE: template-heavy paths (catches syntax/render bugs) ---------- */
     {
       const _me = Cloud.me, _render = Social.render, _toast = (typeof App !== "undefined") ? App.toast : null, _active = Cloud.active;
@@ -424,7 +599,9 @@ window.runFormoraTests = async function () {
       ok("postCard renders carousel for multi-photo", Social.postCard(Social._cloudPost(Social.cloud.feed[1])).includes("carousel"));
       ok("postCard shows reshared note", Social.postCard(Social._cloudPost(Social.cloud.feed[2])).includes("reshared"));
       const vpost = Social.postCard(Social._cloudPost(Social.cloud.feed[0]));
-      ok("feed video is Instagram-style (no native controls, tap + mute)", !/controls/.test(vpost) && vpost.includes("tapFeedVideo") && vpost.includes("fv-mute"));
+      const videoCard = document.createElement("template"); videoCard.innerHTML = vpost;
+      const feedVideo = videoCard.content.querySelector("video");
+      ok("feed video is Instagram-style (no native controls, tap + mute)", !!feedVideo && !feedVideo.controls && feedVideo.hasAttribute("playsinline") && feedVideo.loop && /Social\.mediaTap\(/.test(feedVideo.getAttribute("onclick") || "") && !!videoCard.content.querySelector('.fv-mute[onclick*="toggleFeedMute"]'));
       ok("Social._bindFeedVideos exists", typeof Social._bindFeedVideos === "function");
       ok("feed sound is a persistent global toggle", (() => { const b0 = Social._feedSound; Social.toggleFeedMute(document.createElement("button")); const flipped = Social._feedSound !== b0; Social._feedSound = false; return flipped; })());
       const rs = App.reelSlide(Social._cloudPost(Social.cloud.feed[0]));
@@ -459,18 +636,18 @@ window.runFormoraTests = async function () {
       ok("their bubble not tappable", !Social.dmBubble({ id: "m2", from: "u_a", body: "hey" }, "u_me").includes("msgMenu"));
       ok("edited tag shows on edited msg", Social.dmBubble({ id: "m3", from: "u_me", body: "x", edited: true }, "u_me").includes("msg-edited"));
       const _del = Cloud.deleteMessage, _editm = Cloud.editMessage, _cf = window.confirm;
-      Cloud.deleteMessage = () => true; Cloud.editMessage = () => true; window.confirm = () => true;
+      Cloud.deleteMessage = async () => true; Cloud.editMessage = async () => true; window.confirm = () => true;
       Social._dmWith = "u_a"; Social._dmMsgs = [{ id: "mA", from: "u_me", to: "u_a", body: "one" }, { id: "mB", from: "u_a", to: "u_me", body: "two" }];
-      Social.unsendMsg("mA");
+      await within(Social.unsendMsg("mA"));
       ok("unsend removes my message locally", !(Social._dmMsgs || []).some((m) => m.id === "mA"));
       Social._dmMsgs = [{ id: "mC", from: "u_me", to: "u_a", body: "old" }];
       const _ei = document.createElement("input"); _ei.id = "dm-edit"; _ei.value = "new text"; document.body.appendChild(_ei);
-      Social._editMsg = { id: "mC", body: "old" }; Social.saveEditMsg();
+      Social._editMsg = { id: "mC", body: "old" }; await within(Social.saveEditMsg());
       const _mc = (Social._dmMsgs || []).find((m) => m.id === "mC");
       ok("edit updates message body + edited flag", _mc && _mc.body === "new text" && _mc.edited === true);
       document.body.removeChild(_ei);
       Social._dmMsgs = [{ id: "mD", from: "u_me", to: "u_a", body: "keep" }, { id: "mE", from: "u_a", to: "u_me", body: "theirs" }];
-      Social.clearMyMessages("u_a");
+      await within(Social.clearMyMessages("u_a"));
       ok("clear removes only my messages", !(Social._dmMsgs || []).some((m) => m.from === "u_me") && (Social._dmMsgs || []).some((m) => m.id === "mE"));
       Cloud.deleteMessage = _del; Cloud.editMessage = _editm; window.confirm = _cf;
       const _cd = Social.chatDetails; Social.chatDetails = () => {};
@@ -506,22 +683,22 @@ window.runFormoraTests = async function () {
     {
       const _m = { registerMe: Cloud.registerMe, notify: Cloud.notify, acceptRequest: Cloud.acceptRequest, addPost: Cloud.addPost, deletePost: Cloud.deletePost, render: Social.render, toast: (typeof App !== "undefined") ? App.toast : null, me: Cloud.me, active: Cloud.active };
       Cloud.active = () => true;
-      Cloud.registerMe = () => {}; Cloud.notify = () => {}; Cloud.acceptRequest = () => {}; Cloud.deletePost = () => true;
+      Cloud.registerMe = async () => true; Cloud.notify = async () => true; Cloud.acceptRequest = async () => true; Cloud.deletePost = async () => true;
       Cloud.addPost = (post) => ({ id: post.id || ("np_" + Math.random()), author: Cloud.me, likes: {}, ts: Date.now(), ...post });
       Social.render = () => {}; if (typeof App !== "undefined") App.toast = () => {};
       Cloud.me = "u_me"; Social.state.crew = [];
       Store.state.profile.following = []; Store.state.profile.autoFollowed = [];
       Social.cloud = { users: [{ uid: "u_a", name: "A", username: "a", following: [] }, { uid: "u_b", name: "B", username: "b", following: [] }], requests: [{ from: "u_a", to: "u_me", status: "pending" }], sent: [], connections: [], comments: [], feed: [], notifs: [], stories: [] };
 
-      Social.acceptReq("u_a");
+      await within(Social.acceptReq("u_a"));
       ok("accept auto-follows the connection", Social.isFollowing("u_a"));
       ok("accept adds to connections", (Social.cloud.connections || []).includes("u_a"));
       Social.cloud.connections = ["u_a", "u_b"];
-      Social.syncAutoFollow();
+      await within(Social.syncAutoFollow());
       ok("syncAutoFollow follows all connections", Social.isFollowing("u_a") && Social.isFollowing("u_b"));
-      Social.toggleFollow("u_b");
+      await within(Social.toggleFollow("u_b"));
       ok("can unfollow a connection (opt-out)", !Social.isFollowing("u_b"));
-      Social.syncAutoFollow();
+      await within(Social.syncAutoFollow());
       ok("opt-out respected (no re-auto-follow)", !Social.isFollowing("u_b"));
 
       Store.state.profile.following = ["u_a"]; Social.cloud.connections = ["u_a"];
@@ -535,7 +712,7 @@ window.runFormoraTests = async function () {
       ok("strangers ranked below, newest-first", ranked[2].id === "new_stranger" && ranked[3].id === "old_stranger");
 
       Social.cloud.feed = [{ id: "PX", author: "u_a", likes: {} }];
-      Social.resharePost("PX");
+      await within(Social.resharePost("PX"));
       const r1 = Social.cloud.feed.find((p) => p.reshareOf === "PX" && p.author === "u_me");
       ok("reshare uses deterministic id", r1 && r1.id === "rs_u_me__PX");
       ok("only one reshare per account", Social.cloud.feed.filter((p) => p.reshareOf === "PX" && p.author === "u_me").length === 1);
@@ -565,7 +742,7 @@ window.runFormoraTests = async function () {
     f2.innerHTML = '<select id="d-gender"><option value="male" selected>m</option></select><input id="d-dob" value="1995-01-01"><input id="d-h" value="180"><input id="d-w" value="80"><input id="d-tw" value=""><select id="d-act"><option value="1.55" selected>m</option></select><select id="d-diet"><option value="nonveg" selected>n</option></select>';
     document.body.appendChild(f2);
     const realEnter = App.enterApp; App.enterApp = function () {};
-    App.finishOnboarding();
+    await within(App.finishOnboarding());
     App.enterApp = realEnter;
     document.body.removeChild(f2);
     ok("onboarding keeps workout log", Store.state.workoutLog.length === 1, "wk=" + Store.state.workoutLog.length);
@@ -575,7 +752,7 @@ window.runFormoraTests = async function () {
     // unique username (avoids demo-crew handle collision)
     Store.load("gymcoach_v1_TEST_UN_" + Date.now());
     Store.state.profile.username = ""; Store.state.profile.email = "vikstrong@x.com";
-    App.ensureUsername();
+    await within(App.ensureUsername());
     ok("ensureUsername avoids persona-handle collision", Store.state.profile.username !== "vikstrong" && !!Store.state.profile.username, "un=" + Store.state.profile.username);
 
     // workout edit lifecycle (no duplicate on re-finish)
@@ -680,7 +857,7 @@ window.runFormoraTests = async function () {
       window.fetch = async () => ({ ok: true, json: async () => ({ photos: [{ src: { portrait: "http://x/ref.jpg" }, photographer: "Tester" }] }) });
       const box = document.createElement("div"); box.id = "pd-photo"; box.className = "pd-photo none"; document.body.appendChild(box);
       App.pexelsCache = {};
-      await App.loadPexelsPhoto("hourglass");
+      await within(App.loadPexelsPhoto("hourglass"), "Pexels fixture");
       ok("pexels photo shows + un-hides the box", !box.classList.contains("none") && box.innerHTML.includes("http://x/ref.jpg") && box.innerHTML.includes("Pexels"));
       document.body.removeChild(box);
       window.fetch = _f; window.PEXELS_KEY = _k;
@@ -780,8 +957,6 @@ window.runFormoraTests = async function () {
     results.push({ name: "EXCEPTION", pass: false, extra: (e && e.message) + " @ " + ((e && e.stack) || "").split("\n")[1] });
   } finally {
     restore();
-    App.session = null; App.onboardMode = null;
-    Auth.load();
   }
 
   const failures = results.filter((r) => !r.pass);

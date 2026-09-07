@@ -1,5 +1,7 @@
 # dev artifacts
-tools/
+tools/*
+!tools/build-stage-site.cjs
+!tools/sync-www.sh
 assets/physiques/_sources.json
 assets/physiques/_preview.jpg
 .DS_Store
@@ -18,3 +20,7 @@ ios/App/App/capacitor.config.json
 android/app/src/main/assets/capacitor.config.json
 dist/
 backups/
+office/hosting/.wrangler/
+office/hosting/.dev.vars*
+office/hosting/.env*
+supabase/.temp/
