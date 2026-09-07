@@ -4,12 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const qat = require('../scripts/qat-config.cjs');
 
 const branches = Object.freeze({ dev: 'dev', qat: 'release', beta: 'beta' });
 const entries = ['index.html', 'legal.html', 'manifest.webmanifest', 'version.txt', 'push-worker.js', 'js', 'css', 'assets', 'icons', 'guides'];
-const policy = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'";
+const policy = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' data: blob:; manifest-src 'self'; connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'";
 
-function stageConfig(stage, commit, origin) {
+function stageConfig(stage, commit, origin, backend = null) {
   if (!Object.hasOwn(branches, stage)) throw new Error('Only dev, qat and beta test sites can be built.');
   if (!/^[a-f0-9]{40}$/.test(commit || '')) throw new Error('A full candidate commit is required.');
   const url = new URL(origin);
@@ -17,16 +18,33 @@ function stageConfig(stage, commit, origin) {
       || url.port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
     throw new Error('Test sites require a separate HTTPS Cloudflare Pages origin.');
   }
+  const isolated = backend === null ? null : qat.validateBackend(backend);
+  if (isolated && (stage !== 'qat' || url.origin !== qat.siteOrigin)) {
+    throw new Error('The isolated backend is restricted to the QAT site.');
+  }
   return { schemaVersion: 1, stage, branch: branches[stage], commit, origin: url.origin,
-    mode: 'offline-preview', backendConfigured: false, paymentEnabled: false, acceptance: 'pending' };
+    mode: isolated ? 'isolated-backend' : 'offline-preview', backendConfigured: !!isolated,
+    ...(isolated ? { backendProjectRef: isolated.projectRef, backendOrigin: isolated.origin } : {}),
+    paymentEnabled: false, acceptance: 'pending' };
 }
 
-function guardSource(config) {
+function stagePolicy(config) {
+  if (!config.backendConfigured) return policy;
+  if (config.stage !== 'qat' || config.origin !== qat.siteOrigin || config.backendProjectRef !== qat.projectRef
+      || config.backendOrigin !== qat.backendOrigin) throw new Error('Invalid isolated stage policy.');
+  return policy.replace("connect-src 'self';", "connect-src 'self' " + qat.backendOrigin + ';');
+}
+
+function guardSource(config, backend = null) {
+  const isolated = config.backendConfigured ? qat.validateBackend(backend) : null;
+  stagePolicy(config);
   const locked = {
-    FORMORA_STAGE: config, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', USE_SUPABASE_AUTH: false,
+    FORMORA_STAGE: config, SUPABASE_URL: isolated?.origin || '', SUPABASE_ANON_KEY: isolated?.anonKey || '', USE_SUPABASE_AUTH: !!isolated,
     SHEETS_API: '', SOCIAL_API: '', GOOGLE_CLIENT_ID: '', GOOGLE_IOS_CLIENT_ID: '',
     PEXELS_KEY: '', EMAIL_FN_URL: '', EMAILJS_PUBLIC_KEY: '', EMAILJS_SERVICE_ID: '', EMAILJS_TEMPLATE_ID: '',
     POSTHOG_KEY: '', POSTHOG_HOST: '', FORMORA_WEB_PUSH: false, FORMORA_PUSH_VAPID_PUBLIC_KEY: '',
+    MODERATION_RECEIPTS: false, STORY_INTERACTIONS: false, STORY_MEDIA_VALIDATION: false,
+    SUPPORT_RECEIPTS: false, ACCOUNT_RIGHTS: false, SERVER_MEASUREMENT: false, MEASUREMENT_PERMISSIONS: {},
     LAUNCH_OFFER: false, FOUNDING: { on: false },
     RAZORPAY: { enabled: false }, LEMONSQUEEZY: { testMode: true, buy: {} }, MUSIC: { tracks: [] }
   };
@@ -45,14 +63,14 @@ async function transformHtml(source, config) {
   head.childNodes = head.childNodes.filter(node => !(node.tagName === 'meta'
       && (attr(node, 'http-equiv')?.toLowerCase() === 'content-security-policy' || ['robots', 'google-site-verification'].includes(attr(node, 'name'))))
     && !(node.tagName === 'link' && ['canonical', 'preconnect', 'dns-prefetch'].includes(attr(node, 'rel'))));
-  const fragment = parseFragment('<meta http-equiv="Content-Security-Policy" content="' + policy + '">'
+  const fragment = parseFragment('<meta http-equiv="Content-Security-Policy" content="' + stagePolicy(config) + '">'
     + '<meta name="robots" content="noindex,nofollow,noarchive">'
     + '<script src="/__formora/stage.js"></script>');
   for (const node of fragment.childNodes) node.parentNode = head;
   head.childNodes.unshift(...fragment.childNodes);
   const title = head.childNodes.find(node => node.tagName === 'title');
   if (title) title.childNodes = [{ nodeName: '#text', value: 'Formora | ' + config.stage.toUpperCase()
-    + ' offline | ' + config.commit.slice(0, 7), parentNode: title }];
+    + (config.backendConfigured ? ' isolated test | ' : ' offline | ') + config.commit.slice(0, 7), parentNode: title }];
   return serialize(document);
 }
 
@@ -79,8 +97,8 @@ function inputFiles(root) {
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function buildStageSite({ root, output, stage, commit, origin }) {
-  const config = stageConfig(stage, commit, origin);
+async function buildStageSite({ root, output, stage, commit, origin, backend = null }) {
+  const config = stageConfig(stage, commit, origin, backend);
   const relative = path.relative(path.resolve(root), path.resolve(output));
   if (!relative.startsWith('dist' + path.sep)) throw new Error('Stage output must be a new directory below dist/.');
   root = fs.realpathSync(root);
@@ -104,9 +122,9 @@ async function buildStageSite({ root, output, stage, commit, origin }) {
   }
   fs.mkdirSync(path.join(output, '__formora'));
   const generated = {
-    '__formora/stage.js': guardSource(config),
+    '__formora/stage.js': guardSource(config, backend),
     'robots.txt': 'User-agent: *\nDisallow: /\n',
-    '_headers': '/*\n  Content-Security-Policy: ' + policy + "; frame-ancestors 'none'\n"
+    '_headers': '/*\n  Content-Security-Policy: ' + stagePolicy(config) + "; frame-ancestors 'none'\n"
     + '  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow, noarchive\n  Referrer-Policy: no-referrer\n'
     + '  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  X-Formora-Stage: ' + stage + '\n'
     + '  Permissions-Policy: payment=(), geolocation=()\n',
@@ -128,17 +146,23 @@ async function buildStageSite({ root, output, stage, commit, origin }) {
 async function main() {
   const [stage, commit, origin, destination] = process.argv.slice(2);
   const root = path.resolve(__dirname, '..');
-  const config = stageConfig(stage, commit, origin);
+  const backendFile = process.env.FORMORA_QAT_BACKEND_CONFIG;
+  let backend = null;
+  if (backendFile) {
+    if (!fs.lstatSync(backendFile).isFile() || fs.lstatSync(backendFile).size > 4096) throw new Error('Invalid QAT public configuration file.');
+    backend = JSON.parse(fs.readFileSync(backendFile, 'utf8'));
+  }
+  const config = stageConfig(stage, commit, origin, backend);
   const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   if (git(['rev-parse', 'HEAD']) !== commit) throw new Error('Requested candidate does not match checkout HEAD.');
   const branch = process.env.GITHUB_ACTIONS === 'true' ? process.env.GITHUB_REF_NAME : git(['branch', '--show-current']);
   if (branch !== config.branch) throw new Error('The stage must match its branch.');
-  const checked = [...entries, 'tools/build-stage-site.cjs', 'package.json', 'package-lock.json'];
+  const checked = [...entries, 'tools/build-stage-site.cjs', 'scripts/qat-config.cjs', 'package.json', 'package-lock.json'];
   if (git(['status', '--porcelain', '--untracked-files=all', '--', ...checked])) throw new Error('Stage publication requires a clean app checkout.');
-  const result = await buildStageSite({ root, stage, commit, origin, output: path.resolve(root, destination || 'dist/stages/' + stage + '-' + commit) });
+  const result = await buildStageSite({ root, stage, commit, origin, backend, output: path.resolve(root, destination || 'dist/stages/' + stage + '-' + commit) });
   if (git(['rev-parse', 'HEAD']) !== commit || git(['status', '--porcelain', '--untracked-files=all', '--', ...checked])) throw new Error('Candidate changed during packaging.');
   console.log(JSON.stringify(result, null, 2));
 }
 
-module.exports = { branches, entries, policy, stageConfig, guardSource, transformHtml, inputFiles, buildStageSite };
+module.exports = { branches, entries, policy, stageConfig, stagePolicy, guardSource, transformHtml, inputFiles, buildStageSite };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
