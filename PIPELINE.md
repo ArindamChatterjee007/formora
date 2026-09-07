@@ -58,7 +58,7 @@ separate browser storage origins. Paths under the production `github.io` origin
 are not isolated test environments. Proposed project names are `formora-dev`,
 `formora-qat` and `formora-beta`; these are configuration examples, not live URLs.
 
-Current build mode is **offline-preview**: production auth, backend, analytics,
+Default build mode is **offline-preview**: production auth, backend, analytics,
 email, push and payment globals are locked off before app config, and CSP blocks
 external service requests. Camera permissions still require a user gesture.
 The title and `/__formora/candidate.json` identify the stage and full commit.
@@ -70,6 +70,24 @@ requires a separately authorized test backend, synthetic accounts, storage,
 provider sandboxes and allowed auth redirect origins. Never point these sites at
 production to unblock a check. External fonts, music and exercise-CDN loading are
 also blocked in offline mode; those failures are not production-parity evidence.
+
+The optional **isolated-backend** mode is restricted to the `formora-qat` site
+and its separately provisioned Supabase test project. Set
+`FORMORA_QAT_BACKEND_CONFIG` to a JSON file containing only `projectRef` and
+the project's public `anonKey`. The shared validator in `scripts/qat-config.cjs`
+rejects production references and privileged keys. The builder permits only that
+backend origin in CSP; analytics, providers, payments and unaccepted feature
+flags remain disabled. The manifest records the project identity, not its key.
+
+`supabase/core-schema.sql` is a fresh-install bootstrap, not an upgrade: its
+transaction refuses any existing public table or view. Apply the existing
+`supabase/security.sql` afterward on the isolated project. Never apply the
+bootstrap to production or clone customer records into QAT. The reusable
+`scripts/verify-qat-core.cjs --hosted` runner accepts QAT-only keys through
+`FORMORA_QAT_ANON_KEY` and `FORMORA_QAT_SERVICE_KEY`, creates three temporary
+synthetic accounts, checks actual Auth/PostgREST isolation, and records exact
+fixture cleanup. Keep credentials in the secret store, not command arguments or
+reports. These core checks do not accept media, provider or device workflows.
 
 ## Activation Prerequisites
 

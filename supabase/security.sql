@@ -96,7 +96,7 @@ as $$
 $$;
 
 grant execute on function public.get_state() to authenticated;  -- required for the feed
-revoke execute on function public.get_state() from anon;         -- login-gated
+revoke execute on function public.get_state() from public, anon; -- login-gated
 
 -- Table privileges for the authenticated role (RLS still restricts each to own rows).
 grant select, insert, update         on public.profiles      to authenticated;

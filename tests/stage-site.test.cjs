@@ -6,9 +6,15 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
-const { stageConfig, guardSource, transformHtml, buildStageSite } = require('../tools/build-stage-site.cjs');
+const { stageConfig, stagePolicy, guardSource, transformHtml, buildStageSite } = require('../tools/build-stage-site.cjs');
+const qat = require('../scripts/qat-config.cjs');
 const commit = 'a'.repeat(40);
 const origin = 'https://formora-qat.pages.dev';
+const testKey = (role = 'anon', ref = qat.projectRef) => [
+  Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
+  Buffer.from(JSON.stringify({ role, ref, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
+  Buffer.alloc(32, 1).toString('base64url')
+].join('.');
 
 test('Test stages cannot target production or a shared Pages origin', () => {
   for (const stage of ['main', 'production', '__proto__']) assert.throws(() => stageConfig(stage, commit, origin));
@@ -35,6 +41,31 @@ test('The guard runs before production config and cannot enable hosted services'
   assert.equal(window.SUPABASE_URL, '');
   assert.equal(window.LAUNCH_OFFER, false);
   assert.throws(() => vm.runInContext('Object.defineProperty(window,"SUPABASE_URL",{value:"bypass"})', context));
+});
+
+test('An isolated QAT build accepts only its public project key and keeps all unrelated services off', async () => {
+  const backend = { projectRef: qat.projectRef, anonKey: testKey() };
+  const config = stageConfig('qat', commit, origin, backend), window = {};
+  vm.runInNewContext(guardSource(config, backend), { window });
+  assert.equal(config.mode, 'isolated-backend');
+  assert.equal(config.backendConfigured, true);
+  assert.equal(window.SUPABASE_URL, qat.backendOrigin);
+  assert.equal(window.USE_SUPABASE_AUTH, true);
+  assert.equal(window.STORY_INTERACTIONS, false);
+  assert.equal(window.ACCOUNT_RIGHTS, false);
+  assert.equal(window.RAZORPAY.enabled, false);
+  assert.equal(JSON.stringify(config).includes(backend.anonKey), false);
+  assert.equal(stagePolicy(config).split('connect-src ')[1].split(';')[0], "'self' " + qat.backendOrigin);
+  assert.match(stagePolicy(config), /manifest-src 'self';/);
+  assert.doesNotMatch(stagePolicy(config), /ptukgtxpigdkdzsewuvz|\*\.supabase/);
+  assert.match(await transformHtml('<title>Formora</title>', config), /QAT isolated test/);
+  for (const value of [null, {}, { ...backend, serviceKey: testKey('service_role') }, { ...backend, anonKey: testKey('service_role') },
+    { ...backend, anonKey: testKey('anon', 'ptukgtxpigdkdzsewuvz') }, { ...backend, projectRef: 'ptukgtxpigdkdzsewuvz' }]) {
+    assert.throws(() => qat.validateBackend(value));
+  }
+  assert.throws(() => stageConfig('beta', commit, origin, backend));
+  assert.throws(() => stageConfig('qat', commit, 'https://other-qat.pages.dev', backend));
+  assert.throws(() => stagePolicy({ ...config, backendOrigin: 'https://production.invalid' }));
 });
 
 test('HTML transformation installs fail-closed CSP and guard before all app scripts', async () => {
@@ -79,6 +110,23 @@ test('Only app assets are packaged, with immutable source identities and no SPA 
   assert.equal(result.sourceDigest, manifest.sourceDigest);
   assert.match(fs.readFileSync(path.join(output, '_headers'), 'utf8'), /frame-ancestors 'none'/);
   await assert.rejects(buildStageSite({ root, output, stage: 'qat', commit, origin }), /already exists/);
+});
+
+test('The isolated bundle uses the same hashed security controls without publishing backend credentials', async context => {
+  const root = fixture(context), output = path.join(root, 'dist/isolated');
+  const backend = { projectRef: qat.projectRef, anonKey: testKey() };
+  await buildStageSite({ root, output, stage: 'qat', commit, origin, backend });
+  const manifest = JSON.parse(fs.readFileSync(path.join(output, '__formora/candidate.json')));
+  assert.equal(manifest.backendProjectRef, qat.projectRef);
+  assert.equal(manifest.backendConfigured, true);
+  assert.equal(manifest.acceptance, 'pending');
+  assert.equal(JSON.stringify(manifest).includes(backend.anonKey), false);
+  const headers = fs.readFileSync(path.join(output, '_headers'), 'utf8');
+  assert.match(headers, new RegExp("connect-src 'self' " + qat.backendOrigin.replace(/[.]/g, '[.]')));
+  const window = {};
+  vm.runInNewContext(fs.readFileSync(path.join(output, '__formora/stage.js'), 'utf8'), { window });
+  assert.equal(window.SUPABASE_ANON_KEY, backend.anonKey);
+  assert.equal(window.STORY_MEDIA_VALIDATION, false);
 });
 
 test('Stage output refuses symlink escapes and cannot overwrite the source tree', async context => {
