@@ -267,6 +267,7 @@
     .sheet-wrap.in .sheet-back { opacity: 1; }
     .sheet { position: relative; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--card,#171922); border: 1px solid var(--line,#262a36); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); transform: translateY(101%); transition: transform .24s cubic-bezier(.22,1,.36,1); box-shadow: 0 -10px 40px rgba(0,0,0,.42); }
     .sheet-wrap.in .sheet { transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) { .sheet,.sheet-back { transition: none; } .sheet { transform: none; } }
     .sheet::before { content: ""; display: block; width: 38px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.22); margin: 4px auto 10px; }
     .sheet-title { font-weight: 800; font-size: 13.5px; padding: 2px 12px 10px; color: var(--sub,#9aa3b2); }
     .sheet-opt { display: flex; align-items: center; gap: 13px; width: 100%; background: none; border: 0; color: var(--text,#eef1f7); font-size: 15.5px; font-weight: 600; padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; }

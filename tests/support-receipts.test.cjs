@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const migration = fs.readFileSync(path.join(__dirname, '../supabase/support-receipts.sql'), 'utf8');
+const transactionProbe = fs.readFileSync(path.join(__dirname, '../scripts/verify-support-transaction.sql'), 'utf8');
 const memberA = '11111111-1111-4111-8111-111111111111';
 const memberB = '22222222-2222-4222-8222-222222222222';
 const staff = '33333333-3333-4333-8333-333333333333';
@@ -74,6 +75,45 @@ async function counts(db) {
     (SELECT count(*)::int FROM public.support_messages) AS messages,
     (SELECT count(*)::int FROM public.support_case_actions) AS actions`)).rows[0];
 }
+
+test('QAT transaction probe exercises the lifecycle and restores all support data', async context => {
+  const db = await database(context, { hostedDefaults: true });
+  const results = await db.exec(transactionProbe);
+  const verification = results.at(-1).rows[0].verification;
+  assert.equal(verification.result, 'passed');
+  assert.equal(verification.checks.length, 6);
+  assert.equal(verification.supportTablesUnchanged, 6);
+  assert.equal(verification.intakeEnabled, false);
+  assert.deepEqual(await counts(db), { cases: 0, messages: 0, actions: 0 });
+  assert.equal((await db.query('SELECT count(*)::int AS total FROM public.support_staff')).rows[0].total, 1);
+  assert.equal((await db.query('SELECT revision FROM public.support_policy')).rows[0].revision, 1);
+});
+
+for (const fixture of [
+  { label: 'internal notes', expression: "(staff OR visibility = 'thread')", replacement: 'true' },
+  { label: 'owner identity', expression: "CASE WHEN staff THEN pg_catalog.to_jsonb(current_case.owner) ELSE 'null'::jsonb END", replacement: 'pg_catalog.to_jsonb(current_case.owner)' },
+  { label: 'author identity', expression: "CASE WHEN staff THEN pg_catalog.to_jsonb(row.author) ELSE 'null'::jsonb END", replacement: 'pg_catalog.to_jsonb(row.author)' }
+]) test('QAT transaction probe detects leaked ' + fixture.label + ' and rolls failed fixtures back', async context => {
+  const db = await database(context, { hostedDefaults: true });
+  const definition = (await db.query("SELECT pg_get_functiondef('public.support_thread(uuid,timestamptz,uuid)'::regprocedure) AS body")).rows[0].body;
+  const unsafeDefinition = definition.replace(fixture.expression, fixture.replacement);
+  assert.notEqual(unsafeDefinition, definition);
+  await db.exec(unsafeDefinition);
+  await assert.rejects(db.exec(transactionProbe), /Member thread exposed an internal note or identity/);
+  assert.deepEqual(await counts(db), { cases: 0, messages: 0, actions: 0 });
+  assert.equal((await db.query('SELECT count(*)::int AS total FROM public.support_staff')).rows[0].total, 1);
+  assert.equal((await db.query('SELECT revision FROM public.support_policy')).rows[0].revision, 1);
+});
+
+test('QAT transaction probe refuses already enabled intake without changing its policy', async context => {
+  const db = await database(context);
+  await openIntake(db);
+  await db.exec('RESET ROLE');
+  const before = (await db.query('SELECT * FROM public.support_policy')).rows;
+  await assert.rejects(db.exec(transactionProbe), /requires intake to remain closed/);
+  assert.deepEqual((await db.query('SELECT * FROM public.support_policy')).rows, before);
+  assert.deepEqual(await counts(db), { cases: 0, messages: 0, actions: 0 });
+});
 
 test('hosted Supabase defaults are narrowed only on support-owned objects', async context => {
   const db = await database(context, { hostedDefaults: true });
