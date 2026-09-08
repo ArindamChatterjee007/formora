@@ -186,7 +186,11 @@ const Social = {
     if (state === "loading" || state === "idle") {
       return `<div class="card"><div role="status" style="font-weight:700">Loading your feed…</div></div>`;
     }
-    return `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}</div>`;
+    return `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}
+      <div id="empty-feed-actions" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
+        <button class="btn ghost" onclick="App.selectTab('search')">${App.ic("search", { size: 18 })} Find people</button>
+        <button class="btn" onclick="App.goTab('today')">${App.ic("clock", { size: 18 })} Today's workout</button>
+      </div></div>`;
   },
   cloudUser(uid) {
     const u = this.cloud.users.find((x) => x.uid === uid);
