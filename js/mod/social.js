@@ -1545,35 +1545,45 @@ const Social = {
     const el = document.getElementById("member-search");
     if (el) { el.focus(); const v = el.value.length; el.setSelectionRange(v, v); }
   },
-  requestMember(uid) {
-    if (typeof Cloud !== "undefined") { Cloud.sendRequest(uid); if (Cloud.notify) Cloud.notify(uid, "connect", null, ""); }
-    if (!this.cloud.sent) this.cloud.sent = [];
-    if (!this.cloud.sent.includes(uid)) this.cloud.sent.push(uid);
-    if (typeof App !== "undefined" && App.toast) App.toast("Connect request sent ✓");
-    this.render();
+  _connectionAction(action, uid) {
+    const operations = { send: ["sendRequest", "Connect request sent"], accept: ["acceptRequest", "Connected"],
+      decline: ["declineRequest", "Request declined"], cancel: ["cancelRequest", "Request cancelled"] };
+    if (!Object.hasOwn(operations, action)) return false;
+    if (typeof Cloud === "undefined" || !Cloud._publishingUid()) {
+      if (App.toast) App.toast("Sign in to manage connection requests.");
+      return false;
+    }
+    const [method, message] = operations[action];
+    return this._ackAction("connection", uid,
+      () => typeof Cloud !== "undefined" && typeof Cloud[method] === "function" ? Cloud[method](uid) : false,
+      () => {
+        if (action === "send") {
+          if (!this.cloud.sent) this.cloud.sent = [];
+          if (!this.cloud.sent.includes(uid)) this.cloud.sent.push(uid);
+        } else if (action === "cancel") {
+          this.cloud.sent = (this.cloud.sent || []).filter(member => member !== uid);
+        } else {
+          this.cloud.requests = (this.cloud.requests || []).filter(request => request.from !== uid);
+          if (action === "accept") {
+            this.addCrew(uid);
+            if (!this.cloud.connections) this.cloud.connections = [];
+            if (!this.cloud.connections.includes(uid)) this.cloud.connections.push(uid);
+            this.autoFollowOnConnect(uid);
+          }
+        }
+        try {
+          if ((action === "send" || action === "accept") && typeof Cloud.notify === "function") {
+            Promise.resolve(Cloud.notify(uid, action === "send" ? "connect" : "accept", null, "")).catch(() => {});
+          }
+        } catch (error) {}
+        if (App.toast) App.toast(message);
+        this.render();
+      }, "Could not confirm the request change. Try again.");
   },
-  acceptReq(fromUid) {
-    if (typeof Cloud !== "undefined") { Cloud.acceptRequest(fromUid); if (Cloud.notify) Cloud.notify(fromUid, "accept", null, ""); }
-    this.addCrew(fromUid);
-    if (!this.cloud.connections) this.cloud.connections = [];
-    if (!this.cloud.connections.includes(fromUid)) this.cloud.connections.push(fromUid);
-    this.cloud.requests = (this.cloud.requests || []).filter((r) => r.from !== fromUid);
-    this.autoFollowOnConnect(fromUid);
-    if (typeof App !== "undefined" && App.toast) App.toast("Connected 🎉");
-    this.render();
-  },
-  declineReq(fromUid) {
-    if (typeof Cloud !== "undefined" && Cloud.declineRequest) Cloud.declineRequest(fromUid);
-    this.cloud.requests = (this.cloud.requests || []).filter((r) => r.from !== fromUid);
-    if (typeof App !== "undefined" && App.toast) App.toast("Request declined");
-    this.render();
-  },
-  cancelRequest(uid) {
-    if (typeof Cloud !== "undefined" && Cloud.cancelRequest) Cloud.cancelRequest(uid);
-    this.cloud.sent = (this.cloud.sent || []).filter((x) => x !== uid);
-    if (typeof App !== "undefined" && App.toast) App.toast("Request cancelled");
-    this.render();
-  },
+  requestMember(uid) { return this._connectionAction("send", uid); },
+  acceptReq(uid) { return this._connectionAction("accept", uid); },
+  declineReq(uid) { return this._connectionAction("decline", uid); },
+  cancelRequest(uid) { return this._connectionAction("cancel", uid); },
   _urlify(s) { s = (s || "").trim(); if (!s) return "#"; return /^https?:\/\//i.test(s) ? s : "https://" + s; },
   viewProfile(uid) {
     if (this._vpUid !== uid) { this._vpUid = uid; this._vpTab = "posts"; }

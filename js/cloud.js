@@ -340,29 +340,27 @@ const Cloud = {
       return Array.isArray(rows) && rows.length > 0;
     } catch (e) { return false; }
   },
-  sendRequest(toUid) {
-    if (!this.active()) return;
-    const id = this.me + "__" + toUid;
-    return this._write("/requests", { id, from_uid: this.me, to_uid: toUid, status: "pending" }, { Prefer: "resolution=merge-duplicates,return=minimal" });
+  async _writeRequest(fromUid, toUid, method) {
+    const owner = this._publishingUid();
+    if (!this.active() || !owner || !this._messageRecipient(fromUid) || !this._messageRecipient(toUid) || fromUid === toUid
+      || !["POST", "PATCH", "DELETE"].includes(method) || ![fromUid, toUid].includes(owner)
+      || (method === "POST" && owner !== fromUid) || (method === "PATCH" && owner !== toUid)) return false;
+    const id = fromUid + "__" + toUid;
+    const filter = "/requests?id=eq." + encodeURIComponent(id) + "&from_uid=eq." + encodeURIComponent(fromUid)
+      + "&to_uid=eq." + encodeURIComponent(toUid) + (method === "DELETE" ? "&status=eq.pending" : "") + "&select=id,from_uid,to_uid,status";
+    const status = method === "POST" ? "pending" : "accepted";
+    const body = method === "POST" ? { id, from_uid: fromUid, to_uid: toUid, status } : method === "PATCH" ? { status } : undefined;
+    return this._writeAction(method === "POST" ? "/requests?on_conflict=id" : filter, method, body, id, {
+      owner,
+      ...(method === "POST" ? { prefer: "resolution=ignore-duplicates,return=representation", reconcile: filter } : {}),
+      matches: row => row.from_uid === fromUid && row.to_uid === toUid
+        && row.status === (method === "PATCH" ? "accepted" : "pending"),
+    });
   },
-  async acceptRequest(fromUid) {
-    if (!this.active()) return;
-    const id = fromUid + "__" + this.me;
-    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: this._headers({ Prefer: "return=minimal" }), body: JSON.stringify({ status: "accepted" }) }); return r.ok; }
-    catch (e) { return false; }
-  },
-  async declineRequest(fromUid) {
-    if (!this.active()) return;
-    const id = fromUid + "__" + this.me;
-    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
-    catch (e) { return false; }
-  },
-  async cancelRequest(toUid) {
-    if (!this.active()) return;
-    const id = this.me + "__" + toUid;
-    try { const r = await fetch(this.base + "/requests?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: this._headers({ Prefer: "return=minimal" }) }); return r.ok; }
-    catch (e) { return false; }
-  },
+  sendRequest(toUid) { return this._writeRequest(this._publishingUid(), toUid, "POST"); },
+  acceptRequest(fromUid) { return this._writeRequest(fromUid, this._publishingUid(), "PATCH"); },
+  declineRequest(fromUid) { return this._writeRequest(fromUid, this._publishingUid(), "DELETE"); },
+  cancelRequest(toUid) { return this._writeRequest(this._publishingUid(), toUid, "DELETE"); },
 
   // ---- comments (threaded), mentions & notifications ----
   async addComment(postId, body, parentId, mentions, postAuthor, parentAuthor, id = this._newActionId()) {

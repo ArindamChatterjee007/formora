@@ -42,6 +42,103 @@ function harness() {
   return { context, cloud, state };
 }
 
+const connectionActions = [
+  { name: 'sendRequest', method: 'POST', from: owner, to: peer, status: 'pending' },
+  { name: 'acceptRequest', method: 'PATCH', from: peer, to: owner, status: 'accepted' },
+  { name: 'declineRequest', method: 'DELETE', from: peer, to: owner, status: 'pending' },
+  { name: 'cancelRequest', method: 'DELETE', from: owner, to: peer, status: 'pending' }
+];
+
+for (const action of connectionActions) {
+  test(`connection ${action.name} awaits its exact participants and status`, async () => {
+    const { context, cloud, state } = harness();
+    const pending = deferred(), started = deferred();
+    const row = { id: action.from + '__' + action.to, from_uid: action.from, to_uid: action.to, status: action.status };
+    context.fetch = (url, options) => { state.requests.push({ url, options }); started.resolve(); return pending.promise; };
+    let settled = false;
+    const writing = cloud[action.name](peer).then(result => { settled = true; return result; });
+    await started.promise;
+    assert.equal(settled, false);
+    const request = state.requests[0], url = new URL(request.url);
+    assert.equal(request.options.method, action.method);
+    assert.equal(request.options.headers.Authorization, 'Bearer fixture-owner-token');
+    if (action.method === 'POST') {
+      assert.equal(request.options.headers.Prefer, 'resolution=ignore-duplicates,return=representation');
+      assert.deepEqual(JSON.parse(request.options.body), row);
+    } else {
+      assert.equal(url.searchParams.get('id'), 'eq.' + row.id);
+      assert.equal(url.searchParams.get('from_uid'), 'eq.' + action.from);
+      assert.equal(url.searchParams.get('to_uid'), 'eq.' + action.to);
+      assert.equal(request.options.headers.Prefer, 'return=representation');
+      if (action.method === 'DELETE') assert.equal(url.searchParams.get('status'), 'eq.pending');
+    }
+    pending.resolve(response(200, [row]));
+    assert.equal(await writing, true);
+  });
+
+  test(`connection ${action.name} rejects empty, foreign and malformed acknowledgements`, async () => {
+    for (const failure of ['empty', 'id', 'sender', 'recipient', 'status', 'multiple', 'denied', 'offline']) {
+      const { context, cloud } = harness();
+      const row = { id: action.from + '__' + action.to, from_uid: action.from, to_uid: action.to, status: action.status };
+      context.fetch = async () => {
+        if (failure === 'offline') throw new Error('offline');
+        if (failure === 'denied') return response(403, []);
+        if (failure === 'empty') return response(200, []);
+        if (failure === 'id') row.id = 'unrelated';
+        if (failure === 'sender') row.from_uid = 'unrelated';
+        if (failure === 'recipient') row.to_uid = 'unrelated';
+        if (failure === 'status') row.status = 'unknown';
+        return response(200, failure === 'multiple' ? [row, row] : [row]);
+      };
+      assert.equal(await cloud[action.name](peer), false, failure);
+    }
+  });
+}
+
+test('connection decline and cancel cannot remove a request that was accepted in another session', async () => {
+  for (const action of connectionActions.filter(action => action.method === 'DELETE')) {
+    const { context, cloud } = harness();
+    context.fetch = async () => response(200, [{ id: action.from + '__' + action.to,
+      from_uid: action.from, to_uid: action.to, status: 'accepted' }]);
+    assert.equal(await cloud[action.name](peer), false);
+  }
+});
+
+test('connection create retry reconciles one pending row without resetting acceptance', async () => {
+  const { context, cloud, state } = harness();
+  let stored;
+  context.fetch = async (url, options) => {
+    state.requests.push({ url, options });
+    if (options.method === 'GET') return response(200, [stored]);
+    if (stored) return response(201, []);
+    stored = JSON.parse(options.body);
+    throw new Error('Acknowledgement lost after commit');
+  };
+  assert.equal(await cloud.sendRequest(peer), false);
+  assert.equal(await cloud.sendRequest(peer), true);
+  assert.equal(state.requests.length, 3);
+  const read = new URL(state.requests[2].url);
+  assert.equal(read.searchParams.get('from_uid'), 'eq.' + owner);
+  assert.equal(read.searchParams.get('to_uid'), 'eq.' + peer);
+  stored.status = 'accepted';
+  assert.equal(await cloud.sendRequest(peer), false);
+  assert.equal(stored.status, 'accepted');
+});
+
+test('connection acknowledgements cannot cross logout or the same-account generation boundary', async () => {
+  for (const action of connectionActions) {
+    for (const change of ['logout', 'generation']) {
+      const { context, cloud, state } = harness();
+      context.fetch = async () => ({ ok: true, status: 200, json: async () => {
+        if (change === 'logout') state.uid = null;
+        else cloud._publishingGeneration = (cloud._publishingGeneration || 0) + 1;
+        return [{ id: action.from + '__' + action.to, from_uid: action.from, to_uid: action.to, status: action.status }];
+      } });
+      assert.equal(await cloud[action.name](peer), false, action.name + ':' + change);
+    }
+  }
+});
+
 test('DEF-065: post creation awaits its exact owned representation', async () => {
   const { context, cloud, state } = harness();
   const pending = deferred(), started = deferred();
