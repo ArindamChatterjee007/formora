@@ -41,6 +41,7 @@ const Social = {
     this._pinged = new Set();
     this._dmWith = null;
     this._dmMsgs = [];
+    this._dmHistory = null;
     this._dmDrafts = new Map();
     this._dmConvos = [];
     this._dmInboxLoaded = false;
@@ -1722,6 +1723,7 @@ const Social = {
           <div class="dm-head-actions"><button class="icon-btn" onclick="Social.toggleDmSearch()" title="Search messages">${App.ic("search", { size: 20 })}</button><button class="icon-btn" onclick="Social.chatDetails()" title="Chat details">${App.ic("info", { size: 20 })}</button></div>
         </div>
         ${this._dmSearchOpen ? `<div class="dm-search"><input id="dm-q" placeholder="Search this chat…" value="${esc(this._dmSearch || "")}" oninput="Social.dmSearch(this.value)"><button class="icon-btn" onclick="Social.toggleDmSearch()">✕</button></div>` : ""}
+        <div id="dm-history-controls" aria-label="Message history" role="navigation">${this._dmHistoryControls()}</div>
         <div class="chat-thread" id="chat-thread">${this._dmReadError ? '<div role="alert">Could not load messages. <button class="btn ghost" onclick="Social.refreshDM()">Retry</button></div>' : ""}${thread}</div>
         ${input}
       </div>`;
@@ -1903,14 +1905,14 @@ const Social = {
     const owner = typeof Cloud !== "undefined" && Cloud._publishingUid && Cloud._publishingUid();
     return owner && (this._dmMsgs || []).find(message => message.id === id && message.from === owner && message.to === this._dmWith);
   },
-  _dmRows(rows, withUid) {
+  _dmRows(rows, withUid, retainMissing = true) {
     if (!Array.isArray(rows)) return null;
     const draft = this._dmDraft(withUid), owner = Cloud._actionUid();
     const messages = rows.filter(message => message && ((message.from === owner && message.to === withUid) || (message.from === withUid && message.to === owner)))
       .filter(message => !draft.request || message.id !== draft.request.id);
     for (const [id, mutation] of draft.mutations) {
       const index = messages.findIndex(message => message.id === id);
-      if (index >= 0) messages[index] = { ...mutation.original }; else messages.push({ ...mutation.original });
+      if (index >= 0) messages[index] = { ...mutation.original }; else if (retainMissing) messages.push({ ...mutation.original });
     }
     if (this._dmWith === withUid) for (const message of messages) {
       const previous = (this._dmMsgs || []).find(item => item.id === message.id);
@@ -2092,30 +2094,86 @@ const Social = {
       if (this.sub === "chat" && !this._dmWith) this.render();
     });
   },
+  _dmHistoryState() {
+    return this._dmHistory || (this._dmHistory = { index: 0, cursors: [null], more: false, busy: false, errorIndex: null });
+  },
+  _dmHistoryControls() {
+    const page = this._dmHistoryState(), disabled = page.busy || !!this._editMsg;
+    if (!page.more && !page.index) return "";
+    const button = (index, label, icon, unavailable, reverse = false) => `<button class="icon-btn" style="min-width:44px;min-height:44px" title="${label}" aria-label="${label}" aria-busy="${page.busy}" ${disabled || unavailable ? "disabled" : ""} onclick="Social.loadDMPage(${index})"><span style="display:inline-flex;${reverse ? "transform:rotate(180deg)" : ""}">${App.ic(icon, { size: 18 })}</span></button>`;
+    return `<div style="display:flex;align-items:center;justify-content:center;gap:8px">${button(page.index + 1, "Older messages", "chevronR", !page.more, true)}<span role="status" style="font-size:12px">${page.busy ? "Loading messages" : page.index ? "Earlier messages" : "Latest messages"}</span>${button(page.index - 1, "Newer messages", "chevronR", !page.index)}${page.index ? button(0, "Latest messages", "clock", false) : ""}</div>`;
+  },
+  _paintDMHistory() {
+    const controls = document.getElementById("dm-history-controls");
+    if (controls) controls.innerHTML = this._dmHistoryControls();
+  },
+  loadDMPage(index) {
+    if (this._editMsg) return false;
+    return this._readDMPage(index);
+  },
+  async _readDMPage(index, passive = false) {
+    if (!this._dmWith || this.sub !== "chat" || typeof Cloud === "undefined" || !Cloud.getMessages) return false;
+    const history = this._dmHistoryState();
+    if (history.busy || !Number.isInteger(index) || index < 0 || index >= history.cursors.length
+      || (passive && (index > 0 || history.index > 0))) return false;
+    const scope = this._actionScope(), withUid = this._dmWith, state = this.state;
+    const draft = this._dmDraft(withUid), revision = draft.revision, opening = this._dmThreadLoading;
+    const current = () => this._dmHistory === history && this._actionScope() === scope && this.state === state && this._dmWith === withUid;
+    const capture = () => { const input = document.getElementById("dm-text"); if (input) draft.text = input.value; };
+    capture(); history.busy = true; this._paintDMHistory();
+    let messages;
+    try { messages = await Cloud.getMessages(withUid, history.cursors[index]); } catch (error) {}
+    if (!current()) return false;
+    history.busy = false; this._dmThreadLoading = false;
+    if (history.index !== index && this._editMsg) { this._paintDMHistory(); return false; }
+    if (draft.revision !== revision) {
+      if (this.sub === "chat") this._paintDMHistory();
+      return opening ? this.refreshDM() : false;
+    }
+    capture();
+    const previousError = this._dmReadError;
+    this._dmReadError = !Array.isArray(messages) || messages.some(message => !message || !Number.isFinite(message.ts) || !message.id);
+    if (this._dmReadError) {
+      history.errorIndex = index; if (this.sub === "chat") this.render(); return false;
+    }
+    history.errorIndex = null;
+    if (index > history.index && !messages.length) {
+      history.more = false;
+      if (this.sub === "chat") { if (previousError) this.render(); else this._paintDMHistory(); }
+      return true;
+    }
+    const previous = this._dmMsgs || [], pageChanged = history.index !== index;
+    const rows = this._dmRows(messages, withUid, !pageChanged);
+    const seen = new Set(previous.map(message => message.id));
+    const incoming = !opening && !pageChanged && !index && rows.some(message => message.from !== Cloud._actionUid() && !seen.has(message.id));
+    history.index = index;
+    history.more = messages.length === Cloud._messagePageSize;
+    history.cursors.length = index + 1;
+    if (history.more) {
+      const first = messages[0];
+      history.cursors.push({ id: first.id, ts: first.sentAt || new Date(first.ts).toISOString() });
+    }
+    this._dmMsgs = rows;
+    if (this.sub === "chat") {
+      if (opening || pageChanged || previousError || JSON.stringify(previous) !== JSON.stringify(rows)) {
+        this.render(); this.scrollChat();
+      } else this._paintDMHistory();
+      if (incoming && !this.isMuted(withUid)) this.playPing();
+      this._scanStoryContext(withUid, !passive).catch(() => {});
+    }
+    return true;
+  },
   openDM(uid) {
     if (this._dmWith !== uid) { clearTimeout(this._editPrefillTimer); this._editMsg = null; }
     if (typeof App !== "undefined" && App.closeModal) App.closeModal();
     if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
     this.sub = "chat"; this._dmWith = uid; this._dmMsgs = []; this._dmThreadLoading = true; this._dmReadError = false;
+    this._dmHistory = null;
     this._storyContextPass = null;
     this.render();
-    if (typeof Cloud !== "undefined" && Cloud.getMessages) {
-      const scope = this._actionScope(), draft = this._dmDraft(uid), revision = draft.revision;
-      return Cloud.getMessages(uid).then((msgs) => {
-        if (this._actionScope() !== scope || this._dmWith !== uid) return;
-        if (draft.revision !== revision) {
-          this._dmThreadLoading = false;
-          if (this.sub === "chat") { this.render(); return this.refreshDM(); }
-          return;
-        }
-        this._dmReadError = !Array.isArray(msgs);
-        this._dmMsgs = this._dmRows(msgs, uid) || []; this._dmThreadLoading = false;
-        if (this.sub === "chat") { this.render(); this.scrollChat(); }
-        if (!this._dmReadError) this._scanStoryContext(uid, true).catch(() => {});
-      });
-    }
+    return this._readDMPage(0);
   },
-  closeDM() { clearTimeout(this._editPrefillTimer); this._editMsg = null; this._dmWith = null; this._storyContextPass = null; this._dmInboxLoaded = false; this.render(); this.loadInbox(); },
+  closeDM() { clearTimeout(this._editPrefillTimer); this._editMsg = null; this._dmWith = null; this._dmHistory = null; this._storyContextPass = null; this._dmInboxLoaded = false; this.render(); this.loadInbox(); },
   async sendDM() {
     const input = document.getElementById("dm-text"), withUid = this._dmWith;
     if (!this.state || !this.cloudActive() || !input || !withUid) return false;
@@ -2137,7 +2195,7 @@ const Social = {
       if (currentInput) draft.text = currentInput.value;
       if ((!currentInput || currentInput === input) && draft.text === request.text) { draft.text = ""; if (currentInput) currentInput.value = ""; }
       if (this._dmWith === withUid) {
-        if (!(this._dmMsgs || []).some(message => message.id === receipt.id)) this._dmMsgs = (this._dmMsgs || []).concat([receipt]);
+        if (!this._dmHistory?.index && !(this._dmMsgs || []).some(message => message.id === receipt.id)) this._dmMsgs = (this._dmMsgs || []).concat([receipt]);
         if (this.sub === "chat") { this.render(); this.scrollChat(); }
       }
       this._dmInboxLoaded = false;
@@ -2148,22 +2206,8 @@ const Social = {
     finally { if (this._actionScope() === scope && this._dmWith === withUid) this._dmWriteControls(); }
   },
   refreshDM(passive = false) {
-    if (!this._dmWith || typeof Cloud === "undefined" || !Cloud.getMessages) return;
-    const scope = this._actionScope(), withUid = this._dmWith;
-    const draft = this._dmDraft(withUid), revision = draft.revision;
-    return Cloud.getMessages(withUid).then((msgs) => {
-      if (this._actionScope() !== scope || this.sub !== "chat" || this._dmWith !== withUid || draft.revision !== revision) return;
-      const previousError = this._dmReadError;
-      this._dmReadError = !Array.isArray(msgs);
-      const prev = this._dmMsgs || [], current = this._dmRows(msgs, withUid);
-      if (current && JSON.stringify(current) !== JSON.stringify(prev)) {
-        const seen = new Set(prev.map((m) => m.id));
-        const newIncoming = current.some((m) => m.from !== Cloud._actionUid() && !seen.has(m.id));
-        this._dmMsgs = current; this.render(); this.scrollChat();
-        if (newIncoming && !this.isMuted(this._dmWith)) this.playPing();
-      } else if (previousError !== this._dmReadError) this.render();
-      if (!this._dmReadError) this._scanStoryContext(withUid, !passive).catch(() => {});
-    });
+    const history = this._dmHistoryState();
+    return this._readDMPage(history.errorIndex ?? history.index, passive);
   },
   openChat(id) { this.chatWith = id; this.sub = "chat"; this.render(); },
   sendChat() { const i = document.getElementById("chat-text"); if (!i || !i.value.trim()) return; this.sendMessage(this.chatWith, i.value); this.render(); },
