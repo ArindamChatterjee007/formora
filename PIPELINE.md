@@ -102,6 +102,37 @@ tighter request policies if reverting the UI, and keep QAT offline if its
 request contract cannot be verified. Production rollout needs its own legacy
 inventory and recovery approval.
 
+`supabase/notification-admission.sql` follows the core security and request
+actions migrations. It refuses unexpected policy names, a preclaimed server
+notification namespace or legacy source identities. Save a restricted schema,
+policy and grant snapshot before an authorized upgrade. It preserves historical
+notification rows; it does not erase stored legacy prose or attest delivery.
+The matched client dispatches through `admit_social_notification`; old direct
+notification inserts are deliberately denied. Source triggers emit supported
+reference-only alerts atomically with messages, comments, likes, connection
+changes, reshares and new follows, even if the client loses its acknowledgement.
+
+Technical bounds are 60 alerts/minute and 500/day per actor, plus 50/minute and
+250/day per actor-recipient pair, counting only the new server namespace.
+Comments fan out to at most 20 distinct recipients total. Same-actor source
+writes serialize before row locks. A limit error rolls back the source write
+and its alerts, so clients must preserve retryable drafts. Profile insertion
+and bulk updates adding more than 20 follows are treated as state restoration:
+the profile is saved without replaying historical follow alerts. Ordinary
+updates notify only newly added follows. Unlike/relike and unfollow/refollow reuse an event identity, while a
+recreated connection request is distinguished by its source timestamp.
+These are bounded implementation defaults, not approved production operations
+or proof against coordinated abuse across accounts. Production requires its
+own legacy inventory, recipient-safety review and recovery approval.
+
+Run `scripts/verify-qat-core.cjs --hosted --notifications` with the same isolated
+QAT keys to verify automatic source fanout, source-derived admission, duplicate
+read preservation, actor/recipient isolation and denied direct inserts. Every
+runner mode now removes alerts owned by its exact temporary accounts during
+cleanup. Do not revert to an old connected client or rerun broad `security.sql`
+after these migrations; retain the tighter policies and use the isolated offline
+preview if the matched client/backend contract cannot be verified.
+
 ## Activation Prerequisites
 
 Prepared configuration is not deployed configuration. The initial read-only

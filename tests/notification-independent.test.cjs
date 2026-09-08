@@ -157,15 +157,15 @@ test('a listing rejects an over-length or malformed page and never carries prose
   assert.equal((await cloud.getNotifications())[0].ts, 1757152800000, 'positive control: a numeric epoch is a valid timestamp');
 });
 
-test('a like alert is one canonical identity per post and is written only when the stored post and like agree', async () => {
+test('a like admission is one exact server reference and requires a source-validated acknowledgement', async () => {
   const { context, cloud } = cloudProbe();
   const postId = 'post-canonical';
   const post = { id: postId, author: PEER, likes: { [OWNER]: true } };
   const writes = [];
   context.fetch = async (url, init) => {
-    if (new URL(url).pathname.endsWith('/posts')) return ok([post]);
+    assert.equal(new URL(url).pathname, '/rest/v1/rpc/admit_social_notification');
     writes.push({ url, init, body: JSON.parse(init.body) });
-    return ok([]);
+    return ok(post.author === PEER && post.likes[OWNER] === true);
   };
   assert.equal(await cloud.notify(PEER, 'like', postId, 'PRIVATE CAPTION TEXT', postId), true);
   delete post.likes[OWNER];
@@ -175,26 +175,23 @@ test('a like alert is one canonical identity per post and is written only when t
   assert.equal(await cloud.notify(PEER, 'like', postId, undefined, postId), false, 'no alert when the stored author is not the recipient');
   post.author = PEER;
   assert.equal(await cloud.notify(PEER, 'like', postId, undefined, postId), true, 'positive control: a relike is dispatched');
-  assert.equal(writes.length, 2, 'only the two verified dispatches may write');
-  assert.equal(writes[0].body.id, writes[1].body.id, 'an unlike/relike cycle must reuse one identity');
-  assert.equal(writes[0].body.id, 'n1_' + createHash('sha256').update(JSON.stringify([OWNER, PEER, 'like', postId])).digest('hex'));
-  assert.deepEqual(Object.keys(writes[0].body).sort(), ['actor', 'id', 'post_id', 'type', 'uid']);
+  assert.equal(writes.length, 4, 'The server adjudicates every source reference');
+  assert.deepEqual(writes[0].body, writes[3].body, 'An unlike/relike cycle reuses the same event reference');
+  assert.deepEqual(writes[0].body, { p_type:'like',p_recipient:PEER,p_post_id:postId,p_event_id:postId });
   assert.equal(JSON.stringify(writes.map(write => write.body)).includes('PRIVATE CAPTION'), false);
-  assert.equal(new URL(writes[0].url).searchParams.get('on_conflict'), 'id');
-  assert.match(writes[0].init.headers.Prefer, /resolution=ignore-duplicates/);
   assert.equal(await cloud.notify(OWNER, 'like', postId, undefined, postId), false, 'an actor cannot alert itself');
 });
 
-test('a legacy four-argument dispatch stays compatible, drops prose and takes a fresh opaque id', async () => {
+test('a four-argument dispatch stays compatible but leaves source identity to the server', async () => {
   const { context, cloud } = cloudProbe();
   const writes = [];
-  context.fetch = async (url, init) => { writes.push(JSON.parse(init.body)); return ok([]); };
+  context.fetch = async (url, init) => { writes.push(JSON.parse(init.body)); return ok(true); };
   assert.equal(await cloud.notify(PEER, 'connect', null, 'PRIVATE REQUEST NOTE'), true);
   assert.equal(await cloud.notify(PEER, 'connect', null, 'PRIVATE REQUEST NOTE'), true);
   assert.equal(writes.length, 2);
-  assert.notEqual(writes[0].id, writes[1].id, 'legacy dispatch is documented as not server-deduplicated');
+  assert.deepEqual(writes[0], writes[1], 'The client cannot choose a fresh notification ID to bypass deduplication');
   for (const body of writes) {
-    assert.deepEqual(Object.keys(body).sort(), ['actor', 'id', 'post_id', 'type', 'uid']);
+    assert.deepEqual(Object.keys(body).sort(), ['p_event_id','p_post_id','p_recipient','p_type']);
     assert.equal(JSON.stringify(body).includes('PRIVATE'), false);
   }
 });
@@ -214,7 +211,7 @@ test('an acknowledged message retry reuses one alert identity and never copies t
     const waiter = waiters.shift();
     if (waiter) waiter();
     if (writes.length === 1) throw new TypeError('alert committed, acknowledgement lost');
-    return ok([]);
+    return ok(true);
   };
   let settled = nextWrite();
   assert.equal((await cloud.sendMessage(PEER, message.body, messageId)).id, messageId);
@@ -224,10 +221,10 @@ test('an acknowledged message retry reuses one alert identity and never copies t
   await settled;
   await flush();
   assert.equal(writes.length, 2);
-  assert.equal(writes[0].id, writes[1].id, 'a retried acknowledged message must reuse one alert identity');
-  assert.equal(writes[0].id, 'n1_' + createHash('sha256').update(JSON.stringify([OWNER, PEER, 'message', messageId])).digest('hex'));
+  assert.deepEqual(writes[0], writes[1], 'A retried message reuses the same source event');
+  assert.equal(writes[0].p_event_id, messageId);
   for (const body of writes) {
-    assert.deepEqual(Object.keys(body).sort(), ['actor', 'id', 'post_id', 'type', 'uid']);
+    assert.deepEqual(Object.keys(body).sort(), ['p_event_id','p_post_id','p_recipient','p_type']);
     assert.equal(JSON.stringify(body).includes('PRIVATE MESSAGE BODY'), false, 'no message prose may reach the alert row');
   }
 });
@@ -247,18 +244,19 @@ test('an account boundary voids an in-flight read receipt and a pending dispatch
   let releasePost;
   const postAsked = new Promise(resolve => {
     dispatchProbe.context.fetch = async (url, init) => {
-      if (new URL(url).pathname.endsWith('/posts')) return new Promise(hold => { releasePost = hold; resolve(); });
+      assert.equal(new URL(url).pathname, '/rest/v1/rpc/admit_social_notification');
       writes.push(JSON.parse(init.body));
-      return ok([]);
+      return new Promise(hold => { releasePost = hold; resolve(); });
     };
   });
   const pendingDispatch = dispatchProbe.cloud.notify(PEER, 'like', 'post-9', undefined, 'post-9');
-  await postAsked;                                    // the identity digest resolves before the read
+  await postAsked;
   dispatchProbe.cloud.resetNotifications();
-  releasePost(ok([{ id: 'post-9', author: PEER, likes: { [OWNER]: true } }]));
+  releasePost(ok(true));
   assert.equal(await pendingDispatch, false);
   await flush();
-  assert.deepEqual(writes, [], 'a dispatch verified before the boundary must not post after it');
+  assert.equal(writes.length, 1, 'Cancellation cannot roll back an issued server operation or start another dispatch');
+  assert.equal(writes[0].p_recipient, PEER);
 });
 
 // ----------------------------------------------------------------- app surface probes

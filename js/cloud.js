@@ -398,20 +398,10 @@ const Cloud = {
   },
   async notify(uid, type, postId, body, eventId) {
     if (!this._notificationId(uid) || !this._notificationType(type) || (postId != null && !this._notificationId(postId)) || (eventId != null && !this._notificationId(eventId))) return false;
-    return await this._notificationRequest(async ({ owner: actor, request, current }) => {
+    return await this._notificationRequest(async ({ owner: actor, request }) => {
       if (uid === actor) return false;
-      const key = type === "like" ? postId : eventId;
-      const digest = key ? await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([actor, uid, type, key]))) : null;
-      const id = digest ? "n1_" + Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("") : this._newActionId();
-      if (!id || !current()) return false;
-      if (key && type === "like") {
-        const rows = await request("/posts?id=eq." + encodeURIComponent(postId) + "&select=id,author,likes");
-        if (!Array.isArray(rows) || rows.length !== 1 || rows[0]?.id !== postId || rows[0].author !== uid || rows[0].likes?.[actor] !== true) return false;
-      } else if (key && ["comment", "reply", "mention"].includes(type)) {
-        const rows = await request("/comments?id=eq." + encodeURIComponent(key) + "&author=eq." + encodeURIComponent(actor) + "&select=id,author,post_id,parent_id");
-        if (!Array.isArray(rows) || rows.length !== 1 || rows[0]?.id !== key || rows[0].author !== actor || rows[0].post_id !== postId || (type === "reply" && !this._notificationId(rows[0].parent_id))) return false;
-      }
-      return request("/notifications?on_conflict=id", { method: "POST", body: { id, uid, type, actor, post_id: postId || null }, prefer: "resolution=ignore-duplicates,return=minimal", minimal: true });
+      return request("/rpc/admit_social_notification", { method: "POST",
+        body: { p_type: type, p_recipient: uid, p_post_id: postId || null, p_event_id: eventId || null } });
     }) === true;
   },
   _notificationId(value) { return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,254}$/.test(value); },

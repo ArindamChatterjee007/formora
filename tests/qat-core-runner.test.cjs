@@ -61,12 +61,17 @@ test('An expired test deadline retains separate time to clean its acknowledged s
       assert.equal(options.signal.aborted, true);
       throw new Error('Synthetic test deadline');
     }
+    if (url.startsWith(qat.backendOrigin + '/rest/v1/notifications?uid=eq.' + fixtureId)) {
+      assert.equal(options.signal.aborted, false);
+      return Response.json([]);
+    }
     assert.equal(url, qat.backendOrigin + '/auth/v1/admin/users/' + fixtureId);
     assert.equal(options.signal.aborted, false, 'Cleanup must not reuse the expired test deadline');
     return options.method === 'DELETE' ? Response.json({ id: fixtureId }) : Response.json({ code: 'user_not_found' }, { status: 404 });
   } });
   assert.equal(record.result, 'failed');
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 6);
   assert.equal(record.syntheticUsersCreated, 1);
-  assert.deepEqual(record.cleanup, [{ resource: 'synthetic_auth_user', fixtureId, result: 'passed' }]);
+  assert.deepEqual(record.cleanup, [{ resource: 'notifications', fixtureId, result: 'passed' },
+    { resource: 'synthetic_auth_user', fixtureId, result: 'passed' }]);
 });

@@ -37,10 +37,11 @@ test('acknowledged message retries reuse a reference-only alert after a lost not
     if (new URL(url).pathname.endsWith('/messages')) return response([message]);
     const payload = JSON.parse(init.body);
     notificationWrites.push({ payload, url, init });
-    if (!alerts.has(payload.id)) alerts.set(payload.id, { ...payload, read: false, ts: timestamp });
+    const event = JSON.stringify(payload);
+    if (!alerts.has(event)) alerts.set(event, { ...payload, read: false, ts: timestamp });
     written[notificationWrites.length - 1].resolve();
     if (notificationWrites.length === 1) throw new TypeError('Notification committed; ACK lost');
-    return response([]);
+    return response(true);
   };
   assert.equal((await cloud.sendMessage(peer, message.body, messageId)).id, messageId);
   await written[0].promise;
@@ -48,12 +49,14 @@ test('acknowledged message retries reuse a reference-only alert after a lost not
   await written[1].promise;
   assert.equal(alerts.size, 1, 'One acknowledged message must not fan out a new alert on retry');
   assert.equal(notificationWrites.length, 2);
-  assert.equal(notificationWrites[0].payload.id, notificationWrites[1].payload.id);
+  assert.deepEqual(notificationWrites[0].payload, notificationWrites[1].payload);
+  assert.equal(notificationWrites[0].payload.p_event_id, messageId);
   for (const write of notificationWrites) {
     assert.equal(Object.hasOwn(write.payload, 'body'), false);
     assert.equal(JSON.stringify(write).includes(message.body), false);
-    assert.equal(new URL(write.url).searchParams.get('on_conflict'), 'id');
-    assert.match(write.init.headers.Prefer, /resolution=ignore-duplicates/);
+    assert.equal(new URL(write.url).pathname, '/rest/v1/rpc/admit_social_notification');
+    assert.equal(Object.hasOwn(write.payload, 'actor'), false);
+    assert.equal(Object.hasOwn(write.payload, 'id'), false);
   }
 });
 
@@ -175,24 +178,24 @@ for (const phase of ['token', 'json']) {
 }
 
 for (const type of ['comment', 'reply', 'mention', 'like']) {
-  test(`${type} stable keys require a stored owned event and never copy prose`, async () => {
+  test(`${type} admission uses the exact reference and requires a true server acknowledgement`, async () => {
     const { context, cloud, state } = cloudFixture();
     let acknowledged = false;
     context.fetch = async (url, init) => {
       state.calls.push({ url, init });
-      if (init.method === 'POST') return { ok: true };
-      return response(acknowledged ? [type === 'like'
-        ? { id: 'post-1', author: peer, likes: { [owner]: true } }
-        : { id: 'event-1', author: owner, post_id: 'post-1', parent_id: 'parent-1' }] : []);
+      assert.equal(new URL(url).pathname, '/rest/v1/rpc/admit_social_notification');
+      assert.equal(init.method, 'POST');
+      return response(acknowledged);
     };
     const event = type === 'like' ? 'post-1' : 'event-1';
     assert.equal(await cloud.notify(peer, type, 'post-1', 'PRIVATE COMMENT', event), false);
-    assert.equal(state.calls.some(call => call.init.method === 'POST'), false);
+    assert.equal(state.calls.length, 1);
     acknowledged = true;
     assert.equal(await cloud.notify(peer, type, 'post-1', 'PRIVATE COMMENT', event), true);
     assert.equal(await cloud.notify(peer, type, 'post-1', 'PRIVATE COMMENT', event), true);
     const writes = state.calls.filter(call => call.init.method === 'POST');
-    assert.equal(JSON.parse(writes[0].init.body).id, JSON.parse(writes[1].init.body).id);
+    assert.deepEqual(JSON.parse(writes[0].init.body), JSON.parse(writes[1].init.body));
+    assert.deepEqual(JSON.parse(writes[0].init.body), { p_type: type, p_recipient: peer, p_post_id: 'post-1', p_event_id: event });
     assert.equal(JSON.stringify(writes).includes('PRIVATE COMMENT'), false);
   });
 }
