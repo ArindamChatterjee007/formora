@@ -31,6 +31,7 @@ REVOKE INSERT(id,uid,type,actor,post_id,body,read,ts),UPDATE(id,uid,type,actor,p
 GRANT UPDATE(read) ON public.notifications TO authenticated;
 CREATE INDEX notifications_actor_date ON public.notifications(actor,ts DESC);
 CREATE INDEX notifications_actor_recipient_date ON public.notifications(actor,uid,ts DESC) WHERE left(id,3)='n2_';
+CREATE INDEX notifications_recipient_date ON public.notifications(uid,ts DESC) WHERE left(id,3)='n2_';
 
 CREATE FUNCTION public.lock_source_notifications()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $function$
@@ -104,10 +105,15 @@ BEGIN
   notification_id:='n2_'||pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
     pg_catalog.jsonb_build_array(actor_id,p_recipient,actual_type,event_key)::text,'UTF8')),'hex');
   IF EXISTS(SELECT 1 FROM public.notifications WHERE id=notification_id) THEN RETURN true; END IF;
+  IF NOT pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended('social-notification-recipient:'||p_recipient,0)) THEN
+    RAISE EXCEPTION 'Notification recipient busy; retry later' USING ERRCODE='PT429';
+  END IF;
   IF (SELECT count(*) FROM public.notifications WHERE actor=actor_id AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 minute')>=60
     OR (SELECT count(*) FROM public.notifications WHERE actor=actor_id AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 day')>=500
     OR (SELECT count(*) FROM public.notifications WHERE actor=actor_id AND uid=p_recipient AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 minute')>=50
-    OR (SELECT count(*) FROM public.notifications WHERE actor=actor_id AND uid=p_recipient AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 day')>=250 THEN
+    OR (SELECT count(*) FROM public.notifications WHERE actor=actor_id AND uid=p_recipient AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 day')>=250
+    OR (SELECT count(*) FROM public.notifications WHERE uid=p_recipient AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 minute')>=100
+    OR (SELECT count(*) FROM public.notifications WHERE uid=p_recipient AND left(id,3)='n2_' AND ts>pg_catalog.clock_timestamp()-interval '1 day')>=1000 THEN
     RAISE EXCEPTION 'Notification action limit reached; try later' USING ERRCODE='PT429';
   END IF;
   INSERT INTO public.notifications(id,uid,type,actor,post_id,body,read)

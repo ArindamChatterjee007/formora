@@ -114,6 +114,11 @@ changes, reshares and new follows, even if the client loses its acknowledgement.
 
 Technical bounds are 60 alerts/minute and 500/day per actor, plus 50/minute and
 250/day per actor-recipient pair, counting only the new server namespace.
+Recipients additionally admit at most 100 alerts/minute and 1000/day across all
+senders. Recipient admission uses a nonblocking transaction lock: contention
+returns a retryable PT429 instead of creating a cross-recipient lock wait.
+Existing event retries return before capacity checks and do not consume another
+slot. These limits apply to notification admission, not the recipient's reads.
 Comments fan out to at most 20 distinct recipients total. Same-actor source
 writes serialize before row locks. A limit error rolls back the source write
 and its alerts, so clients must preserve retryable drafts. Profile insertion

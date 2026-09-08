@@ -270,6 +270,32 @@ test('Notification admission bounds roll source writes and fanout back atomicall
   assert.equal((await instance.query('SELECT count(*)::int AS total FROM notifications')).rows[0].total, 1);
 });
 
+test('Notification recipient capacity aggregates across senders and never blocks their reads', async context => {
+  const instance=await freshCore();
+  context.after(()=>instance.close());
+  const seed=async(total,interval)=>instance.query(`INSERT INTO notifications(id,uid,actor,type,body,ts)
+    SELECT 'n2_'||encode(sha256(convert_to('recipient-cap-'||generated,'UTF8')),'hex'),$1,$2,'message',NULL,clock_timestamp()-$3::interval
+    FROM generate_series(1,$4) AS generated`,[peer,stranger,interval,total]);
+  await seed(100,'0 seconds');
+  await asMember(owner,instance);
+  await assert.rejects(instance.query('INSERT INTO messages(id,from_uid,to_uid,body) VALUES($1,$2,$3,$4)',
+    ['recipient-limited',owner,peer,'Must roll back']),{code:'PT429'});
+  assert.equal((await instance.query("SELECT count(*)::int AS total FROM messages WHERE id='recipient-limited'")).rows[0].total,0);
+  await asMember(peer,instance);
+  assert.equal((await instance.query('SELECT count(*)::int AS total FROM notifications')).rows[0].total,100);
+  await instance.exec('RESET ROLE');
+  await instance.query("DELETE FROM notifications WHERE id='n2_'||encode(sha256(convert_to('recipient-cap-1','UTF8')),'hex')");
+  await asMember(owner,instance);
+  await instance.query('INSERT INTO messages(id,from_uid,to_uid,body) VALUES($1,$2,$3,$4)', ['recipient-limited',owner,peer,'One available slot']);
+  assert.equal((await instance.query('SELECT admit_social_notification($1,$2,NULL,$3) AS accepted',['message',peer,'recipient-limited'])).rows[0].accepted,true);
+  await instance.exec('RESET ROLE');
+  await instance.exec('DELETE FROM notifications; DELETE FROM messages');
+  await seed(1000,'2 minutes');
+  await asMember(owner,instance);
+  await assert.rejects(instance.query('INSERT INTO messages(id,from_uid,to_uid,body) VALUES($1,$2,$3,$4)',
+    ['recipient-day-limited',owner,peer,'Day capacity']),{code:'PT429'});
+});
+
 test('Notification profile restoration does not fan out historical follows or block a large baseline', async context => {
   const instance = await freshCore();
   context.after(() => instance.close());
