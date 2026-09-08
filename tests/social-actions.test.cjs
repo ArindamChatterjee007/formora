@@ -60,6 +60,117 @@ function harness() {
   return { context, cloud, social, state, storage, elements };
 }
 
+const connectionUiActions = [
+  { name: 'requestMember', from: 'account-a', to: 'account-b', status: 'pending', notice: 'connect', changed: social => social.cloud.sent.includes('account-b') },
+  { name: 'acceptReq', from: 'account-b', to: 'account-a', status: 'accepted', notice: 'accept', changed: social => social.cloud.connections.includes('account-b') && social.state.crew.includes('account-b') && !social.cloud.requests.length },
+  { name: 'declineReq', from: 'account-b', to: 'account-a', status: 'pending', changed: social => !social.cloud.requests.length },
+  { name: 'cancelRequest', from: 'account-a', to: 'account-b', status: 'pending', changed: social => !social.cloud.sent.length }
+];
+
+function connectionFixture(action) {
+  const fixture = harness(), { cloud, social, state } = fixture;
+  social.cloud.sent = action.name === 'cancelRequest' ? ['account-b'] : [];
+  social.cloud.requests = ['acceptReq', 'declineReq'].includes(action.name) ? [{ from: 'account-b' }] : [];
+  social.cloud.connections = [];
+  state.notices = []; state.followed = [];
+  cloud.notify = (...args) => { state.notices.push(args); return Promise.resolve(true); };
+  social.autoFollowOnConnect = uid => state.followed.push(uid);
+  fixture.receipt = { id: action.from + '__' + action.to, from_uid: action.from, to_uid: action.to, status: action.status };
+  fixture.content = () => JSON.stringify([social.cloud.sent, social.cloud.requests, social.cloud.connections, social.state.crew]);
+  return fixture;
+}
+
+for (const action of connectionUiActions) {
+  test(`connection UI ${action.name} waits for acknowledgement and excludes competing actions`, async () => {
+    const { context, social, state, receipt, content } = connectionFixture(action);
+    const pending = deferred(), before = content();
+    context.fetch = (url, options) => { state.requests.push({ url, options }); return pending.promise; };
+    const sending = social[action.name]('account-b');
+    assert.equal(await social[action.name]('account-b'), false);
+    if (action.name === 'acceptReq') assert.equal(await social.declineReq('account-b'), false);
+    assert.equal(content(), before);
+    assert.deepEqual(state.notices, []);
+    assert.deepEqual(state.toasts, []);
+    assert.deepEqual(state.followed, []);
+    assert.equal(state.requests.length, 1);
+    pending.resolve(response(200, [receipt]));
+    assert.equal(await sending, true);
+    assert.equal(action.changed(social), true);
+    assert.equal(state.notices.length, action.notice ? 1 : 0);
+    if (action.notice) assert.equal(state.notices[0][1], action.notice);
+    assert.equal(state.followed.length, action.name === 'acceptReq' ? 1 : 0);
+    assert.equal(state.toasts.length, 1);
+    assert.equal(state.renders, 1);
+  });
+
+  test(`connection UI ${action.name} preserves state on denial, empty acknowledgement or offline and permits retry`, async () => {
+    for (const failure of [403, 'empty', 'offline']) {
+      const { context, social, state, receipt, content } = connectionFixture(action);
+      const before = content();
+      context.fetch = async () => { if (failure === 'offline') throw new Error('offline'); return response(failure === 403 ? 403 : 200, []); };
+      assert.equal(await social[action.name]('account-b'), false);
+      assert.equal(content(), before);
+      assert.deepEqual(state.notices, []);
+      assert.deepEqual(state.followed, []);
+      assert.match(state.toasts.at(-1), /could not.*try again/i);
+      context.fetch = async () => response(200, [receipt]);
+      assert.equal(await social[action.name]('account-b'), true);
+      assert.equal(action.changed(social), true);
+      assert.equal(state.notices.length, action.notice ? 1 : 0);
+    }
+  });
+}
+
+test('connection UI late acknowledgements cannot mutate another account or a restarted session', async () => {
+  for (const action of connectionUiActions) {
+    for (const boundary of ['account', 'session', 'state']) {
+      const { context, cloud, social, state, receipt, content } = connectionFixture(action);
+      const pending = deferred();
+      context.fetch = () => pending.promise;
+      const sending = social[action.name]('account-b');
+      if (boundary === 'account') cloud.me = 'account-c';
+      if (boundary === 'session') social._session = (social._session || 0) + 1;
+      if (boundary === 'state') social.state = { ...social.state, crew: [] };
+      const before = content();
+      pending.resolve(response(200, [receipt]));
+      assert.equal(await sending, false);
+      assert.equal(content(), before);
+      assert.deepEqual(state.notices, []);
+      assert.deepEqual(state.followed, []);
+      assert.deepEqual(state.toasts, []);
+    }
+  }
+});
+
+test('connection UI signed-out actions request sign-in without writes or local success', async () => {
+  for (const action of connectionUiActions) {
+    const { context, cloud, social, state, content } = connectionFixture(action);
+    context.USE_SUPABASE_AUTH = true;
+    context.SupaAuth = { active: () => true, uid: () => null };
+    cloud.me = null;
+    const before = content();
+    assert.equal(await social[action.name]('account-b'), false);
+    assert.equal(content(), before);
+    assert.equal(state.requests.length, 0);
+    assert.equal(state.notices.length, 0);
+    assert.match(state.toasts[0], /sign in/i);
+  }
+});
+
+test('connection UI notification failure does not undo an acknowledged request', async () => {
+  for (const action of connectionUiActions.filter(action => action.notice)) {
+    for (const failure of ['throw', 'reject']) {
+      const { context, cloud, social, state, receipt } = connectionFixture(action);
+      context.fetch = async () => response(200, [receipt]);
+      cloud.notify = () => { if (failure === 'throw') throw new Error('notification unavailable'); return Promise.reject(new Error('notification unavailable')); };
+      assert.equal(await social[action.name]('account-b'), true);
+      assert.equal(action.changed(social), true);
+      assert.equal(state.toasts.length, 1);
+      assert.doesNotMatch(state.toasts[0], /could not/i);
+    }
+  }
+});
+
 test('caption save preserves content and editor until acknowledgement, ignoring duplicate clicks', async () => {
   const { context, social, state, elements } = harness();
   const pending = deferred();

@@ -81,13 +81,26 @@ flags remain disabled. The manifest records the project identity, not its key.
 
 `supabase/core-schema.sql` is a fresh-install bootstrap, not an upgrade: its
 transaction refuses any existing public table or view. Apply the existing
-`supabase/security.sql` afterward on the isolated project. Never apply the
+`supabase/security.sql` afterward on the isolated project, followed by
+`supabase/request-actions.sql`. The request-only migration requires the exact
+core policy names, a security-invoker feed RPC and compatible canonical request
+identities; it refuses legacy or already-applied baselines without rewriting
+them. It restricts reads to participants, acceptance to the recipient and
+updates to the status column. Participant deletion also supports disconnects;
+the client decline/cancel path additionally requires pending status so stale
+controls cannot remove an accepted connection. Never apply the
 bootstrap to production or clone customer records into QAT. The reusable
 `scripts/verify-qat-core.cjs --hosted` runner accepts QAT-only keys through
 `FORMORA_QAT_ANON_KEY` and `FORMORA_QAT_SERVICE_KEY`, creates three temporary
 synthetic accounts, checks actual Auth/PostgREST isolation, and records exact
 fixture cleanup. Keep credentials in the secret store, not command arguments or
 reports. These core checks do not accept media, provider or device workflows.
+Do not rerun the broad security script after installing request actions: it
+replaces the named policies. Preserve a restricted policy/grant snapshot before
+an authorized upgrade; there is no destructive automatic rollback. Retain the
+tighter request policies if reverting the UI, and keep QAT offline if its
+request contract cannot be verified. Production rollout needs its own legacy
+inventory and recovery approval.
 
 ## Activation Prerequisites
 
