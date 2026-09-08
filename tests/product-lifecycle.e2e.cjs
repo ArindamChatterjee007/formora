@@ -1552,6 +1552,8 @@ test('short landscape sheets keep controls reachable and tier text contrast read
         { label: 'Another option', icon: 'copy' }
       ]));
       const sheet = page.locator('#sheet-wrap .sheet');
+      assert.equal(await sheet.evaluate(element => getComputedStyle(element).transitionDuration), '0s',
+        'Action sheets must honor reduced motion before geometry checks');
       const ratios = await sheet.evaluate(element => {
         const luminance = value => {
           const channels = value.match(/[\d.]+/g).slice(0, 3).map(channel => Number(channel) / 255);
