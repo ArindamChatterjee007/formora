@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
 
 const root = path.resolve(__dirname, '..');
@@ -312,6 +313,31 @@ test('Notification re-sent connection requests get a new alert without resetting
   const rows=(await instance.query('SELECT id,read FROM notifications ORDER BY ts')).rows;
   assert.equal(rows.length,2);assert.notEqual(rows[0].id,rows[1].id);
   assert.equal(rows[0].read,true);assert.equal(rows[1].read,false);
+});
+
+test('Notification Story replies retain their preference gate without an ordinary DM duplicate', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec(fs.readFileSync(path.join(root,'supabase/story-interactions.sql'),'utf8'));
+  for (const uid of [owner,peer]) await instance.query('INSERT INTO profiles(uid,data) VALUES($1,$2)',[uid,{name:'Synthetic member',privacy:'public'}]);
+  await instance.query("UPDATE story_settings SET enabled=true,permission_policy_approved=true,media_audience_approved=true,public_media_approved=true,retention_approved=true,operator_policy_ref=$1,media_origin='https://fixture.supabase.co',public_bucket='media'",[stranger]);
+  await asMember(peer,instance);
+  await instance.query('SELECT set_story_notification_preferences(false,false,false,$1,0,$2)',['authenticated',stranger]);
+  const story=(await instance.query('SELECT publish_story($1,$2,$3,$4) AS receipt',[owner,'https://fixture.supabase.co/storage/v1/object/public/media/stories/'+peer+'/fixture.jpg','photo','authenticated'])).rows[0].receipt;
+  await asMember(owner,instance);
+  const first=(await instance.query('SELECT reply_to_story($1,$2,$3) AS receipt',[story.id,'Synthetic contextual reply',peer])).rows[0].receipt;
+  assert.equal((await instance.query('SELECT admit_social_notification($1,$2,NULL,$3) AS accepted',['message',peer,first.id])).rows[0].accepted,false);
+  await instance.exec('RESET ROLE');
+  assert.equal((await instance.query('SELECT count(*)::int AS total FROM notifications')).rows[0].total,0);
+  assert.equal((await instance.query('SELECT count(*)::int AS total FROM story_notifications')).rows[0].total,0);
+  await asMember(peer,instance);
+  await instance.query('SELECT set_story_notification_preferences(false,true,false,$1,1,$2)',['authenticated',randomUUID()]);
+  await asMember(owner,instance);
+  await instance.query('SELECT reply_to_story($1,$2,$3)',[story.id,'Synthetic opted-in reply',stranger]);
+  await instance.query('INSERT INTO messages(id,from_uid,to_uid,body) VALUES($1,$2,$3,$4)',['ordinary-after-story',owner,peer,'Ordinary synthetic DM']);
+  await instance.exec('RESET ROLE');
+  assert.equal((await instance.query('SELECT count(*)::int AS total FROM story_notifications')).rows[0].total,1);
+  assert.deepEqual((await instance.query('SELECT type,actor,uid FROM notifications')).rows,[{type:'message',actor:owner,uid:peer}]);
 });
 
 test('Notification admission refuses a preclaimed server namespace without altering legacy rows or grants', async context => {

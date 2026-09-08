@@ -53,6 +53,7 @@ DECLARE
   reply_owner text;
   source_comment public.comments%ROWTYPE;
   notification_id text;
+  contextual_message boolean := false;
 BEGIN
   IF actor_id IS NULL THEN RAISE EXCEPTION 'Sign in required' USING ERRCODE='PT401'; END IF;
   IF p_recipient IS NULL OR p_recipient=actor_id
@@ -66,6 +67,11 @@ BEGIN
   CASE p_type
     WHEN 'message' THEN
       SELECT id INTO event_key FROM public.messages WHERE id=p_event_id AND from_uid=actor_id AND to_uid=p_recipient FOR KEY SHARE;
+      IF pg_catalog.to_regclass('public.story_message_context') IS NOT NULL THEN
+        EXECUTE 'SELECT EXISTS(SELECT 1 FROM public.story_message_context WHERE message_id=$1)'
+          INTO contextual_message USING p_event_id;
+        IF contextual_message THEN RETURN false; END IF;
+      END IF;
     WHEN 'like' THEN
       SELECT id, id INTO event_key,target_post FROM public.posts WHERE id=p_post_id AND author=p_recipient
         AND likes->actor_id='true'::jsonb FOR KEY SHARE;
@@ -171,7 +177,8 @@ CREATE TRIGGER lock_comment_notifications BEFORE INSERT OR UPDATE OR DELETE ON p
 CREATE TRIGGER lock_request_notifications BEFORE INSERT OR UPDATE OR DELETE ON public.requests FOR EACH STATEMENT EXECUTE FUNCTION public.lock_source_notifications();
 CREATE TRIGGER lock_post_notifications BEFORE INSERT OR UPDATE OR DELETE ON public.posts FOR EACH STATEMENT EXECUTE FUNCTION public.lock_source_notifications();
 CREATE TRIGGER lock_follow_notifications BEFORE INSERT OR UPDATE OR DELETE ON public.profiles FOR EACH STATEMENT EXECUTE FUNCTION public.lock_source_notifications();
-CREATE TRIGGER notify_message_source AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION public.emit_source_notifications();
+CREATE CONSTRAINT TRIGGER notify_message_source AFTER INSERT ON public.messages DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION public.emit_source_notifications();
 CREATE TRIGGER notify_comment_source AFTER INSERT ON public.comments FOR EACH ROW EXECUTE FUNCTION public.emit_source_notifications();
 CREATE TRIGGER notify_request_source AFTER INSERT OR UPDATE ON public.requests FOR EACH ROW EXECUTE FUNCTION public.emit_source_notifications();
 CREATE TRIGGER notify_post_source AFTER INSERT OR UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION public.emit_source_notifications();
