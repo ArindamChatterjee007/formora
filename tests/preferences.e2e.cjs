@@ -321,6 +321,7 @@ async function enterApp(page) {
   await page.locator('#app-shell:not(.hidden)').waitFor();
   await page.locator('#tabbar [data-tab="profile"]').click();
   await page.locator('#view-profile.active').waitFor();
+  await page.locator('#p-name').waitFor();
 }
 
 async function openPreferences(page, expected = 'Measurement is off.') {
@@ -431,6 +432,30 @@ test('preferences asset fixture preserves the startup allowlist and original CSP
   assert.equal((await fetch(origin + '/js/config.js', { method: 'POST' })).status, 404);
   assert.equal(await (await fetch(origin + '/index.html')).text(), fs.readFileSync(path.join(root, 'index.html'), 'utf8'));
   assert.equal(await (await fetch(origin + '/js/config.js')).text(), fs.readFileSync(path.join(root, 'js/config.js'), 'utf8'));
+});
+
+test('Profile entry waits for the real form while its lazy module is delayed', async contextTest => {
+  const { page } = await setup(contextTest);
+  let release, requested;
+  const paused = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { requested = resolve; });
+  await page.route('**/js/mod/profile.js*', async route => {
+    requested();
+    await paused;
+    await route.fallback();
+  });
+  let ready = false;
+  const entering = enterApp(page).then(() => { ready = true; });
+  try {
+    await started;
+    await page.locator('#view-profile.active').waitFor();
+    assert.equal(await page.locator('#p-name').count(), 0);
+    assert.equal(ready, false, 'An active placeholder is not a ready Profile');
+    release();
+    await entering;
+    assert.equal(await page.locator('#p-name').isVisible(), true);
+    assert.equal(await page.locator('#checkout-diagnostics').isVisible(), true);
+  } finally { release(); await entering; }
 });
 
 test('default-off Profile keeps the legacy diagnostics checkbox and does not load server consent', async contextTest => {

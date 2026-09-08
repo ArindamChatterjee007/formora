@@ -351,6 +351,32 @@ test('Notification admission refuses a preclaimed server namespace without alter
   assert.equal((await instance.query("SELECT has_table_privilege('authenticated','notifications','INSERT') AS allowed")).rows[0].allowed,true);
 });
 
+test('Story migration narrows hosted service defaults without changing unrelated grants', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec(`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
+    CREATE TABLE public.unrelated_story_fixture(id integer);
+    CREATE FUNCTION public.unrelated_story_fixture() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;`);
+  await instance.exec(fs.readFileSync(path.join(root,'supabase/story-interactions.sql'),'utf8'));
+  const privileges=(await instance.query(`SELECT
+    has_table_privilege('service_role','public.story_settings','SELECT') AS settings_read,
+    has_table_privilege('service_role','public.story_settings','UPDATE') AS settings_update,
+    has_table_privilege('service_role','public.story_reports','SELECT') AS reports_read,
+    has_table_privilege('service_role','public.stories_v2','SELECT,INSERT,UPDATE,DELETE') AS raw_stories,
+    has_table_privilege('service_role','public.story_message_context','SELECT,INSERT,UPDATE,DELETE') AS raw_context,
+    has_function_privilege('service_role','public.get_story(uuid)','EXECUTE') AS service_get,
+    has_function_privilege('authenticated','public.get_story(uuid)','EXECUTE') AS member_get,
+    has_function_privilege('service_role','public.cleanup_story_rate_limits(integer)','EXECUTE') AS cleanup,
+    has_table_privilege('service_role','public.unrelated_story_fixture','INSERT') AS unrelated_insert,
+    has_function_privilege('service_role','public.unrelated_story_fixture()','EXECUTE') AS unrelated_execute`)).rows[0];
+  assert.deepEqual(privileges,{settings_read:true,settings_update:true,reports_read:true,raw_stories:false,raw_context:false,
+    service_get:false,member_get:true,cleanup:true,unrelated_insert:true,unrelated_execute:true});
+  assert.equal((await instance.query('SELECT enabled FROM public.story_settings')).rows[0].enabled,false);
+  await instance.exec('CREATE TABLE public.later_story_fixture(id integer)');
+  assert.equal((await instance.query("SELECT has_table_privilege('service_role','public.later_story_fixture','INSERT') AS allowed")).rows[0].allowed,true);
+});
+
 test('The legacy support form accepts owned tickets and never exposes them to another member', async () => {
   await asMember(owner);
   const submitted = (await database.query('INSERT INTO support_tickets(uid,subject,message) VALUES($1,$2,$3) RETURNING id', [owner, 'Synthetic subject', 'Synthetic request'])).rows[0];
