@@ -601,6 +601,22 @@ test('DEF-044 control: a successful read with no posts still shows the empty sta
   assert.match(context.social.feedBody(), /No posts yet/);
 });
 
+test('Empty feed routes to real member discovery and personal workouts only after a successful read', () => {
+  const context = socialContext(), social = context.social;
+  social.resetSession(); social.noteFeedRead(true);
+  const before = JSON.stringify(social.cloud);
+  const body = social.feedBody();
+  assert.match(body, /id="empty-feed-actions"/);
+  assert.match(body, /App\.selectTab\('search'\)/);
+  assert.match(body, /App\.goTab\('today'\)/);
+  assert.equal(JSON.stringify(social.cloud), before);
+  assert.equal(social.cloud.users.length, 0);
+  for (const outcome of ['idle','loading','error']) {
+    social._feedRead = outcome;
+    assert.doesNotMatch(social.feedStatusCard(), /empty-feed-actions/);
+  }
+});
+
 test('DEF-044: posts already loaded stay on screen when a later read fails', () => {
   const context = socialContext();
   const social = context.social;

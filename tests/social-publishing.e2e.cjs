@@ -255,6 +255,46 @@ async function bodies(page) {
 }
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  test('Empty feed browser: discovery and workout remain real at ' + viewport.width, async testContext => {
+    const { page, state } = await openApp(testContext, viewport);
+    state.posts.clear();
+    await page.evaluate(() => App.retryFeed());
+    await page.locator('#empty-feed-actions').waitFor();
+    assert.equal(await page.evaluate(() => Social.cloud.feed.length), 0);
+    assert.equal(state.posts.size, 0);
+    for (const name of ['Find people', "Today's workout"]) {
+      const control = page.getByRole('button', { name, exact: true });
+      const bounds = await control.boundingBox();
+      assert.ok(bounds.width >= 44 && bounds.height >= 44);
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= viewport.width);
+    }
+    await page.getByRole('button', { name: 'Find people', exact: true }).click();
+    await page.waitForFunction(() => App.curTab === 'search' && Social.sub === 'crew');
+    const memberName = page.locator('.crew-name').filter({ hasText: 'Fixture Peer' });
+    await memberName.waitFor();
+    assert.equal(await memberName.evaluate(element => [...element.childNodes].filter(node => node.nodeType === Node.TEXT_NODE)
+      .map(node => node.textContent).join('').trim()), 'Fixture Peer');
+    assert.equal(await page.evaluate(() => Social.cloud.users.every(member => [
+      '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222'].includes(member.uid))), true);
+    await page.locator('#tabbar [data-tab="home"]').click();
+    await page.getByRole('button', { name: "Today's workout", exact: true }).click();
+    await page.locator('#view-today').waitFor({ state: 'visible' });
+    assert.equal(await page.evaluate(() => App.curTab), 'coach');
+    assert.equal(await page.evaluate(() => App.coachSub), 'today');
+    assert.ok((await page.locator('#view-today').innerText()).trim().length > 10);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (process.env.APP_QA_SCREENSHOTS) {
+      fs.mkdirSync(process.env.APP_QA_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.APP_QA_SCREENSHOTS, 'empty-feed-workout-' + viewport.width + '.png'), animations: 'disabled' });
+    }
+    await page.locator('#tabbar [data-tab="home"]').click();
+    await page.locator('#empty-feed-actions').waitFor();
+    assert.equal(state.posts.size, 0);
+    assert.equal(state.writes.some(write => ['posts','messages','requests'].includes(write.table)), false);
+  });
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   test('DM history browser: real page controls, retry and drafts at ' + viewport.width, async testContext => {
     const { page, state } = await openApp(testContext, viewport);
     state.messages.clear();
