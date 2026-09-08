@@ -377,6 +377,23 @@ test('Story migration narrows hosted service defaults without changing unrelated
   assert.equal((await instance.query("SELECT has_table_privilege('service_role','public.later_story_fixture','INSERT') AS allowed")).rows[0].allowed,true);
 });
 
+test('Moderation migration narrows hosted defaults and preserves explicit operator permissions', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec(`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
+    CREATE TABLE public.unrelated_report_fixture(id integer);`);
+  await instance.exec(fs.readFileSync(path.join(root,'supabase/moderation-receipts.sql'),'utf8'));
+  const privileges=(await instance.query(`SELECT
+    has_table_privilege('service_role','public.report_cases','SELECT') AS cases_read,
+    has_table_privilege('service_role','public.report_cases','INSERT,UPDATE,DELETE') AS cases_write,
+    has_table_privilege('service_role','public.report_moderators','INSERT') AS staff,
+    has_function_privilege('service_role','public.submit_report(uuid,text,text,text)','EXECUTE') AS service_submit,
+    has_function_privilege('authenticated','public.submit_report(uuid,text,text,text)','EXECUTE') AS member_submit,
+    has_table_privilege('service_role','public.unrelated_report_fixture','INSERT') AS unrelated`)).rows[0];
+  assert.deepEqual(privileges,{cases_read:true,cases_write:false,staff:true,service_submit:false,member_submit:true,unrelated:true});
+});
+
 test('The legacy support form accepts owned tickets and never exposes them to another member', async () => {
   await asMember(owner);
   const submitted = (await database.query('INSERT INTO support_tickets(uid,subject,message) VALUES($1,$2,$3) RETURNING id', [owner, 'Synthetic subject', 'Synthetic request'])).rows[0];

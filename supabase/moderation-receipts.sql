@@ -46,7 +46,7 @@ ALTER TABLE public.report_cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.report_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.report_moderators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.report_case_actions ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.report_cases, public.report_limits, public.report_moderators, public.report_case_actions FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.report_cases, public.report_limits, public.report_moderators, public.report_case_actions FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, UPDATE ON public.report_limits TO service_role;
 GRANT SELECT ON public.report_cases, public.report_case_actions TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.report_moderators TO service_role;
@@ -177,7 +177,7 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.submit_report(uuid,text,text,text), public.my_report_receipts(timestamptz,uuid),
-  public.can_review_reports(), public.moderation_queue(text,timestamptz,uuid), public.report_decision_history(uuid,integer), public.review_report(uuid,integer,text,text,uuid) FROM PUBLIC, anon;
+  public.can_review_reports(), public.moderation_queue(text,timestamptz,uuid), public.report_decision_history(uuid,integer), public.review_report(uuid,integer,text,text,uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.submit_report(uuid,text,text,text), public.my_report_receipts(timestamptz,uuid),
   public.can_review_reports(), public.moderation_queue(text,timestamptz,uuid), public.report_decision_history(uuid,integer), public.review_report(uuid,integer,text,text,uuid) TO authenticated;
 
