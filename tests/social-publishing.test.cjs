@@ -597,7 +597,195 @@ for (const failure of [403, 404, 503, 'offline', 'malformed']) {
   });
 }
 
-test('DM reads refresh the token, bind native owner filters, and discard unrelated rows', async () => {
+test('DM history navigation reaches older pages and returns without losing the draft', async () => {
+  const { social, cloud, elements } = dmHarness();
+  social._editMsg = null;
+  const stored = Array.from({ length: 120 }, (_, index) => ({ id: 'message-' + String(index).padStart(3, '0'),
+    from: peer, to: owner, body: 'Message ' + index, ts: 1000, sentAt: '2026-09-08T12:00:00.123456+00:00' }));
+  const reads = [];
+  cloud.getMessages = async (recipient, cursor) => {
+    reads.push(cursor);
+    assert.equal(recipient, peer);
+    return stored.filter(message => !cursor || message.id < cursor.id).slice(-50);
+  };
+  await social.openDM(peer);
+  assert.equal(social._dmMsgs[0].id, 'message-070');
+  assert.equal(social._dmMsgs.at(-1).id, 'message-119');
+  assert.equal(await social.loadDMPage(1), true);
+  assert.equal(social._dmMsgs[0].id, 'message-020');
+  assert.equal(social._dmMsgs.at(-1).id, 'message-069');
+  assert.equal(await social.refreshDM(true), false, 'Passive polling must not replace an older page');
+  assert.equal(reads.length, 2);
+  assert.equal(await social.loadDMPage(2), true);
+  assert.equal(social._dmMsgs.length, 20);
+  assert.equal(social._dmHistory.more, false);
+  assert.equal(await social.loadDMPage(1), true);
+  assert.equal(social._dmMsgs[0].id, 'message-020');
+  assert.equal(await social.loadDMPage(0), true);
+  assert.equal(social._dmMsgs.at(-1).id, 'message-119');
+  assert.equal(social._dmDraft().text, '  Outgoing draft  ');
+  assert.equal(elements.get('dm-text').value, '  Outgoing draft  ');
+  assert.match(social._dmHistoryControls(), /aria-label="Older messages"/);
+});
+
+test('DM history navigation retains the current page on failure and retries the same cursor', async () => {
+  const { social, cloud } = dmHarness();
+  social._editMsg = null;
+  const rows = Array.from({ length: 50 }, (_, index) => ({ id: 'message-' + index, from: peer, to: owner,
+    body: 'Message', ts: 1000 + index, sentAt: new Date(1000 + index).toISOString() }));
+  cloud.getMessages = async () => rows;
+  await social.openDM(peer);
+  const before = JSON.stringify(social._dmMsgs), cursor = social._dmHistory.cursors[1];
+  cloud.getMessages = async () => null;
+  assert.equal(await social.loadDMPage(1), false);
+  assert.equal(JSON.stringify(social._dmMsgs), before);
+  assert.equal(social._dmReadError, true);
+  let passiveReads = 0;
+  cloud.getMessages = async () => { passiveReads++; return rows; };
+  assert.equal(await social.refreshDM(true), false);
+  assert.equal(passiveReads, 0);
+  assert.equal(social._dmHistory.index, 0);
+  cloud.getMessages = async (_, requested) => { assert.equal(requested, cursor); return []; };
+  assert.equal(await social.refreshDM(), true);
+  assert.equal(JSON.stringify(social._dmMsgs), before);
+  assert.equal(social._dmHistory.more, false);
+  assert.equal(social._dmReadError, false);
+});
+
+test('DM history results cannot enter a reopened thread or another session', async () => {
+  for (const boundary of ['reopen', 'session']) {
+    const { social, cloud } = dmHarness();
+    social._editMsg = null;
+    const pending = deferred();
+    cloud.getMessages = () => pending.promise;
+    const opening = social.openDM(peer);
+    assert.equal(await social.refreshDM(), false, 'Duplicate in-flight reads are suppressed');
+    if (boundary === 'reopen') {
+      cloud.getMessages = async () => [];
+      await social.openDM(peer);
+    } else social.resetSession();
+    pending.resolve([{ id: 'stale', from: peer, to: owner, body: 'Old account', ts: 1 }]);
+    await opening;
+    assert.equal(social._dmMsgs.length, 0, boundary);
+  }
+});
+
+test('DM history leaving Chat settles its read without rendering another view', async () => {
+  const { social, cloud, state } = dmHarness();
+  const pending = deferred();
+  social._editMsg = null;
+  cloud.getMessages = () => pending.promise;
+  const opening = social.openDM(peer);
+  social.sub = 'feed';
+  const renders = state.renders;
+  pending.resolve([{ id: 'history', from: peer, to: owner, body: 'Cached privately', ts: 1 }]);
+  await opening;
+  assert.equal(social._dmHistory.busy, false);
+  assert.equal(social._dmThreadLoading, false);
+  assert.equal(state.renders, renders);
+  social.sub = 'chat';
+  cloud.getMessages = async () => [];
+  assert.equal(await social.refreshDM(), true);
+});
+
+test('DM history rejects invalid cursors before fetching and enforces the page limit', async () => {
+  const { cloud, context, state } = harness();
+  for (const cursor of [{}, { id: '', ts: '2026-09-08T12:00:00Z' },
+    { id: 'message', ts: '2026-09-08T12:00:00Z),from_uid.eq.other' },
+    { id: 'message\n', ts: '2026-09-08T12:00:00Z' }]) {
+    assert.equal(await cloud.getMessages(peer, cursor), null);
+  }
+  assert.equal(state.requests.length, 0);
+  context.fetch = async () => response(200, Array.from({ length: 51 }, (_, index) => ({ id: String(index),
+    from_uid: owner, to_uid: peer, body: 'Over limit', ts: '2026-09-08T12:00:00Z' })));
+  assert.equal(await cloud.getMessages(peer), null);
+});
+
+test('DM history keeps edit and failed-mutation state scoped to its visible page', async () => {
+  const { social, cloud } = dmHarness();
+  let calls = 0;
+  cloud.getMessages = async () => { calls++; return []; };
+  assert.equal(await social.loadDMPage(0), false);
+  assert.equal(calls, 0, 'An active editor prevents page navigation');
+  const original = { ...social._dmMsgs[1] };
+  social._dmDraft().mutations.set(original.id, { original });
+  assert.equal(social._dmRows([], peer, false).length, 0, 'A failed unsend cannot be injected into another page');
+  assert.equal(social._dmRows([], peer, true)[0].id, original.id);
+  social._editMsg = null;
+  social._dmHistory = { index: 0, cursors: [null, { id: 'older', ts: '2026-09-08T12:00:00Z' }], more: true, busy: false };
+  const pending = deferred(), before = JSON.stringify(social._dmMsgs);
+  cloud.getMessages = () => pending.promise;
+  const loading = social.loadDMPage(1);
+  social._editMsg = { id: original.id, draft: 'Keep editing' };
+  pending.resolve([]);
+  assert.equal(await loading, false);
+  assert.equal(JSON.stringify(social._dmMsgs), before);
+  assert.equal(social._editMsg.draft, 'Keep editing');
+});
+
+test('DM history send on an older page does not append a newest message into it', async () => {
+  const { social } = dmHarness();
+  social._editMsg = null;
+  social._dmHistory = { index: 1, cursors: [null, { id: 'older', ts: '2026-09-08T12:00:00Z' }], more: false, busy: false };
+  const before = JSON.stringify(social._dmMsgs);
+  assert.equal(await social.sendDM(), true);
+  assert.equal(JSON.stringify(social._dmMsgs), before);
+  assert.equal(social._dmHistory.index, 1);
+});
+
+test('DM history refresh invalidates stale forward cursors without a transient empty navigation bar', async () => {
+  const { social, cloud } = dmHarness();
+  social._editMsg = null;
+  const history = social._dmHistoryState();
+  history.busy = true;
+  assert.equal(social._dmHistoryControls(), '');
+  history.busy = false;
+  history.cursors = [null, { id: 'cursor-1' }, { id: 'cursor-2' }];
+  cloud.getMessages = async () => [];
+  assert.equal(await social.refreshDM(), true);
+  assert.equal(history.cursors.length, 1);
+  assert.equal(await social.loadDMPage(2), false);
+});
+
+test('DM history secure recipients reject query-shaped aliases before a network call', async () => {
+  const { cloud, state } = harness();
+  for (const recipient of ['legacy_alias', 'peer),from_uid.eq.owner', ' ', null]) {
+    assert.equal(await cloud.getMessages(recipient), null);
+  }
+  assert.equal(state.requests.length, 0);
+});
+
+test('DM history opens the newest bounded page in chronological order', async () => {
+  const { cloud, context } = harness();
+  const stored = Array.from({ length: 80 }, (_, index) => ({ id: 'message-' + String(index).padStart(3, '0'),
+    from_uid: owner, to_uid: peer, body: 'Message ' + index, ts: '2026-09-08T12:00:00.123456+00:00' }));
+  context.fetch = async url => {
+    const query = new URL(url).searchParams;
+    assert.equal(query.get('order'), 'ts.desc,id.desc');
+    assert.equal(query.get('limit'), '50');
+    return response(200, stored.slice(-50).reverse());
+  };
+  const messages = await cloud.getMessages(peer);
+  assert.deepEqual(Array.from(messages, message => message.id), stored.slice(-50).map(message => message.id));
+  assert.equal(messages[0].sentAt, stored[0].ts, 'History cursors must retain database timestamp precision');
+});
+
+test('DM history older pages use an exact timestamp and ID cursor without offsets', async () => {
+  const { cloud, context } = harness();
+  const before = { ts: '2026-09-08T12:00:00.123456+00:00', id: 'message-030' };
+  context.fetch = async url => {
+    const query = new URL(url).searchParams;
+    assert.equal(query.get('and'), '(or(ts.lt.' + before.ts + ',and(ts.eq.' + before.ts + ',id.lt."message-030")))');
+    assert.equal(query.has('offset'), false);
+    assert.equal(query.get('order'), 'ts.desc,id.desc');
+    assert.match(query.get('or'), new RegExp(owner));
+    assert.match(query.get('or'), new RegExp(peer));
+    return response(200, []);
+  };
+  assert.deepEqual(Array.from(await cloud.getMessages(peer, before)), []);
+});
+
+test('DM reads refresh the token, bind native owner filters, and reject contaminated pages', async () => {
   const { cloud, context, state } = harness();
   context.fetch = async (url, options) => {
     state.requests.push({ url, options });
@@ -606,6 +794,8 @@ test('DM reads refresh the token, bind native owner filters, and discard unrelat
       { id: 'foreign-history', from_uid: peer, to_uid: postId, body: 'Private', ts: 2 },
     ]);
   };
+  assert.equal(await cloud.getMessages(peer), null, 'An unrelated row cannot silently truncate the history cursor');
+  context.fetch = async () => response(200, [{ id: 'peer-history', from_uid: peer, to_uid: owner, body: 'Visible', ts: 1 }]);
   const rows = await cloud.getMessages(peer);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, 'peer-history');

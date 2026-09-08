@@ -177,8 +177,18 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
           const value = url.searchParams.get(column);
           if (value) rows = rows.filter(row => value === 'eq.' + row[column]);
         }
-        rows.sort((first, second) => Date.parse(first.ts) - Date.parse(second.ts));
-        if (url.searchParams.get('order') === 'ts.desc') rows.reverse();
+        const cursor = url.searchParams.get('and');
+        if (cursor) {
+          const parsed = /^\(or\(ts\.lt\.([^,]+),and\(ts\.eq\.([^,]+),id\.lt\.("(?:[^"\\]|\\.)*")\)\)\)$/.exec(cursor);
+          assert.ok(parsed, 'Only the exact message keyset filter is supported by this fixture');
+          assert.equal(parsed[1], parsed[2]);
+          const beforeId = JSON.parse(parsed[3]);
+          rows = rows.filter(row => row.ts < parsed[1] || row.ts === parsed[1] && row.id < beforeId);
+        }
+        rows.sort((first, second) => Date.parse(first.ts) - Date.parse(second.ts)
+          || (first.id < second.id ? -1 : first.id > second.id ? 1 : 0));
+        if (url.searchParams.get('order')?.startsWith('ts.desc')) rows.reverse();
+        if (url.searchParams.has('limit')) rows = rows.slice(0, Number(url.searchParams.get('limit')));
         return reply(route, 200, rows.map(row => select(row, url)));
       }
       let row;
@@ -241,6 +251,65 @@ async function thread(page) {
 async function bodies(page) {
   return page.locator('#chat-thread .bubble').evaluateAll(nodes => nodes.map(node => Array.from(node.childNodes)
     .filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  test('DM history browser: real page controls, retry and drafts at ' + viewport.width, async testContext => {
+    const { page, state } = await openApp(testContext, viewport);
+    state.messages.clear();
+    for (let index = 0; index < 125; index++) {
+      const id = 'history-' + String(index).padStart(3, '0');
+      state.messages.set(id, { id, from_uid: index % 2 ? owner : peer, to_uid: index % 2 ? peer : owner,
+        body: 'History message ' + index, ts: '2026-09-08T12:00:00.123456+00:00' });
+    }
+    await thread(page);
+    assert.equal((await bodies(page))[0], 'History message 75');
+    assert.equal((await bodies(page)).at(-1), 'History message 124');
+    assert.equal(await page.locator('#chat-thread .bubble').count(), 50);
+    await page.locator('#dm-text').fill('Draft across history pages');
+    const failed = state.hold('messages', 'GET');
+    await page.getByRole('button', { name: 'Older messages', exact: true }).click();
+    await failed.started;
+    assert.equal(await page.getByRole('button', { name: 'Older messages', exact: true }).isDisabled(), true);
+    await page.locator('#dm-text').fill('Typed during history request');
+    failed.release(503);
+    await page.locator('#chat-thread [role="alert"]').waitFor();
+    assert.equal((await bodies(page))[0], 'History message 75');
+    assert.equal(await page.evaluate(() => Social.refreshDM(true)), false);
+    assert.equal(await page.evaluate(() => Social._dmHistory.index), 0);
+    await page.locator('#chat-thread').getByRole('button', { name: 'Retry', exact: true }).click();
+    await page.waitForFunction(() => Social._dmHistory.index === 1 && !Social._dmHistory.busy);
+    assert.equal((await bodies(page))[0], 'History message 25');
+    assert.equal((await bodies(page)).at(-1), 'History message 74');
+    assert.equal(await page.locator('#dm-text').inputValue(), 'Typed during history request');
+    await page.getByRole('button', { name: 'Older messages', exact: true }).click();
+    await page.waitForFunction(() => Social._dmHistory.index === 2 && !Social._dmHistory.busy);
+    assert.equal(await page.locator('#chat-thread .bubble').count(), 25);
+    assert.equal((await bodies(page))[0], 'History message 0');
+    assert.equal((await bodies(page)).at(-1), 'History message 24');
+    assert.equal(await page.getByRole('button', { name: 'Older messages', exact: true }).isDisabled(), true);
+    for (const name of ['Newer messages', 'Latest messages']) {
+      const bounds = await page.getByRole('button', { name, exact: true }).boundingBox();
+      assert.ok(bounds.width >= 44 && bounds.height >= 44);
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= viewport.width);
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (process.env.APP_QA_SCREENSHOTS) {
+      fs.mkdirSync(process.env.APP_QA_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.APP_QA_SCREENSHOTS, 'dm-history-' + viewport.width + '.png'), animations: 'disabled' });
+    }
+    await page.getByRole('button', { name: 'Newer messages', exact: true }).click();
+    await page.waitForFunction(() => Social._dmHistory.index === 1 && !Social._dmHistory.busy);
+    assert.equal((await bodies(page))[0], 'History message 25');
+    await page.getByRole('button', { name: 'Latest messages', exact: true }).click();
+    await page.waitForFunction(() => Social._dmHistory.index === 0 && !Social._dmHistory.busy);
+    assert.equal((await bodies(page)).at(-1), 'History message 124');
+    assert.equal(await page.locator('#dm-text').inputValue(), 'Typed during history request');
+    const paged = state.reads.filter(read => read.table === 'messages' && new URL(read.url).searchParams.has('and'));
+    assert.ok(paged.length >= 3);
+    assert.ok(paged.every(read => new URL(read.url).searchParams.get('limit') === '50'));
+    assert.equal(state.messages.size, 125);
+  });
 }
 
 test('DEF-065 browser: post pending, 503, same-ID retry and backend-persisted reload', async testContext => {

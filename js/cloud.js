@@ -534,36 +534,42 @@ const Cloud = {
   },
   deleteMessage(id, toUid) { return this._writeMessage(id, "DELETE", undefined, toUid); },
   editMessage(id, body, toUid) { return this._writeMessage(id, "PATCH", body, toUid); },
-  async getMessages(withUid) {
-    return withUid ? this._readMessages(withUid) : null;
+  _messagePageSize: 50,
+  async getMessages(withUid, before) {
+    return withUid ? this._readMessages(withUid, before) : null;
   },
   async getInbox() {
     return this._readMessages();
   },
-  async _readMessages(withUid) {
+  async _readMessages(withUid, before) {
     const uid = this._actionUid();
-    if (!this.active() || !uid) return null;
+    if (!this.active() || !uid || (withUid && !this._messageRecipient(withUid))) return null;
+    if (before && (!withUid || typeof before.id !== "string" || !before.id || before.id.length > 255
+      || /[\x00-\x1f\x7f]/.test(before.id) || typeof before.ts !== "string"
+      || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(before.ts)
+      || !Number.isFinite(Date.parse(before.ts)))) return null;
     const controller = new AbortController(), generation = this._publishingGeneration;
     const controllers = this._publishingControllers || (this._publishingControllers = new Set());
     controllers.add(controller);
-    const timer = setTimeout(() => controller.abort(), 6000);
     const current = () => this._actionUid() === uid && generation === this._publishingGeneration && !controller.signal.aborted;
-    try {
+    return this._withDeadline(controller, controllers, async () => {
       const secure = typeof SupaAuth !== "undefined" && SupaAuth.active();
       const token = secure ? await SupaAuth.token() : null;
       if (!current() || (secure && !token) || (window.USE_SUPABASE_AUTH && !secure)) return null;
       const me = encodeURIComponent(uid), other = encodeURIComponent(withUid || "");
-      const filter = withUid ? "or=(and(from_uid.eq." + me + ",to_uid.eq." + other + "),and(from_uid.eq." + other + ",to_uid.eq." + me + "))&order=ts.asc"
-        : "or=(from_uid.eq." + me + ",to_uid.eq." + me + ")&order=ts.desc";
-      const result = await fetch(this.base + "/messages?" + filter + "&limit=300", { headers: this._headers(secure ? { Authorization: "Bearer " + token } : undefined), signal: controller.signal });
+      const filter = withUid ? "or=(and(from_uid.eq." + me + ",to_uid.eq." + other + "),and(from_uid.eq." + other + ",to_uid.eq." + me + "))"
+        : "or=(from_uid.eq." + me + ",to_uid.eq." + me + ")";
+      const cursor = before ? "&and=(or(ts.lt." + encodeURIComponent(before.ts) + ",and(ts.eq." + encodeURIComponent(before.ts)
+        + ",id.lt." + encodeURIComponent(JSON.stringify(before.id)) + ")))" : "";
+      const result = await fetch(this.base + "/messages?" + filter + cursor + "&order=ts.desc,id.desc&limit=" + (withUid ? this._messagePageSize : 300), { headers: this._headers(secure ? { Authorization: "Bearer " + token } : undefined), signal: controller.signal });
       if (!result.ok || !current()) return null;
       const rows = await result.json();
-      if (!current() || !Array.isArray(rows) || rows.some(message => !message || typeof message.id !== "string" || typeof message.body !== "string")) return null;
-      return rows.filter(message => (message.from_uid === uid || message.to_uid === uid)
+      if (!current() || !Array.isArray(rows) || rows.length > (withUid ? this._messagePageSize : 300) || rows.some(message => !message || typeof message.id !== "string" || typeof message.body !== "string")) return null;
+      const messages = rows.filter(message => (message.from_uid === uid || message.to_uid === uid)
         && (!withUid || (message.from_uid === uid && message.to_uid === withUid) || (message.from_uid === withUid && message.to_uid === uid)))
-        .map(message => ({ id: message.id, from: message.from_uid, to: message.to_uid, body: message.body, ts: new Date(message.ts || 0).getTime() }));
-    } catch (_) { return null; }
-    finally { clearTimeout(timer); controllers.delete(controller); }
+        .map(message => ({ id: message.id, from: message.from_uid, to: message.to_uid, body: message.body, ts: new Date(message.ts || 0).getTime(), sentAt: message.ts }));
+      return withUid ? messages.length === rows.length ? messages.reverse() : null : messages;
+    });
   },
 
   // ---- per-account personal data sync (streak/logs/weight follow the user across devices) ----
