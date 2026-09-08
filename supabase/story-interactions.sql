@@ -93,6 +93,7 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function
 DECLARE caller uuid := auth.uid(); settings public.story_settings%ROWTYPE;
 BEGIN
   IF caller IS NULL THEN RAISE EXCEPTION 'Sign in required' USING ERRCODE = 'PT401'; END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('social-notification:'||caller::text,0));
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE uid = caller::text) THEN
     RAISE EXCEPTION 'Member unavailable' USING ERRCODE = 'PT403';
   END IF;
@@ -558,7 +559,7 @@ BEGIN
     'story_rate_limits','story_action_receipts','story_message_context','story_notifications','story_notification_events','story_reports'] LOOP
     EXECUTE pg_catalog.format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
     EXECUTE pg_catalog.format('CREATE POLICY story_deny_raw ON public.%I AS RESTRICTIVE FOR ALL TO PUBLIC USING (false) WITH CHECK (false)', table_name);
-    EXECUTE pg_catalog.format('REVOKE ALL ON public.%I FROM PUBLIC, anon, authenticated', table_name);
+    EXECUTE pg_catalog.format('REVOKE ALL ON public.%I FROM PUBLIC, anon, authenticated, service_role', table_name);
   END LOOP;
   FOR function_row IN SELECT procedure.oid::pg_catalog.regprocedure AS signature FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
@@ -566,7 +567,7 @@ BEGIN
       '_story_digest','_story_begin','_story_finish','_story_notify','get_story','publish_story','delete_story','record_story_view',
       'set_story_like','reply_to_story','resolve_story_reply_context','story_reply_references','get_story_notification_preferences','set_story_notification_preferences','set_story_block',
       '_story_cursor','_story_page','story_feed','story_viewers','list_story_notifications','mark_story_notifications_read','story_action_receipt','report_story_content','cleanup_story_rate_limits') LOOP
-    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated',function_row.signature);
+    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role',function_row.signature);
   END LOOP;
 END;
 $permissions$;

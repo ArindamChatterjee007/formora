@@ -169,6 +169,7 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
         if (method === 'POST' && body?.actor !== uid) return reply(route, 403, {});
         return route.fulfill({ status: 201, body: '' });
       }
+      if (table === 'rpc/admit_social_notification') return reply(route, 200, true);
       if (table !== 'posts' && table !== 'messages') { state.unexpected.push(method + ' ' + table); return reply(route, 501, {}); }
       const records = state[table], ownerField = table === 'posts' ? 'author' : 'from_uid';
       if (method === 'GET') {

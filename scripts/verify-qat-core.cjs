@@ -4,11 +4,13 @@ const assert = require('node:assert/strict');
 const { randomBytes, randomUUID } = require('node:crypto');
 const qat = require('./qat-config.cjs');
 
-async function verifyCore({ anonKey, serviceKey, fetchImpl = globalThis.fetch }) {
+async function verifyCore({ anonKey, serviceKey, notifications = false, fetchImpl = globalThis.fetch }) {
   qat.validateKey(anonKey, 'anon');
   qat.validateKey(serviceKey, 'service_role');
+  assert.equal(typeof notifications, 'boolean', 'Notification verification must be explicitly boolean');
   const record = { startedAt: new Date().toISOString(), projectRef: qat.projectRef,
     scope: 'Real QAT Auth, core PostgREST isolation and connection actions with temporary synthetic users only',
+    notificationAdmission: notifications,
     result: 'incomplete', checks: [], requests: [], cleanup: [], productionChanged: false,
     acceptance: 'pending', excluded: ['Storage and media', 'Stories v2', 'Provider payments', 'Analytics', 'Push', 'Physical devices'] };
   const users = [], assets = [], runId = randomUUID();
@@ -18,8 +20,8 @@ async function verifyCore({ anonKey, serviceKey, fetchImpl = globalThis.fetch })
   async function request(route, { method = 'GET', token = anonKey, key = anonKey, body, prefer = 'return=representation' } = {}) {
     const url = new URL(route, qat.backendOrigin);
     assert.equal(url.origin, qat.backendOrigin, 'Only the isolated QAT origin is allowed');
-    assert.match(url.pathname, /^\/(auth\/v1\/(token|admin\/users(?:\/[a-f0-9-]{36})?)|rest\/v1\/(accounts|profiles|posts|messages|requests|entitlements|support_tickets|rpc\/get_state))$/);
-    assert.ok(record.requests.length < (cleanupDeadline ? 80 : 50), 'QAT verification request limit exceeded');
+    assert.match(url.pathname, /^\/(auth\/v1\/(token|admin\/users(?:\/[a-f0-9-]{36})?)|rest\/v1\/(accounts|profiles|posts|messages|requests|notifications|entitlements|support_tickets|rpc\/(get_state|admit_social_notification)))$/);
+    assert.ok(record.requests.length < (cleanupDeadline ? notifications ? 96 : 80 : notifications ? 64 : 50), 'QAT verification request limit exceeded');
     const call = { method, path: url.pathname, status: null };
     record.requests.push(call);
     const response = await fetchImpl(url.href, { method, redirect: 'error',
@@ -66,6 +68,7 @@ async function verifyCore({ anonKey, serviceKey, fetchImpl = globalThis.fetch })
         assert.equal(created.data.email, email);
         const user = { id: created.data.id, token: null };
         users.push(user);
+        assets.push({ table: 'notifications', key: 'uid', value: user.id });
         const login = await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } });
         assert.equal(login.status, 200);
         assert.equal(login.data?.user?.id, user.id);
@@ -109,8 +112,9 @@ async function verifyCore({ anonKey, serviceKey, fetchImpl = globalThis.fetch })
       assert.equal(feed.data.posts[postId]?.author, owner.id);
       assert.ok(Number.isFinite(feed.data.posts[postId]?.ts));
     });
+    const messageId = randomUUID();
     await check('Messages are readable only by sender and recipient', async () => {
-      const id = randomUUID();
+      const id = messageId;
       assets.push({ table: 'messages', key: 'id', value: id });
       owned(await member(owner, 'messages', { method: 'POST', body: { id, from_uid: owner.id, to_uid: peer.id, body: 'Synthetic QAT private message' } }), 'id', id);
       const received = await member(peer, 'messages?id=eq.' + id + '&select=id,body');
@@ -120,6 +124,46 @@ async function verifyCore({ anonKey, serviceKey, fetchImpl = globalThis.fetch })
       assert.equal(hidden.status, 200);
       assert.deepEqual(hidden.data, []);
     });
+    if (notifications) {
+      await check('Source writes automatically create one reference-only alert and retries preserve read state', async () => {
+        const query = 'notifications?uid=eq.' + peer.id + '&actor=eq.' + owner.id + '&type=eq.message&select=id,uid,actor,type,body,read';
+        const initial = await member(peer, query);
+        assert.equal(initial.status, 200);
+        assert.equal(initial.data?.length, 1, 'Message source trigger must run before the client dispatch');
+        const row = initial.data[0];
+        assert.match(row.id, /^n2_[a-f0-9]{64}$/);
+        assert.equal(row.body, null);
+        assert.equal(row.read, false);
+        owned(await member(peer, 'notifications?id=eq.' + row.id, { method: 'PATCH', body: { read: true } }), 'id', row.id);
+        const arguments_ = { p_type: 'message', p_recipient: peer.id, p_post_id: null, p_event_id: messageId };
+        for (let retry = 0; retry < 2; retry++) {
+          const admitted = await member(owner, 'rpc/admit_social_notification', { method: 'POST', body: arguments_ });
+          assert.equal(admitted.status, 200);
+          assert.equal(admitted.data, true);
+        }
+        const final = await member(peer, query);
+        assert.equal(final.status, 200);
+        assert.deepEqual(final.data, [{ ...row, read: true }]);
+        const hidden = await member(stranger, 'notifications?id=eq.' + row.id + '&select=id');
+        assert.equal(hidden.status, 200);
+        assert.deepEqual(hidden.data, []);
+      });
+      await check('Direct fabricated alerts and redirected references are denied by hosted admission', async () => {
+        const id = randomUUID();
+        assets.push({ table: 'notifications', key: 'id', value: id });
+        assert.equal((await member(owner, 'notifications', { method: 'POST', body: { id, uid: peer.id, actor: owner.id, type: 'message', body: 'Forged fixture' } })).status, 403);
+        for (const args of [
+          { p_type: 'message', p_recipient: stranger.id, p_event_id: messageId },
+          { p_type: 'message', p_recipient: peer.id, p_event_id: randomUUID() },
+          { p_type: 'system', p_recipient: peer.id, p_event_id: messageId }
+        ]) {
+          const rejected = await member(owner, 'rpc/admit_social_notification', { method: 'POST', body: { ...args, p_post_id: null } });
+          assert.equal(rejected.status, 200);
+          assert.equal(rejected.data, false);
+        }
+        assert.ok([401, 403].includes((await request('/rest/v1/rpc/admit_social_notification', { method: 'POST', body: { p_type: 'message', p_recipient: peer.id, p_post_id: null, p_event_id: messageId } })).status));
+      });
+    }
     const outgoingId = owner.id + '__' + peer.id, incomingId = peer.id + '__' + owner.id;
     const cancelledId = owner.id + '__' + stranger.id, spoofedRequestId = stranger.id + '__' + peer.id;
     const pendingRequest = { id: outgoingId, from_uid: owner.id, to_uid: peer.id, status: 'pending' };
@@ -220,7 +264,8 @@ if (require.main === module) {
     const output = fs.mkdtempSync(path.join(os.tmpdir(), 'formora-qat-core-'));
     const filename = path.join(output, 'verification.json');
     fs.writeFileSync(filename, JSON.stringify({ result: 'incomplete', projectRef: qat.projectRef }) + '\n');
-    const record = await verifyCore({ anonKey: process.env.FORMORA_QAT_ANON_KEY, serviceKey: process.env.FORMORA_QAT_SERVICE_KEY });
+    const record = await verifyCore({ anonKey: process.env.FORMORA_QAT_ANON_KEY, serviceKey: process.env.FORMORA_QAT_SERVICE_KEY,
+      notifications: process.argv.includes('--notifications') });
     fs.writeFileSync(filename, JSON.stringify(record, null, 2) + '\n');
     console.log(JSON.stringify({ result: record.result, projectRef: record.projectRef, checks: record.checks,
       cleanup: record.cleanup, requests: record.requests.length, evidence: filename, error: record.error, productionChanged: false }, null, 2));

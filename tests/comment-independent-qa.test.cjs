@@ -137,7 +137,7 @@ function lockedAuth(fixture, api) {
   return { auth, lock, entered: entered.promise, refreshRequests: () => refreshRequests };
 }
 
-test('Comment independent: in-memory old-caller omission reproduces two 503 phantom alerts', { timeout: 2000 }, async context => {
+test('Comment independent: the old premature caller cannot admit alerts without a persisted source', { timeout: 2000 }, async context => {
   const api = fixtures(), fixture = api.harness(), pending = [], handle = fixture.state.handle;
   fixture.state.handle = request => request.url.pathname.endsWith('/comments')
     ? new Response(null, { status: 503 }) : handle(request);
@@ -154,10 +154,11 @@ test('Comment independent: in-memory old-caller omission reproduces two 503 phan
   assert.equal(api.writes(fixture.state, 'comments').length, 2);
   assert.equal(fixture.state.comments.size, 0);
   assert.equal(notifications.length, 2);
-  assert.equal(new Set(notifications.map(request => request.body.id)).size, 2);
-  assert.ok(notifications.every(request => Object.keys(request.body).sort().join(',') === 'actor,id,post_id,type,uid'));
+  assert.ok(notifications.every(request => request.body.p_event_id === null));
+  assert.ok(notifications.every(request => Object.keys(request.body).sort().join(',') === 'p_event_id,p_post_id,p_recipient,p_type'));
+  assert.equal(fixture.state.alerts.size, 0);
   const observation = { control: 'in_memory_old_caller_omission', commentResponses: [503, 503],
-    persistedComments: 0, notificationWrites: 2, distinctNotificationIds: 2, runtimeFilesModified: false };
+    persistedComments: 0, admissionAttempts: 2, persistedNotifications: 0, runtimeFilesModified: false };
   observations.push(observation); context.diagnostic(JSON.stringify(observation));
 });
 
@@ -240,7 +241,7 @@ test('Comment independent: real auth refresh-lock wait must release Feed and Fle
       assert.equal(state.comments.size, 1);
       assert.equal(state.comments.get(intent.id).body, original);
       assert.equal(notified.length, 1);
-      assert.equal(notified[0].body.id, 'n1_' + hash(JSON.stringify([api.owner, api.peer, 'comment', intent.id])));
+      assert.deepEqual(notified[0].body, { p_type:'comment',p_recipient:api.peer,p_post_id:api.postId,p_event_id:intent.id });
       assert.equal(state.alerts.size, 1);
       assert.equal(social.cloud.comments.length, 1);
       assert.equal(reopened.value, '');

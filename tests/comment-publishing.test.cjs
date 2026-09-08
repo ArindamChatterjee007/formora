@@ -58,12 +58,14 @@ function harness() {
       state.comments.set(row.id, row);
       return Response.json([row], { status: 201 });
     }
-    assert.equal(url.pathname, '/rest/v1/notifications');
+    assert.equal(url.pathname, '/rest/v1/rpc/admit_social_notification');
     assert.equal(method, 'POST');
-    assert.equal(url.searchParams.get('on_conflict'), 'id');
-    assert.equal(options.headers.Prefer, 'resolution=ignore-duplicates,return=minimal');
-    if (!state.alerts.has(body.id)) state.alerts.set(body.id, { ...body, read: false });
-    return new Response(null, { status: 201 });
+    assert.deepEqual(Object.keys(body).sort(), ['p_event_id','p_post_id','p_recipient','p_type']);
+    const event = state.comments.get(body.p_event_id);
+    if (!event || event.author !== state.uid || event.post_id !== body.p_post_id) return Response.json(false);
+    const key = JSON.stringify(body);
+    if (!state.alerts.has(key)) state.alerts.set(key, { ...body, read: false });
+    return Response.json(true);
   };
   return { context, cloud, state };
 }
@@ -73,7 +75,8 @@ function createComment(fixture, changes = {}) {
   return fixture.cloud.addComment(input.postId, input.body, input.parentId, input.mentions, input.postAuthor, input.parentAuthor, input.id);
 }
 
-const writes = (state, table) => state.requests.filter(request => request.method === 'POST' && request.url.pathname === '/rest/v1/' + table);
+const writes = (state, table) => state.requests.filter(request => request.method === 'POST'
+  && request.url.pathname === '/rest/v1/' + (table === 'notifications' ? 'rpc/admit_social_notification' : table));
 
 test('Comment ACK: exact persisted row precedes checked reference-only alert fanout', async () => {
   const fixture = harness(), { state } = fixture;
@@ -81,13 +84,12 @@ test('Comment ACK: exact persisted row precedes checked reference-only alert fan
   assert.deepEqual(row, state.comments.get(commentId));
   assert.equal(row.ts, timestamp);
   assert.deepEqual(state.requests.map(request => [request.method, request.url.pathname]), [
-    ['POST', '/rest/v1/comments'], ['GET', '/rest/v1/comments'], ['POST', '/rest/v1/notifications'],
+    ['POST', '/rest/v1/comments'], ['POST', '/rest/v1/rpc/admit_social_notification'],
   ]);
   assert.ok(state.requests.every(request => request.options.headers.Authorization === 'Bearer current-owner-token'));
   assert.equal(state.alerts.size, 1);
   const alert = writes(state, 'notifications')[0].body;
-  assert.deepEqual(Object.keys(alert).sort(), ['actor', 'id', 'post_id', 'type', 'uid']);
-  assert.equal(alert.id, 'n1_' + createHash('sha256').update(JSON.stringify([owner, peer, 'comment', commentId])).digest('hex'));
+  assert.deepEqual(alert, { p_type:'comment',p_recipient:peer,p_post_id:postId,p_event_id:commentId });
   assert.equal(JSON.stringify(alert).includes(privateBody), false);
 });
 
@@ -186,14 +188,14 @@ test('Comment ACK: duplicate reply and mention recipients get one stable alert e
   const row = await createComment(fixture, input);
   assert.equal(row.parent_id, 'parent-1');
   assert.deepEqual(row.mentions, input.mentions);
-  assert.deepEqual(writes(state, 'notifications').map(request => [request.body.uid, request.body.type]), [[peer, 'reply']]);
+  assert.deepEqual(writes(state, 'notifications').map(request => [request.body.p_recipient, request.body.p_type]), [[peer, 'reply']]);
   input.postAuthor = owner;
   assert.ok(await createComment(fixture, input));
-  assert.deepEqual(writes(state, 'notifications').slice(1).map(request => [request.body.uid, request.body.type]), [[peer, 'reply'], [mentioned, 'mention']]);
+  assert.deepEqual(writes(state, 'notifications').slice(1).map(request => [request.body.p_recipient, request.body.p_type]), [[peer, 'reply'], [mentioned, 'mention']]);
   assert.equal(state.alerts.size, 2);
   for (const request of writes(state, 'notifications')) {
-    assert.notEqual(request.body.uid, owner);
-    assert.equal(request.body.id, 'n1_' + createHash('sha256').update(JSON.stringify([owner, request.body.uid, request.body.type, commentId])).digest('hex'));
+    assert.notEqual(request.body.p_recipient, owner);
+    assert.equal(request.body.p_event_id, commentId);
     assert.equal(Object.hasOwn(request.body, 'body'), false);
   }
 });
@@ -203,7 +205,7 @@ test('Comment ACK: notification failure retains durable comment and retry cannot
   const handle = state.handle;
   state.handle = async request => {
     const response = await handle(request);
-    if (request.url.pathname.endsWith('/notifications') && writes(state, 'notifications').length === 1) throw new TypeError('Alert committed; acknowledgement lost');
+    if (request.url.pathname.endsWith('/admit_social_notification') && writes(state, 'notifications').length === 1) throw new TypeError('Alert committed; acknowledgement lost');
     return response;
   };
   assert.deepEqual(await createComment(fixture), state.comments.get(commentId));
@@ -213,15 +215,16 @@ test('Comment ACK: notification failure retains durable comment and retry cannot
   assert.equal(state.comments.size, 1);
   assert.equal(state.alerts.size, 1);
   assert.equal(alert.read, true);
-  assert.equal(writes(state, 'notifications')[0].body.id, writes(state, 'notifications')[1].body.id);
+  assert.deepEqual(writes(state, 'notifications')[0].body, writes(state, 'notifications')[1].body);
 });
 
-test('Comment ACK: missing checked notification row suppresses alerts without undoing the durable comment', async () => {
+test('Comment ACK: denied source admission does not undo the durable comment', async () => {
   const fixture = harness(), handle = fixture.state.handle;
-  fixture.state.handle = request => request.method === 'GET' ? Response.json([]) : handle(request);
+  fixture.state.handle = request => request.url.pathname.endsWith('/admit_social_notification') ? Response.json(false) : handle(request);
   assert.ok(await createComment(fixture));
   assert.equal(fixture.state.comments.size, 1);
-  assert.equal(writes(fixture.state, 'notifications').length, 0);
+  assert.equal(writes(fixture.state, 'notifications').length, 1);
+  assert.equal(fixture.state.alerts.size, 0);
 });
 
 test('Comment ACK: calls without an ID mint crypto IDs; unauthenticated, stale-owner and invalid inputs fail closed', async () => {
@@ -245,7 +248,7 @@ test('Comment ACK: calls without an ID mint crypto IDs; unauthenticated, stale-o
 });
 
 for (const phase of ['write-token', 'write-json', 'reconcile-json', 'notification-token', 'notification-json']) {
-  test(`Comment ACK: owner/session fence rejects delayed ${phase}, including same-account return`, async () => {
+  test(`Comment ACK: owner/session fence rejects delayed ${phase}, including same-account return`, { timeout: 2000 }, async () => {
     const fixture = harness(), { context, cloud, state } = fixture;
     const started = deferred(), gate = deferred(), handle = state.handle;
     let tokenCalls = 0;
@@ -262,7 +265,9 @@ for (const phase of ['write-token', 'write-json', 'reconcile-json', 'notificatio
         return Response.json({}, { status: 409 });
       }
       const response = await handle(request);
-      if ((phase === 'write-json' && request.method === 'POST') || (phase.endsWith('-json') && phase !== 'write-json' && request.method === 'GET')) {
+      if ((phase === 'write-json' && request.url.pathname.endsWith('/comments') && request.method === 'POST')
+        || (phase === 'reconcile-json' && request.method === 'GET')
+        || (phase === 'notification-json' && request.url.pathname.endsWith('/admit_social_notification'))) {
         const json = response.json.bind(response);
         response.json = async () => { started.resolve(); await gate.promise; return json(); };
       }
@@ -275,7 +280,8 @@ for (const phase of ['write-token', 'write-json', 'reconcile-json', 'notificatio
     state.uid = owner; cloud.me = owner;
     gate.resolve();
     assert.equal(await pending, false);
-    assert.equal(writes(state, 'notifications').length, 0);
+    assert.equal(writes(state, 'notifications').length, phase === 'notification-json' ? 1 : 0);
+    assert.ok(writes(state, 'notifications').every(request => request.body.p_recipient === peer));
     if (phase === 'write-token') assert.equal(state.requests.length, 0);
     assert.equal(cloud._publishingControllers.size, 0);
   });
@@ -317,7 +323,7 @@ test('Comment ACK: delayed reconciliation body cannot resolve or notify before i
 
 test('Comment ACK: denied notification writes do not invalidate a durable comment or claim delivery', async () => {
   const fixture = harness(), { state } = fixture, handle = fixture.state.handle;
-  state.handle = request => request.url.pathname.endsWith('/notifications') ? Response.json({}, { status: 403 }) : handle(request);
+  state.handle = request => request.url.pathname.endsWith('/admit_social_notification') ? Response.json({}, { status: 403 }) : handle(request);
   const receipt = await createComment(fixture);
   assert.deepEqual(receipt, state.comments.get(commentId));
   assert.equal(Object.hasOwn(receipt, 'delivered'), false);
@@ -326,7 +332,7 @@ test('Comment ACK: denied notification writes do not invalidate a durable commen
   assert.ok(await createComment(fixture));
   assert.equal(state.comments.size, 1);
   assert.equal(state.alerts.size, 1);
-  assert.equal(writes(state, 'notifications')[0].body.id, writes(state, 'notifications')[1].body.id);
+  assert.deepEqual(writes(state, 'notifications')[0].body, writes(state, 'notifications')[1].body);
 });
 
 function element(value = '') {
@@ -529,7 +535,7 @@ for (const destination of ['reply', 'post']) {
     input.value = 'Destination-bound comment'; state.handle = handle;
     assert.equal(await social.submitComment(postId), true);
     assert.notEqual(writes(state, 'comments').at(-1).body.id, originalId);
-    assert.deepEqual(writes(state, 'notifications').map(request => [request.body.uid, request.body.type]), [destination === 'reply' ? [peer, 'reply'] : [mentioned, 'comment']]);
+    assert.deepEqual(writes(state, 'notifications').map(request => [request.body.p_recipient, request.body.p_type]), [destination === 'reply' ? [peer, 'reply'] : [mentioned, 'comment']]);
   });
 }
 
@@ -670,7 +676,7 @@ test('Flex comment: original flat reply/mention behavior remains and a wrong des
   assert.equal(social.cloud.comments[0].parent_id, null);
   assert.deepEqual(Array.from(social.cloud.comments[0].mentions), [peer]);
   assert.equal(writes(state, 'notifications').length, 1);
-  assert.equal(writes(state, 'notifications')[0].body.type, 'comment');
+  assert.equal(writes(state, 'notifications')[0].body.p_type, 'comment');
 });
 
 if (process.env.COMMENT_PUBLISHING_BROWSER === '1') test('Comment browser: actual Feed and Flex draft, retry and stale-sheet flow', { timeout: 18000 }, async context => {
@@ -713,16 +719,19 @@ if (process.env.COMMENT_PUBLISHING_BROWSER === '1') test('Comment browser: actua
         return route.fulfill({ status: 201, json: [row] });
       } catch (error) { state.unexpected.push(error.message); await route.abort().catch(() => {}); }
     });
-    await page.route('**/rest/v1/notifications**', async route => {
+    await page.route('**/rest/v1/rpc/admit_social_notification', async route => {
       try {
         const request = route.request();
-        if (request.method() === 'GET') return route.fulfill({ status: 200, json: [] });
+        assert.equal(request.method(), 'POST');
         const body = request.postData() ? request.postDataJSON() : undefined;
-        assert.equal(body.actor, owner);
-        assert.equal(body.uid, peer);
-        assert.deepEqual(Object.keys(body).sort(), ['actor', 'id', 'post_id', 'type', 'uid']);
-        alertWrites.push(body); if (!alerts.has(body.id)) alerts.set(body.id, body);
-        return route.fulfill({ status: 201, body: '' });
+        assert.equal(body.p_recipient, peer);
+        assert.deepEqual(Object.keys(body).sort(), ['p_event_id','p_post_id','p_recipient','p_type']);
+        const event = comments.get(body.p_event_id);
+        assert.equal(event?.author, owner);
+        assert.equal(event.post_id, body.p_post_id);
+        const key = JSON.stringify(body);
+        alertWrites.push(body); if (!alerts.has(key)) alerts.set(key, body);
+        return route.fulfill({ status: 200, json: true });
       } catch (error) { state.unexpected.push(error.message); await route.abort().catch(() => {}); }
     });
     await page.evaluate(() => Cloud.setPaused(true));
