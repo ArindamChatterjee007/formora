@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 export const cleanupLimits = Object.freeze({ objects: 2, requestBytes: 512, jsonBytes: 8192, ackBytes: 4096,
   stepMs: 5000, aggregateMs: 20000, requests: 10 });
-export type CleanupConfig = { enabled: boolean; origin: string; serviceKey: string };
+export type CleanupConfig = { enabled: boolean; origin: string; serviceKey: string; cleanupKey?: string };
 type Json = Record<string, unknown>;
 type Intent = { intent_id: string; object_id: string; bucket: string; object_key: string; object_version: string;
   state: "claimed" | "object_delete_requested" | "completed" | "unknown";
@@ -29,7 +29,7 @@ const cancelBody = (source: Request | Response) => { void source.body?.cancel().
 
 export function cleanupConfiguration(read = (name: string) => Deno.env.get(name)): CleanupConfig {
   return { enabled: read("STORY_MEDIA_CLEANUP_ENABLED") === "true", origin: read("SUPABASE_URL") || "",
-    serviceKey: read("SUPABASE_SERVICE_ROLE_KEY") || "" };
+    serviceKey: read("SUPABASE_SERVICE_ROLE_KEY") || "", cleanupKey: read("STORY_MEDIA_CLEANUP_KEY") || "" };
 }
 
 function parseClaim(value: unknown, operation: string, expectedId?: string, previous?: Claim): Claim {
@@ -97,10 +97,11 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
   return async (request: Request): Promise<Response> => {
     if (config.enabled !== true || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.origin)
       || !/^[A-Za-z0-9._-]{32,4096}$/.test(config.serviceKey)) return reply({ error: "cleanup_disabled" }, 503);
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(config.cleanupKey || "") || config.cleanupKey === config.serviceKey) return reply({ error: "cleanup_disabled" }, 503);
     if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
     const provided = request.headers.get("x-story-media-cleanup-key") || "";
-    if (provided.length > 4096) return reply({ error: "service_auth_required" }, 401);
-    const candidate = encoder.encode(provided), expected = encoder.encode(config.serviceKey);
+    if (provided.length > 128) return reply({ error: "service_auth_required" }, 401);
+    const candidate = encoder.encode(provided), expected = encoder.encode(config.cleanupKey!);
     if (candidate.length !== expected.length || !timingSafeEqual(candidate, expected)) return reply({ error: "service_auth_required" }, 401);
     const incoming = new URL(request.url);
     if (request.headers.has("origin") || incoming.search || incoming.hash || incoming.username || incoming.password

@@ -454,7 +454,7 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   const config = JSON.parse(fs.readFileSync(path.join(root, 'supabase/functions/cleanup-story-media/deno.json'), 'utf8'));
 
   assert.deepEqual([...source.matchAll(/read\("([A-Z_]+)"\)/g)].map(match => match[1]).sort(),
-    ['STORY_MEDIA_CLEANUP_ENABLED', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_URL']);
+    ['STORY_MEDIA_CLEANUP_ENABLED', 'STORY_MEDIA_CLEANUP_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_URL']);
   assert.match(source, /read\("STORY_MEDIA_CLEANUP_ENABLED"\) === "true"/);
   assert.match(source, /config\.enabled !== true[\s\S]{0,200}cleanup_disabled/);
   assert.match(source, /\^https:\\\/\\\/\[a-z0-9-\]\+\\\.supabase\\\.co\$/, 'the origin is pinned to one canonical https project host');
@@ -466,6 +466,8 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   assert.match(source, /response\.redirected \|\| \(response\.url && response\.url !== url\)/);
   assert.match(source, /timingSafeEqual\(candidate, expected\)/);
   assert.match(source, /candidate\.length !== expected\.length/);
+  assert.match(source, /encoder\.encode\(config\.cleanupKey!\)/);
+  assert.match(source, /config\.cleanupKey === config\.serviceKey/);
   assert.equal(/atob|decodeJwt|jwt|Authorization: "Bearer " \+ provided/.test(source), false, 'no bearer or JWT identity path');
   assert.match(source, /incoming\.search \|\| incoming\.hash \|\| incoming\.username \|\| incoming\.password/);
 

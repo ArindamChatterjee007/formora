@@ -297,6 +297,15 @@ Deno handler unit cases plus one SQL integration case; its other SQL cases are
 explicitly unrun. CI retains that scoped verification record. `--local` runs
 the full cleanup runtime suite separately when required.
 
+Cleanup invocation additionally requires `STORY_MEDIA_CLEANUP_KEY`, a separate
+random server-only credential of at least 32 bytes encoded as base64url, sent in
+`x-story-media-cleanup-key`. Keep normal gateway JWT verification enabled. There
+is no fallback to a member bearer or the backend service key; missing, short or
+reused keys leave cleanup disabled. The injected backend key is used only for
+the fixed same-project RPC/Storage requests. Verify both authentication and
+backend access before authorizing a synthetic upload window, and remove temporary
+invocation keys after tests. Never put either key in client settings or reports.
+
 ## QAT Registration Consent
 
 `supabase/registration-consent.sql` is a fresh, default-off QAT experiment.
