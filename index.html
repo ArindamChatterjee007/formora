@@ -77,6 +77,9 @@
     .dl-banner .dl-x { display: inline-flex; align-items: center; background: transparent; border: 0; color: #fff; line-height: 1; cursor: pointer; padding: 4px 6px; opacity: .85; }
     .dl-banner .dl-x svg { width: 15px; height: 15px; display: block; }
     @media (min-width: 700px) { .dl-banner { justify-content: center; } .dl-banner .dl-txt { flex: none; } }
+    .app-shell { padding-top: var(--install-banner-height, 0px); }
+    .topbar { top: var(--install-banner-height, 0px); }
+    @media (min-width: 761px) { .tabbar { top: calc(var(--install-banner-height, 0px) + var(--app-header-height, 61px)); } }
 
     /* ===== branded launch animation ===== */
     #launch { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center;
@@ -353,8 +356,22 @@
       if (isAndroid) { aA.hidden = false; }
       else if (isIOS) { showIOS(); }
       else { aA.hidden = false; showIOS(); }              // desktop: offer both
+      function syncBannerOffset() {
+        var root = document.documentElement, header = document.querySelector(".topbar");
+        root.style.setProperty("--install-banner-height", (banner.hidden ? 0 : Math.ceil(banner.getBoundingClientRect().height)) + "px");
+        if (header) root.style.setProperty("--app-header-height", Math.ceil(header.getBoundingClientRect().height) + "px");
+      }
       banner.hidden = false;
-      document.getElementById("dl-x").onclick = function () { banner.hidden = true; try { localStorage.setItem("fm_dl_x", "1"); } catch (e) {} };
+      syncBannerOffset();
+      var bannerObserver = typeof ResizeObserver === "function" ? new ResizeObserver(syncBannerOffset) : null;
+      if (bannerObserver) bannerObserver.observe(banner);
+      window.addEventListener("resize", syncBannerOffset);
+      document.addEventListener("DOMContentLoaded", function () {
+        var header = document.querySelector(".topbar");
+        if (bannerObserver && header) bannerObserver.observe(header);
+        syncBannerOffset();
+      }, { once: true });
+      document.getElementById("dl-x").onclick = function () { banner.hidden = true; syncBannerOffset(); try { localStorage.setItem("fm_dl_x", "1"); } catch (e) {} };
     })();
   </script>
 
