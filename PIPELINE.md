@@ -138,6 +138,71 @@ cleanup. Do not revert to an old connected client or rerun broad `security.sql`
 after these migrations; retain the tighter policies and use the isolated offline
 preview if the matched client/backend contract cannot be verified.
 
+## QAT Registration Consent
+
+`supabase/registration-consent.sql` is a fresh, default-off QAT experiment.
+Install it only after `billing-events.sql`, `analytics-outbox.sql` and
+`activation-events.sql` on the explicitly identified isolated backend. It pins
+the existing activation verifier before replacing that routine in the same
+transaction; never edit an already-installed baseline or relax consent clocks.
+Record the source hashes, previous routine definition, Auth trigger inventory,
+effective grants and an API-to-SQL project binding before installation.
+
+For a bounded synthetic test window, the activation source must be `local_test`,
+its consent version and the analytics consent version must match the QAT notice,
+and billing collection and delivery must both stay off. The displayed notice's
+SHA-256 must match `registration_consent_config.notice_sha256`. Only an isolated
+QAT build with `FORMORA_QAT_REGISTRATION_CONSENT=1` exposes the optional checkbox;
+ordinary builds keep it off. Retention and production registration approvals
+remain false. No production measurement or external provider delivery is
+authorized by these tests.
+
+Receipts contain a hashed random proof and a per-attempt salted email commitment,
+not the email, IP or health data. A receipt expires for redemption after fifteen
+minutes and can bind once during real Auth insertion. Auth user and identity
+metadata triggers remove the ephemeral proof and salt. Test actual GoTrue
+signup, returned metadata, identities and withdrawal separately from SQL
+fixtures. Database/Auth clock disagreement fails closed; do not backdate consent
+or relabel an existing account as newly registered. The existing privacy
+controller supports withdrawal without approving billing or checkout tracking.
+
+GoTrue may echo the original signup metadata in its first response even when
+database triggers removed the proof and salt. QAT proof-bearing signups therefore
+use `supabase/functions/registration-signup/index.ts`, never direct GoTrue. This
+adapter is default-off, pins the isolated QAT project and site origin, forwards
+only the signup fields using its public anon key, discards the initial session,
+and returns an allowlisted user with a newly refreshed, proof-free session.
+Decoded JWT checks protect the response boundary; they are not signature-based
+authorization. The intentional test-cohort claim may remain. Provider-held logs
+and the discarded first token are not claimed to be erased or revoked.
+
+Before enabling `REGISTRATION_SIGNUP_ENABLED`, verify the exact committed Auth
+user and identity scrub triggers are installed and enabled on QAT. Deploy only
+`registration-signup` with `--use-api --project-ref` set to the isolated project;
+retain normal gateway JWT verification. The app sends the public anonymous bearer
+to that gateway. Never deploy all functions, use a service key in the adapter,
+point it at production, or resend a proof-bearing signup through direct GoTrue
+after adapter failure. An uncertain signup asks the member to sign in first.
+Plain signup remains direct and carries no reserved proof fields. Keep the
+adapter disabled outside an explicitly authorized QAT test window until real
+response, JWT, stored metadata, replay and withdrawal checks all pass.
+
+Anonymous issuance has a global twenty-per-minute and three-hundred-outstanding
+cap. A caller can exhaust this test capacity; registration still works without
+measurement. Expiry is not a physical deletion guarantee: bounded issue-time
+cleanup removes old receipts, and the test operator must remove only the exact
+synthetic fixtures and verify cleanup. Do not claim a retention policy from TTL.
+
+Recovery first disables the QAT receipt policy and activation collection and sets
+`REGISTRATION_SIGNUP_ENABLED=false`, then
+restores the default-off frontend. This invalidates in-flight proofs without
+changing customer records. If an Auth-trigger fault requires removal, use an
+explicitly reviewed transaction that drops `activation_bind_registration_consent`
+and `activation_strip_registration_identity` before removing their functions or
+tables. Retain the private audit/inventory and restore only the exact saved
+verifier definition. Never drop dependent tables first or apply this procedure
+to production without separate review.
+
 ## Activation Prerequisites
 
 Prepared configuration is not deployed configuration. The initial read-only

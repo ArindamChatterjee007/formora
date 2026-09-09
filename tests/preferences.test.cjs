@@ -12,7 +12,7 @@ function fixture(enabled = true) {
   const measurement = { load:async()=>calls.push('load'), reset:()=>calls.push('reset'), checkoutStarted:payload=>(calls.push(payload),true),
     scheduleWorkoutFinalization:payload=>(calls.push(payload),true), flushWorkoutFinalizations:async payload=>(calls.push(payload),[]) };
   const push = { refresh:async()=>calls.push('push-refresh'), suspendLocal:async()=>calls.push('suspend'), beforeAccountChange:()=>{calls.push('before-change');return new Promise(()=>{});}, getState:()=>({canRevokeDevice:false}) };
-  const context = vm.createContext({ crypto:webcrypto, URL, AbortController, setTimeout,clearTimeout,
+  const context = vm.createContext({ crypto:webcrypto, TextEncoder, URL, AbortController, setTimeout,clearTimeout,
     window:{SERVER_MEASUREMENT:enabled,FORMORA_WEB_PUSH:false,SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_ANON_KEY:'public',MEASUREMENT_PERMISSIONS:{}},
     Measurement:{create:options=>(captured.measurement=options,measurement)}, FormoraPush:{create:options=>(captured.push=options,push)},
     localStorage:{getItem(){},setItem(){},removeItem(){}},
@@ -56,4 +56,65 @@ test('server-backed mode cannot be bypassed using the legacy diagnostics checkbo
   const {context}=fixture();context.window.Track={setMeasurementConsent(){throw Error('Legacy consent must not be used');}};
   vm.runInContext(source('js/app.js')+'\nglobalThis.app=App;',context);
   assert.equal(context.app.renderCheckoutDiagnostics(),'');assert.doesNotThrow(()=>context.app.setCheckoutDiagnostics(true));
+});
+
+function registrationFixture() {
+  const fixtureState=fixture(false), {context,preferences,state,captured}=fixtureState;
+  state.owner='';
+  Object.assign(context.window,{REGISTRATION_CONSENT:true,SUPABASE_URL:'https://wospznckvryiihfzwwtn.supabase.co',
+    FORMORA_STAGE:{stage:'qat',mode:'isolated-backend',backendProjectRef:'wospznckvryiihfzwwtn',backendOrigin:'https://wospznckvryiihfzwwtn.supabase.co'}});
+  context.SupaAuth._hdr=extra=>({apikey:'public','Content-Type':'application/json',...extra});
+  context.SupaAuth._timedFetch=async(url,options)=>{
+    captured.registration={url,options,body:JSON.parse(options.body)};
+    const body=captured.registration.body;
+    return {ok:true,body:{proof:'a'.repeat(64),version:body.p_version,notice_sha256:body.p_notice_sha256,
+      captured_at:new Date().toISOString(),expires_at:new Date(Date.now()+900000).toISOString()}};
+  };
+  return {...fixtureState,draft:async()=>({name:'Synthetic member',email:' Person@Example.test ',registrationConsent:{
+    version:preferences._registrationNotice.version,notice_sha256:await preferences.registrationHash(preferences._registrationNotice.text)}})};
+}
+
+test('pre-signup client sends only an explicitly chosen notice and salted email commitment before signup',async()=>{
+  const {preferences,captured,draft}=registrationFixture();
+  const input=await draft(),meta=await preferences.registrationMetadata(input,()=>{});
+  assert.equal(meta.registration_consent_proof,'a'.repeat(64));
+  assert.match(meta.registration_consent_binding,/^[a-f0-9]{64}$/);
+  assert.equal(captured.registration.body.p_identity_hash,await preferences.registrationHash(meta.registration_consent_binding+':person@example.test'));
+  assert.deepEqual(Object.keys(captured.registration.body).sort(),['p_granted','p_identity_hash','p_notice_sha256','p_version']);
+  assert.equal(JSON.stringify(captured.registration.body).includes('person@example.test'),false);
+  assert.equal(JSON.stringify(captured.registration.body).includes(meta.registration_consent_binding),false);
+  assert.equal(captured.registration.options.headers.Authorization,'Bearer public');
+  assert.equal(captured.registration.options.redirect,'error');
+});
+
+for(const boundary of ['unchecked','production stage','production backend','flag off','signed in','notice changed']) {
+  test('pre-signup client '+boundary+' performs no consent request',async()=>{
+    const {preferences,context,state,captured,draft}=registrationFixture(),input=await draft();
+    if(boundary==='unchecked') input.registrationConsent=null;
+    if(boundary==='production stage') context.window.FORMORA_STAGE.stage='production';
+    if(boundary==='production backend') context.window.SUPABASE_URL='https://ptukgtxpigdkdzsewuvz.supabase.co';
+    if(boundary==='flag off') context.window.REGISTRATION_CONSENT=false;
+    if(boundary==='signed in') state.owner='other';
+    if(boundary==='notice changed') input.registrationConsent.notice_sha256='0'.repeat(64);
+    const meta=await preferences.registrationMetadata(input,()=>{});
+    assert.deepEqual(JSON.parse(JSON.stringify(meta)),{name:'Synthetic member'});
+    assert.equal(captured.registration,undefined);
+  });
+}
+
+test('pre-signup client optional receipt failure leaves signup metadata usable but cancellation propagates',async()=>{
+  const {preferences,context,draft}=registrationFixture();
+  context.SupaAuth._timedFetch=async()=>{throw Error('Unavailable');};
+  assert.deepEqual(JSON.parse(JSON.stringify(await preferences.registrationMetadata(await draft(),()=>{}))),{name:'Synthetic member'});
+  await assert.rejects(preferences.registrationMetadata(await draft(),()=>{throw Error('Auth changed');}),/Auth changed/);
+});
+
+test('pre-signup QAT consent reuses the withdrawal controller without approving billing or checkout measurement',async()=>{
+  const {preferences,captured,state}=registrationFixture();state.owner='owner-a';
+  await preferences.resume();
+  const permission=captured.measurement.permissions[preferences._registrationNotice.version];
+  assert.equal(permission.reviewStatus,'pending');assert.deepEqual(Array.from(permission.scopes),['activation']);
+  assert.equal(preferences.available(),true);
+  assert.equal(preferences.prepareWorkoutFinalization('2026-09-09'),null);
+  assert.equal(preferences.checkoutStarted('pro','upi','owner-a',0),false);
 });

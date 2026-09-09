@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createHash, randomBytes } = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
 
 const owner = '12345678-1234-4234-8234-123456789abc';
@@ -12,7 +13,7 @@ const otherOwner = '87654321-4321-4321-8321-cba987654321';
 const version = 'billing-analytics-v1';
 const sql = name => fs.readFileSync(path.join(__dirname, '../supabase', name), 'utf8');
 
-async function database(context, { activation = true } = {}) {
+async function database(context, { activation = true, registration = false, hostedDefaults = false } = {}) {
   const subject = new PGlite();
   context.after(() => subject.close());
   await subject.exec(`
@@ -24,11 +25,12 @@ async function database(context, { activation = true } = {}) {
       'SELECT nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
     CREATE TABLE auth.users (
-      id uuid PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      id uuid PRIMARY KEY, email text, created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
       email_confirmed_at timestamptz, phone_confirmed_at timestamptz,
       deleted_at timestamptz, is_anonymous boolean NOT NULL DEFAULT false,
       raw_app_meta_data jsonb NOT NULL DEFAULT '{}', raw_user_meta_data jsonb NOT NULL DEFAULT '{}'
     );
+    CREATE TABLE auth.identities(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid REFERENCES auth.users(id),identity_data jsonb NOT NULL);
     CREATE TABLE public.accounts (uid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz);
     ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
     GRANT SELECT, INSERT, UPDATE ON public.accounts TO authenticated;
@@ -45,9 +47,11 @@ async function database(context, { activation = true } = {}) {
       type text NOT NULL, raw jsonb NOT NULL, created_at timestamptz DEFAULT now()
     );
   `);
+  if (hostedDefaults) await subject.exec('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO service_role');
   await subject.exec(sql('billing-events.sql'));
   await subject.exec(sql('analytics-outbox.sql'));
   if (activation) await subject.exec(sql('activation-events.sql'));
+  if (registration) await subject.exec(sql('registration-consent.sql'));
   return subject;
 }
 
@@ -67,6 +71,190 @@ async function lookup(subject, uid = owner) {
   return (await asOwner(subject, uid,
     'SELECT public.get_billing_analytics_consent() AS result')).rows[0].result;
 }
+
+async function registrationFixture(context) {
+  const subject = await database(context, { registration:true });
+  const notice='a'.repeat(64), policy='qat-registration-v1', bindings=new Map();
+  await subject.query('UPDATE analytics_delivery_config SET consent_version=$1',[policy]);
+  await subject.query("UPDATE activation_config SET collection_enabled=true,source_mode='local_test',consent_version=$1,permission_approved=true,source_verified=true,exclusions_verified=true",[policy]);
+  await subject.query('UPDATE registration_consent_config SET enabled=true,notice_sha256=$1',[notice]);
+  const issue=async (granted=true,version=policy,digest=notice,email=owner+'@example.test')=>{
+    await subject.exec('RESET ROLE');
+    await subject.query("SELECT set_config('request.jwt.claim.sub','',false)");
+    await subject.exec('SET ROLE anon');
+    try {
+      const binding=randomBytes(32).toString('hex');
+      const identity=createHash('sha256').update(binding+':'+email.trim().toLowerCase()).digest('hex');
+      const receipt=(await subject.query('SELECT issue_registration_consent($1,$2,$3,$4) AS receipt',[granted,version,digest,identity])).rows[0].receipt;
+      if(receipt) bindings.set(receipt.proof,binding);
+      return receipt;
+    }
+    finally { await subject.exec('RESET ROLE'); }
+  };
+  const create=(uid,proof,extra={},binding=bindings.get(proof))=>subject.query(`INSERT INTO auth.users(id,email,created_at,email_confirmed_at,raw_user_meta_data)
+    VALUES($1,$2,clock_timestamp(),clock_timestamp(),$3)`,[uid,uid+'@example.test',{...extra,registration_consent_proof:proof,registration_consent_binding:binding}]);
+  return {subject,notice,policy,issue,create,bindings};
+}
+
+test('Pre-signup consent binds one server-timed QAT choice during account creation without backdating', async context => {
+  const {subject,issue,create}=await registrationFixture(context);
+  const receipt=await issue();
+  assert.match(receipt.proof,/^[a-f0-9]{64}$/);
+  await create(owner,receipt.proof,{name:'Synthetic member'});
+  const enrollment=(await subject.query('SELECT * FROM activation_members WHERE uid=$1',[owner])).rows[0];
+  assert.ok(enrollment);
+  assert.equal(enrollment.source_mode,'local_test');
+  assert.ok(new Date(enrollment.consent_captured_at)<=new Date(enrollment.registered_at));
+  assert.equal(new Date(enrollment.consent_captured_at).getTime(),new Date(receipt.captured_at).getTime());
+  const user=(await subject.query('SELECT raw_user_meta_data,raw_app_meta_data FROM auth.users WHERE id=$1',[owner])).rows[0];
+  assert.deepEqual(user.raw_user_meta_data,{name:'Synthetic member'});
+  assert.equal(user.raw_app_meta_data.activation.cohort,'local_test');
+  assert.equal((await subject.query('SELECT count(*)::int AS total FROM registration_consent_receipts')).rows[0].total,0);
+  await create(otherOwner,receipt.proof);
+  assert.equal((await subject.query('SELECT count(*)::int AS total FROM activation_members')).rows[0].total,1);
+  assert.equal((await asOwner(subject,owner,'SELECT get_activation_registration() AS result')).rows[0].result.status,'registered');
+});
+
+test('Pre-signup consent is disabled by default and never records a declined or unapproved notice', async context => {
+  const subject=await database(context,{registration:true});
+  await subject.exec('SET ROLE anon');
+  assert.equal((await subject.query('SELECT get_registration_consent_policy() AS policy')).rows[0].policy.enabled,false);
+  assert.equal((await subject.query('SELECT issue_registration_consent(false,$1,$2,$3) AS receipt',['qat-registration-v1','a'.repeat(64),'b'.repeat(64)])).rows[0].receipt,null);
+  await assert.rejects(subject.query('SELECT issue_registration_consent(true,$1,$2,$3)',['qat-registration-v1','a'.repeat(64),'b'.repeat(64)]),{code:'PT503'});
+  for(const table of ['registration_consent_config','registration_consent_receipts','registration_consent_limits']) {
+    await assert.rejects(subject.query('SELECT * FROM '+table),{code:'42501'});
+  }
+  await subject.exec('RESET ROLE');
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,0);
+});
+
+test('Pre-signup consent prerequisites preserve private writes under hosted service-role defaults', async context => {
+  const subject=await database(context,{registration:true,hostedDefaults:true});
+  for(const table of ['billing_event_receipts','analytics_delivery_config','analytics_billing_sources','billing_analytics_consent',
+    'analytics_outbox','activation_config','activation_members','activation_finalization_receipts','registration_consent_receipts','registration_consent_limits']) {
+    const row=(await subject.query("SELECT has_table_privilege('service_role',$1,'INSERT,UPDATE,DELETE,TRUNCATE') AS writable",['public.'+table])).rows[0];
+    assert.equal(row.writable,false,table);
+  }
+  await subject.exec('SET ROLE service_role');
+  await assert.rejects(subject.exec('DELETE FROM billing_event_receipts'),{code:'42501'});
+  assert.deepEqual((await subject.query('SELECT * FROM billing_event_receipts')).rows,[]);
+  await subject.exec('RESET ROLE');
+  assert.equal((await subject.query("SELECT has_function_privilege('service_role','public._bind_registration_consent()','EXECUTE') AS executable")).rows[0].executable,false);
+});
+
+for(const change of ['expired','policy_epoch','source_epoch','disabled','production_source']) {
+  test('Pre-signup consent '+change+' proofs cannot enroll a new account or prevent signup', async context => {
+    const {subject,issue,create}=await registrationFixture(context);
+    const receipt=await issue();
+    if(change==='expired') await subject.exec("UPDATE registration_consent_receipts SET captured_at=stamp.captured,expires_at=stamp.captured+interval '15 minutes' FROM (SELECT clock_timestamp()-interval '16 minutes' AS captured) stamp");
+    if(change==='policy_epoch') await subject.exec('UPDATE registration_consent_config SET enabled=enabled');
+    if(change==='source_epoch') await subject.exec('UPDATE activation_config SET collection_enabled=false; UPDATE activation_config SET collection_enabled=true');
+    if(change==='disabled') await subject.exec('UPDATE registration_consent_config SET enabled=false');
+    if(change==='production_source') await subject.exec("UPDATE activation_config SET source_mode='production',registration_flow_approved=true,retention_approved=true");
+    await create(owner,receipt.proof);
+    assert.equal((await subject.query('SELECT count(*)::int AS count FROM auth.users')).rows[0].count,1);
+    assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,0);
+    assert.equal((await subject.query('SELECT count(*)::int AS count FROM billing_analytics_consent')).rows[0].count,0);
+    assert.deepEqual((await subject.query('SELECT raw_user_meta_data FROM auth.users')).rows[0].raw_user_meta_data,{});
+  });
+}
+
+test('Pre-signup consent rejects notice spoofing, authenticated issuance and raw proof access', async context => {
+  const {subject,issue,policy,notice}=await registrationFixture(context);
+  await assert.rejects(issue(true,'qat-other',notice),{code:'22023'});
+  await assert.rejects(issue(true,policy,'b'.repeat(64)),{code:'22023'});
+  const receipt=await issue();
+  const stored=(await subject.query("SELECT encode(proof_hash,'hex') AS hash,notice_version,captured_at FROM registration_consent_receipts")).rows[0];
+  assert.notEqual(stored.hash,receipt.proof);
+  assert.equal(JSON.stringify(stored).includes(receipt.proof),false);
+  for(const role of ['authenticated','service_role']) {
+    await subject.exec('SET ROLE '+role);
+    await assert.rejects(subject.query('SELECT issue_registration_consent(true,$1,$2,$3)',[policy,notice,'b'.repeat(64)]),{code:'42501'});
+    await assert.rejects(subject.query('SELECT * FROM registration_consent_receipts'),{code:'42501'});
+    await subject.exec('RESET ROLE');
+  }
+});
+
+test('Pre-signup consent cannot survive metadata updates or become billing collection permission', async context => {
+  const {subject,issue,create}=await registrationFixture(context);
+  const receipt=await issue();
+  await create(owner,null,{name:'Synthetic member'});
+  await subject.query('UPDATE auth.users SET raw_user_meta_data=raw_user_meta_data||$1 WHERE id=$2',[
+    {registration_consent_proof:receipt.proof},owner]);
+  assert.deepEqual((await subject.query('SELECT raw_user_meta_data FROM auth.users')).rows[0].raw_user_meta_data,{name:'Synthetic member'});
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,0);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,1);
+  for(const field of ['collection_enabled','delivery_enabled']) {
+    await assert.rejects(subject.exec('UPDATE analytics_delivery_config SET '+field+'=true'),{code:'23514'});
+  }
+  const before=(await subject.query('SELECT epoch FROM registration_consent_config')).rows[0].epoch;
+  await subject.exec('SET ROLE service_role');
+  await subject.exec('UPDATE registration_consent_config SET enabled=false');
+  assert.notEqual((await subject.query('SELECT epoch FROM registration_consent_config')).rows[0].epoch,before);
+  await subject.exec('RESET ROLE');
+});
+
+test('Pre-signup consent proofs are removed from Auth identity inserts and updates while ordinary claims survive',async context=>{
+  const {subject,issue,create,bindings}=await registrationFixture(context),receipt=await issue();
+  await create(owner,receipt.proof);
+  const claims={sub:owner,email:owner+'@example.test',email_verified:true,name:'Synthetic member',
+    registration_consent_proof:receipt.proof,registration_consent_binding:bindings.get(receipt.proof)};
+  await subject.query('INSERT INTO auth.identities(user_id,identity_data) VALUES($1,$2)',[owner,claims]);
+  delete claims.registration_consent_proof;delete claims.registration_consent_binding;
+  assert.deepEqual((await subject.query('SELECT identity_data FROM auth.identities')).rows[0].identity_data,claims);
+  await subject.query('UPDATE auth.identities SET identity_data=identity_data||$1',[{registration_consent_proof:receipt.proof,registration_consent_binding:bindings.get(receipt.proof)}]);
+  assert.deepEqual((await subject.query('SELECT identity_data FROM auth.identities')).rows[0].identity_data,claims);
+});
+
+test('Pre-signup consent installation rejects an unreviewed activation verifier transactionally', async context => {
+  const subject=await database(context);
+  await subject.exec("CREATE OR REPLACE FUNCTION public._activation_verified_account(p_uid uuid) RETURNS boolean LANGUAGE sql AS 'SELECT true'");
+  await assert.rejects(subject.exec(sql('registration-consent.sql')),{code:'55000'});
+  await subject.exec('ROLLBACK');
+  assert.equal((await subject.query("SELECT to_regclass('public.registration_consent_config') AS installed")).rows[0].installed,null);
+});
+
+test('Pre-signup consent issuance is globally bounded and stores only a salted identity commitment', async context => {
+  const {subject,issue}=await registrationFixture(context);
+  const receipt=await issue();
+  await subject.exec("UPDATE registration_consent_limits SET minute_start=date_trunc('minute',clock_timestamp()),minute_count=20");
+  await assert.rejects(issue(),{code:'PT429'});
+  await subject.exec("UPDATE registration_consent_limits SET minute_start=date_trunc('minute',clock_timestamp())-interval '1 minute'");
+  assert.ok((await issue()).proof);
+  assert.equal((await subject.query('SELECT minute_count FROM registration_consent_limits')).rows[0].minute_count,1);
+  const rows=(await subject.query("SELECT column_name FROM information_schema.columns WHERE table_name='registration_consent_receipts'")).rows.map(row=>row.column_name);
+  assert.deepEqual(rows.sort(),['proof_hash','identity_hash','notice_version','notice_sha256','policy_epoch','source_epoch','captured_at','expires_at'].sort());
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,2);
+  assert.ok(receipt.proof);
+});
+
+test('Pre-signup consent cannot transfer to a different signup email or be redeemed without its binding secret', async context => {
+  const {subject,issue,create}=await registrationFixture(context);
+  const receipt=await issue();
+  await create(otherOwner,receipt.proof);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,0);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,1);
+  await subject.exec('BEGIN');
+  await create(owner,receipt.proof,{},'0'.repeat(64));
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,0);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,1);
+  await subject.exec('ROLLBACK');
+  await create(owner,receipt.proof);
+  assert.equal((await subject.query('SELECT uid FROM activation_members')).rows[0].uid,owner);
+});
+
+test('Pre-signup consent redemption rolls back with failed account creation and can retry exactly once', async context => {
+  const {subject,issue,create}=await registrationFixture(context);
+  const receipt=await issue();
+  await subject.exec('BEGIN');
+  await create(owner,receipt.proof);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,0);
+  await subject.exec('ROLLBACK');
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM registration_consent_receipts')).rows[0].count,1);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,0);
+  await create(owner,receipt.proof);
+  assert.equal((await subject.query('SELECT count(*)::int AS count FROM activation_members')).rows[0].count,1);
+});
 
 test('Consent lookup distinguishes unset, granted, declined and stale policy without creating a choice', async context => {
   const subject = await database(context);

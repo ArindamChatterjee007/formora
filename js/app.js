@@ -621,6 +621,7 @@ const App = {
               ${PHYSIQUES[this.detailsGender || "male"].map((ph) => `<option value="${ph.id}">${esc(ph.name)} — ${esc(ph.tagline)}</option>`).join("")}
             </select></div>
         </div>
+        <div id="registration-consent"></div>
         ${err}
         <button class="btn wide" onclick="App.submitDetails()">${this.onboardMode === "login" ? "Save &amp; continue" : "Create my account"}</button>
         <div class="auth-switch">${this.onboardMode === "login" ? `<a onclick="App.confirmLogout()">← Log out</a>` : `<a onclick="App.showAuth('signup')">← Back</a>`}</div>`;
@@ -671,6 +672,7 @@ const App = {
 
     card.innerHTML = `${brand}${body}
       <div class="auth-note"><span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${this.ic("lock", { size: 12 })} ${window.SHEETS_API ? "Secure cloud login — sign in from any device." : "Private login — your data is saved on this device."}</span></div>`;
+    if (typeof Preferences !== "undefined") void Preferences.renderRegistrationConsent();
     if (window.GOOGLE_CLIENT_ID && isLanding && !window.Capacitor) this.renderGoogleButton();
   },
 
@@ -853,6 +855,7 @@ const App = {
     try { const _ref = localStorage.getItem("fm_ref"); if (_ref) { patch.referredBy = _ref; window.Track && Track.event("referred_signup", { ref: _ref }); } } catch (e) {}
     this.onboardProfile = { patch, weightKg: patch.startWeightKg };
     const d = this.signupDraft || {};
+    d.registrationConsent = typeof Preferences !== "undefined" ? Preferences.registrationChoice() : null;
     try {
       // Verify the email first (real OTP via EmailJS). Under secure Supabase Auth the
       // isolated DB session is created AFTER verification (in doVerifyOtp).
@@ -981,7 +984,7 @@ const App = {
       if (typeof SupaAuth !== "undefined" && SupaAuth.active()) {
         if (!draft.email || !draft.pass) return this.authErr("Restart signup to establish a verified session.");
         let session;
-        try { session = await SupaAuth.signup(draft.email, draft.pass, { name: draft.name }); }
+        try { session = await SupaAuth.signup(draft.email, draft.pass, typeof Preferences !== "undefined" ? check => Preferences.registrationMetadata(draft, check) : { name: draft.name }); }
         catch (error) {
           if (this._authAborted(error) || !this._authIntentCurrent(intent)) return;
           session = await SupaAuth.login(draft.email, draft.pass);
