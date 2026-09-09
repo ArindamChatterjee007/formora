@@ -144,7 +144,7 @@ after(async () => {
   assert.ok(ownedSourcesUnchanged, 'The three owned source files must remain stable during measurement');
 });
 
-async function openApp(testContext, { tier = 'free', width = 390, height = 844, signedIn = false, withPeer = false } = {}) {
+async function openApp(testContext, { tier = 'free', width = 390, height = 844, signedIn = false, withPeer = false, downloadBanner = false } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: width < 700,
     reducedMotion: 'reduce', serviceWorkers: 'block' });
   const record = { name: testContext.name, tier, width, pageErrors: [], blockedExternal: [], observations: [], screenshots: [] };
@@ -185,7 +185,7 @@ async function openApp(testContext, { tier = 'free', width = 390, height = 844, 
     }
   });
   await context.addInitScript(seed => {
-    localStorage.setItem('fm_dl_x', '1');
+    if (!seed.downloadBanner) localStorage.setItem('fm_dl_x', '1');
     localStorage.setItem('fm_tier', seed.tier);
     if (!seed.signedIn) return;
     localStorage.setItem('formora_supa_session', JSON.stringify({ uid: seed.uid, email: seed.state.profile.email,
@@ -193,7 +193,7 @@ async function openApp(testContext, { tier = 'free', width = 390, height = 844, 
     localStorage.setItem('gymcoach_auth', JSON.stringify({ accounts: [{ id: 'theme-local', email: seed.state.profile.email,
       name: seed.state.profile.name, provider: 'supabase', emailVerified: true }], currentUserId: 'theme-local' }));
     localStorage.setItem('gymcoach_v1_theme-local', JSON.stringify(seed.state));
-  }, { uid, tier, state, signedIn });
+  }, { uid, tier, state, signedIn, downloadBanner });
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
   page.setDefaultNavigationTimeout(timeout);
@@ -611,6 +611,49 @@ probe('Compact header wraps fallback-font widths without hiding counters', { wid
   assert.ok(geometry.countersRight <= geometry.headerRight);
   assert.equal(geometry.visibleCounters, 2);
 });
+
+for (const width of [320, 390, 1366]) {
+  probe('Install banner keeps the sticky header reachable ' + width, { width, signedIn: true, downloadBanner: true }, async (page, record) => {
+    async function geometry(phase) {
+      await page.waitForFunction(() => {
+        const banner = document.getElementById('dl-banner').getBoundingClientRect();
+        const header = document.querySelector('.topbar').getBoundingClientRect();
+        return header.top >= banner.bottom - 0.5;
+      });
+      const result = await page.evaluate(() => {
+        const banner = document.getElementById('dl-banner').getBoundingClientRect();
+        const header = document.querySelector('.topbar').getBoundingClientRect();
+        const brand = document.querySelector('.topbar .logo');
+        const box = brand.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return { bannerBottom: banner.bottom, headerTop: header.top, brandVisible: !!hit && brand.contains(hit),
+          headerBottom: header.bottom, navigationTop: document.getElementById('tabbar').getBoundingClientRect().top,
+          documentWidth: document.documentElement.scrollWidth, viewport: innerWidth };
+      });
+      record.observations.push({ phase, ...result });
+      assert.ok(result.headerTop >= result.bannerBottom - 0.5);
+      assert.equal(result.brandVisible, true);
+      assert.ok(result.documentWidth <= result.viewport);
+      if (result.viewport > 760) assert.ok(result.navigationTop >= result.headerBottom - 0.5);
+    }
+    await page.locator('#dl-banner').waitFor();
+    await geometry('initial');
+    await page.locator('#tabbar [data-tab="coach"]').click();
+    await page.locator('#coach-subnav button').filter({ hasText: 'Progress' }).click();
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await geometry('scrolled');
+    await capture(page, record, 'banner-visible');
+    await page.setViewportSize({ width: width < 700 ? 740 : 390, height: 844 });
+    await geometry('resized');
+    await page.locator('#dl-x').click();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.topbar')).top === '0px');
+    assert.equal(await page.locator('#dl-banner').isVisible(), false);
+    assert.equal(await page.evaluate(() => localStorage.getItem('fm_dl_x')), '1');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    assert.equal(await page.locator('#app-shell').evaluate(shell => parseFloat(getComputedStyle(shell).paddingTop)), 0);
+    await capture(page, record, 'dismissed');
+  });
+}
 
 for (const width of [320, 390, 1366]) {
   probe('DEF042 password targets ' + width, { width }, async (page, record) => {
