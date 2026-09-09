@@ -51,6 +51,7 @@ window.STORY_MEDIA_VALIDATION = false;
 window.SUPPORT_RECEIPTS = false;
 window.ACCOUNT_RIGHTS = false;
 window.SERVER_MEASUREMENT = false;
+window.REGISTRATION_CONSENT = false;
 window.MEASUREMENT_PERMISSIONS = {};
 window.FORMORA_WEB_PUSH = false;
 window.FORMORA_PUSH_VAPID_PUBLIC_KEY = "";

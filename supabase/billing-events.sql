@@ -25,7 +25,7 @@ CREATE INDEX billing_event_receipts_reference_cursor
   ON public.billing_event_receipts (uid, provider, reference, occurred_at DESC);
 
 ALTER TABLE public.billing_event_receipts ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.billing_event_receipts FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.billing_event_receipts FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.billing_event_receipts TO service_role;
 
 CREATE FUNCTION public.apply_billing_event(

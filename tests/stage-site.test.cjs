@@ -33,6 +33,7 @@ test('The guard runs before production config and cannot enable hosted services'
   vm.runInContext('window.SUPABASE_URL="https://production.invalid";window.USE_SUPABASE_AUTH=true;window.RAZORPAY={enabled:true};window.RAZORPAY.enabled=true;window.LEMONSQUEEZY.buy.pro="https://checkout.invalid";', context);
   assert.equal(window.SUPABASE_URL, '');
   assert.equal(window.USE_SUPABASE_AUTH, false);
+  assert.equal(window.REGISTRATION_CONSENT, false);
   assert.equal(window.RAZORPAY.enabled, false);
   assert.equal(window.LEMONSQUEEZY.buy.pro, undefined);
   assert.equal(window.FORMORA_STAGE.commit, commit);
@@ -52,6 +53,7 @@ test('An isolated QAT build accepts only its public project key and keeps all un
   assert.equal(window.SUPABASE_URL, qat.backendOrigin);
   assert.equal(window.USE_SUPABASE_AUTH, true);
   assert.equal(window.STORY_INTERACTIONS, false);
+  assert.equal(window.REGISTRATION_CONSENT, false);
   assert.equal(window.ACCOUNT_RIGHTS, false);
   assert.equal(window.RAZORPAY.enabled, false);
   assert.equal(JSON.stringify(config).includes(backend.anonKey), false);
@@ -66,6 +68,23 @@ test('An isolated QAT build accepts only its public project key and keeps all un
   assert.throws(() => stageConfig('beta', commit, origin, backend));
   assert.throws(() => stageConfig('qat', commit, 'https://other-qat.pages.dev', backend));
   assert.throws(() => stagePolicy({ ...config, backendOrigin: 'https://production.invalid' }));
+});
+
+test('Registration consent is an explicit isolated QAT test switch and cannot enable billing measurement', () => {
+  const backend = { projectRef: qat.projectRef, anonKey: testKey() };
+  const config = stageConfig('qat', commit, origin, backend, true), window = {};
+  vm.runInNewContext(guardSource(config, backend), { window });
+  assert.equal(config.registrationConsent, true);
+  assert.equal(window.REGISTRATION_CONSENT, true);
+  assert.equal(window.SERVER_MEASUREMENT, false);
+  assert.equal(window.POSTHOG_KEY, '');
+  vm.runInNewContext('window.REGISTRATION_CONSENT=false;window.SERVER_MEASUREMENT=true;', { window });
+  assert.equal(window.REGISTRATION_CONSENT, true);
+  assert.equal(window.SERVER_MEASUREMENT, false);
+  assert.throws(() => stageConfig('qat', commit, origin, null, true));
+  assert.throws(() => stageConfig('beta', commit, origin, backend, true));
+  assert.throws(() => stageConfig('qat', commit, origin, backend, 'true'));
+  assert.throws(() => guardSource({ ...stageConfig('qat', commit, origin), registrationConsent: true }));
 });
 
 test('HTML transformation installs fail-closed CSP and guard before all app scripts', async () => {

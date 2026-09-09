@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
-const { createHmac, randomBytes, randomUUID, timingSafeEqual } = require('node:crypto');
+const vm = require('node:vm');
+const { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } = require('node:crypto');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
@@ -120,6 +121,121 @@ before(async () => {
 after(async () => {
   if (browser) await browser.close();
   if (server) await new Promise(resolve => server.close(resolve));
+});
+
+async function signupFixture(contextTest, viewport, outcome='granted') {
+  const context=await browser.newContext({viewport,reducedMotion:'reduce',hasTouch:viewport.width<760,serviceWorkers:'block'});
+  const qatBackend='https://wospznckvryiihfzwwtn.supabase.co';
+  const notice=vm.runInNewContext(fs.readFileSync(path.join(root,'js/mod/preferences.js'),'utf8')+'\nPreferences._registrationNotice;');
+  const digest=createHash('sha256').update(notice.text).digest('hex');
+  const state={requests:[],signups:[],pageErrors:[],policyGate:null};
+  await context.addInitScript(()=>{
+    localStorage.setItem('fm_dl_x','1');
+    localStorage.setItem('fm_cur',JSON.stringify({cur:'INR',rate:83,t:Date.now()}));
+  });
+  await context.route('**/*',async route=>{
+    const request=route.request(),url=new URL(request.url());
+    if(url.origin===origin){
+      if(url.pathname==='/js/config.js'){
+        const overrides={SUPABASE_URL:qatBackend,SUPABASE_ANON_KEY:'fixture-public',USE_SUPABASE_AUTH:true,
+          REGISTRATION_CONSENT:true,SERVER_MEASUREMENT:false,GOOGLE_CLIENT_ID:'',GOOGLE_IOS_CLIENT_ID:'',
+          POSTHOG_KEY:'',EMAILJS_PUBLIC_KEY:'',EMAILJS_SERVICE_ID:'',EMAILJS_TEMPLATE_ID:'',EMAIL_FN_URL:'',
+          PEXELS_KEY:'',SHEETS_API:'',SOCIAL_API:'',FORMORA_STAGE:{stage:'qat',mode:'isolated-backend',
+            backendProjectRef:'wospznckvryiihfzwwtn',backendOrigin:qatBackend}};
+        await route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(root,'js/config.js'),'utf8')+'\n'+
+          Object.entries(overrides).map(([key,value])=>'window['+JSON.stringify(key)+']='+JSON.stringify(value)+';').join('\n')});
+      }else await route.continue();
+      return;
+    }
+    if(url.origin!==qatBackend){await route.abort('blockedbyclient');return;}
+    const body=request.postDataJSON();
+    state.requests.push({path:url.pathname,body});
+    if(url.pathname==='/rest/v1/rpc/get_registration_consent_policy'){
+      if(state.policyGate){state.policyGate.seen.resolve();await state.policyGate.promise;}
+      await route.fulfill({json:{enabled:outcome!=='disabled',version:notice.version,notice_sha256:outcome==='mismatch'?'0'.repeat(64):digest,stage:'qat'}});
+    }else if(url.pathname==='/rest/v1/rpc/issue_registration_consent'){
+      const captured=Date.now();
+      await route.fulfill(outcome==='unavailable'?{status:503,json:{message:'Disabled'}}:{json:{proof:'a'.repeat(64),
+        version:notice.version,notice_sha256:digest,captured_at:new Date(captured).toISOString(),expires_at:new Date(captured+900000).toISOString()}});
+    }else if(url.pathname==='/auth/v1/signup'){
+      state.signups.push(body);
+      await route.fulfill({json:{id:owner,email:body.email,user_metadata:{name:body.data.name},confirmation_sent_at:new Date().toISOString()}});
+    }else await route.fulfill({status:404,json:{message:'Unexpected fixture request'}});
+  });
+  const page=await context.newPage();page.setDefaultTimeout(8000);
+  page.on('pageerror',error=>state.pageErrors.push(error.message));
+  contextTest.after(async()=>{state.policyGate?.resolve();await context.close();assert.deepEqual(state.pageErrors,[]);});
+  await page.goto(origin+'/index.html',{waitUntil:'domcontentloaded'});
+  await page.bringToFront();
+  await page.waitForFunction(()=>!document.getElementById('launch-ov'));
+  await page.getByText('Create an account',{exact:true}).click();
+  await page.locator('#s-name').fill('Synthetic consent member');
+  await page.locator('#s-email').fill('qat-consent@example.test');
+  await page.locator('#s-pass').fill('Fixture-password-2026');
+  await page.locator('#s-pass2').fill('Fixture-password-2026');
+  return {page,state,notice,digest};
+}
+
+for(const width of [390,1280]) {
+  test('Pre-signup browser opt-in uses the existing signup controls at '+width+'px',async contextTest=>{
+    const {page,state,digest}=await signupFixture(contextTest,{width,height:900});
+    await page.getByRole('button',{name:/^Continue \u2192$/}).click();
+    const checkbox=page.locator('#signup-measurement');await checkbox.waitFor();
+    assert.equal(await checkbox.isChecked(),false);
+    await checkbox.check();
+    const geometry=await checkbox.evaluate(input=>{const label=input.closest('label'),rect=label.getBoundingClientRect();return {
+      height:rect.height,left:rect.left,right:rect.right,viewport:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth};});
+    assert.ok(geometry.height>=44&&geometry.left>=0&&geometry.right<=geometry.viewport);assert.equal(geometry.overflow,false);
+    await page.locator('#d-h').fill('175');await page.locator('#d-w').fill('70');
+    await foregroundScreenshot(page,'registration-consent-'+width);
+    await page.getByRole('button',{name:'Create my account',exact:true}).click();
+    await page.locator('#o-code').waitFor();
+    const code=await page.evaluate(()=>Auth.pending.otp);
+    await page.locator('#o-code').fill(code);await page.getByRole('button',{name:'Verify & continue',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('auth-err')?.textContent.includes('Check your email'));
+    assert.equal(state.signups.length,1);
+    const metadata=state.signups[0].data,issued=state.requests.find(item=>item.path.endsWith('/issue_registration_consent'));
+    assert.equal(metadata.registration_consent_proof,'a'.repeat(64));
+    assert.equal(issued.body.p_identity_hash,createHash('sha256').update(metadata.registration_consent_binding+':qat-consent@example.test').digest('hex'));
+    assert.equal(issued.body.p_notice_sha256,digest);
+    assert.ok(state.requests.indexOf(issued)<state.requests.findIndex(item=>item.path==='/auth/v1/signup'));
+    const storage=await page.evaluate(()=>Object.values(localStorage).join(' '));
+    assert.equal(storage.includes(metadata.registration_consent_proof),false);assert.equal(storage.includes(metadata.registration_consent_binding),false);
+  });
+}
+
+for(const outcome of ['unchecked','unavailable','mismatch','disabled']) {
+  test('Pre-signup browser '+outcome+' never records a granted proof or prevents signup',async contextTest=>{
+    const {page,state}=await signupFixture(contextTest,{width:390,height:844},outcome);
+    await page.getByRole('button',{name:/^Continue \u2192$/}).click();
+    if(['unchecked','unavailable'].includes(outcome)){
+      await page.locator('#signup-measurement').waitFor();
+      if(outcome==='unavailable')await page.locator('#signup-measurement').check();
+    }else{
+      await page.waitForFunction(()=>typeof Preferences!=='undefined'&&Preferences._registrationPanel!==null);
+      assert.equal(await page.locator('#signup-measurement').count(),0);
+    }
+    await page.locator('#d-h').fill('175');await page.locator('#d-w').fill('70');
+    await page.getByRole('button',{name:'Create my account',exact:true}).click();
+    await page.locator('#o-code').waitFor();
+    await page.locator('#o-code').fill(await page.evaluate(()=>Auth.pending.otp));
+    await page.getByRole('button',{name:'Verify & continue',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('auth-err')?.textContent.includes('Check your email'));
+    assert.equal(state.signups.length,1);assert.deepEqual(state.signups[0].data,{name:'Synthetic consent member'});
+    assert.equal(state.requests.filter(item=>item.path.endsWith('/issue_registration_consent')).length,outcome==='unavailable'?1:0);
+  });
+}
+
+test('Pre-signup browser ignores a policy response after navigating away from the signup details',async contextTest=>{
+  const {page,state}=await signupFixture(contextTest,{width:390,height:844});
+  state.policyGate={...deferred(),seen:deferred()};
+  await page.getByRole('button',{name:/^Continue \u2192$/}).click();
+  await observed(state.policyGate);
+  await page.getByText(/^\u2190 Back$/).click();
+  state.policyGate.resolve();
+  await page.locator('#s-name').waitFor();
+  assert.equal(await page.locator('#signup-measurement').count(),0);
+  assert.equal(state.signups.length,0);
 });
 
 async function setup(contextTest, { enabled = false, viewport = { width: 390, height: 844 }, timezoneId, checkoutSDK = false } = {}) {

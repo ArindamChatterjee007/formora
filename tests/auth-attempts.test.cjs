@@ -72,6 +72,26 @@ function cancelled(error) {
   return true;
 }
 
+test('pre-signup metadata preparation remains inside the existing authentication attempt fence',async()=>{
+  const {auth,requests}=setup(),preparing=pending();
+  const signingUp=auth.signup('a@example.test','fixture-only-password',async()=>preparing.promise);
+  assert.equal(requests.length,0);
+  auth.cancelAuthAttempt();
+  preparing.resolve({name:'A',registration_consent_proof:'a'.repeat(64)});
+  await assert.rejects(signingUp,cancelled);
+  assert.equal(requests.length,0);
+});
+
+test('pre-signup prepared metadata uses the same signup transport and session validation',async()=>{
+  const {auth,requests,requestSeen}=setup();
+  const signingUp=auth.signup('a@example.test','fixture-only-password',async check=>{check();return {name:'A',registration_consent_proof:'a'.repeat(64)};});
+  await requestSeen.promise;
+  assert.equal(requests.length,1);
+  assert.equal(JSON.parse(requests[0].options.body).data.registration_consent_proof,'a'.repeat(64));
+  respond(requests[0],session('A'));
+  assert.equal((await signingUp).uid,'A');
+});
+
 for (const method of ['password', 'google']) {
   for (const boundary of ['clear', 'newer account']) {
     test(`DEF-035: delayed ${method} cannot undo ${boundary}`, async () => {

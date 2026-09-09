@@ -100,6 +100,7 @@ const SupaAuth = {
     };
     let response, body;
     try {
+      if (typeof options === "function") { options = await options(check); check(); }
       response = await fetch(this._base() + path, options);
       body = await response.json().catch(() => ({}));
     } catch (error) { check(); throw error; }
@@ -113,7 +114,8 @@ const SupaAuth = {
   },
 
   async signup(email, password, meta) {
-    return this._authRequest("/signup", { method: "POST", headers: this._hdr(), body: JSON.stringify({ email, password, data: meta || {} }) }, "Sign-up failed.", body => {
+    const options = data => ({ method: "POST", headers: this._hdr(), body: JSON.stringify({ email, password, data: data || {} }) });
+    return this._authRequest("/signup", typeof meta === "function" ? async check => options(await meta(check)) : options(meta), "Sign-up failed.", body => {
       const user = body?.user || body;
       if (!body?.access_token && !body?.refresh_token && !body?.session && this._validAuthUser(user, email)
         && !user.email_confirmed_at && !user.confirmed_at
