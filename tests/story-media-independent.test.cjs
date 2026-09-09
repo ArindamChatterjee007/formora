@@ -14,7 +14,8 @@ const approvals = [
      public_media_approved=true,retention_approved=true,operator_policy_ref=$1,
     media_origin='https://fixture.supabase.co',public_bucket='story-media-public-v3'`,
   `UPDATE public.story_media_settings SET enabled=true,publication_required=true,storage_policy_approved=true,
-     quota_approved=true,retention_approved=true,storage_policy_ref=$1,quota_policy_ref=$1,retention_policy_ref=$1`,
+      quota_approved=true,retention_approved=true,storage_policy_ref=$1,quota_policy_ref=$1,retention_policy_ref=$1,
+      global_pending=64,global_requests_per_day=100,global_bytes_per_day=268435456`,
 ];
 const failedAttestation = (reservation, lease, code) =>
   [owner, reservation.request_id, lease.epoch, lease.lease_token, null, null, null, null, null, null, code];

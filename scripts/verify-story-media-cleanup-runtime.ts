@@ -2,6 +2,7 @@ import { cleanupConfiguration, cleanupLimits, createStoryMediaCleanupHandler, ty
 
 const origin = "https://cleanup-fixture.supabase.co";
 const serviceKey = "synthetic-local-cleanup-service-key-000000000000";
+const cleanupKey = "synthetic-local-cleanup-invocation-key-00000000";
 const operation = "11111111-1111-4111-8111-111111111111";
 const claimId = "22222222-2222-4222-8222-222222222222";
 const owner = "33333333-3333-4333-8333-333333333333";
@@ -11,7 +12,7 @@ const intentId = "66666666-6666-4666-8666-666666666666";
 const token = "77777777-7777-4777-8777-777777777777";
 const policy = "88888888-8888-4888-8888-888888888888";
 const key = `stories/${owner}/${reservation}.jpg`;
-const config: CleanupConfig = { enabled: true, origin, serviceKey };
+const config: CleanupConfig = { enabled: true, origin, serviceKey, cleanupKey };
 const cases: { name: string; passed: boolean; error?: string }[] = [];
 type Json = Record<string, unknown>;
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
@@ -54,7 +55,7 @@ function fixture(hook?: Hook, overrides: Partial<CleanupConfig> & { stepMs?: num
     throw new Error("Unexpected synthetic network route");
   } });
   const invoke = (body: unknown = { operation_id: operation, claim_id: claimId }, headers: Record<string, string> = {}) => handler(new Request(origin + "/functions/v1/cleanup-story-media",
-    { method: "POST", headers: { "content-type": "application/json", "x-story-media-cleanup-key": serviceKey, ...headers }, body: JSON.stringify(body) }));
+    { method: "POST", headers: { "content-type": "application/json", "x-story-media-cleanup-key": cleanupKey, ...headers }, body: JSON.stringify(body) }));
   return { handler, calls, state, invoke };
 }
 
@@ -65,14 +66,15 @@ await check("environment requires exact true and never enables itself", () => {
 });
 await check("default off and noncanonical configuration issue zero requests", async () => {
   for (const overrides of [{ enabled: false }, { origin: origin + "/" }, { origin: origin + "?url=elsewhere" }, { origin: "http://127.0.0.1:1" },
-    { origin: "https://cleanup-fixture.supabase.co.evil.invalid" }, { origin: "https://user:password@cleanup-fixture.supabase.co" }, { serviceKey: "short" }]) {
+    { origin: "https://cleanup-fixture.supabase.co.evil.invalid" }, { origin: "https://user:password@cleanup-fixture.supabase.co" }, { serviceKey: "short" },
+    { cleanupKey: "" }, { cleanupKey: "short" }, { cleanupKey: undefined }, { cleanupKey: serviceKey }]) {
     const local = fixture(undefined, overrides);
     assert((await local.invoke()).status === 503 && local.calls.length === 0, "Unsafe configuration made requests");
   }
 });
-await check("only exact server service key authenticates; bearer and forged role JWT do not", async () => {
-  for (const supplied of ["", "member-token", "eyJhbGciOiJub25lIn0.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.", serviceKey + "," + serviceKey,
-    serviceKey.slice(0, -1) + "1"]) {
+await check("only the distinct cleanup credential authenticates; backend key, bearer and forged JWT do not", async () => {
+  for (const supplied of ["", serviceKey, "member-token", "eyJhbGciOiJub25lIn0.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.", cleanupKey + "," + cleanupKey,
+    cleanupKey.slice(0, -1) + "1"]) {
     const local = fixture();
     assert((await local.invoke(undefined, { "x-story-media-cleanup-key": supplied, authorization: "Bearer " + serviceKey })).status === 401,
       "Non-service input authenticated");
@@ -130,7 +132,7 @@ await check("method, browser origin, URL query, content type and already-aborted
     const local = fixture(), abort = new AbortController();
     if (variant === "aborted") abort.abort();
     const headers = { "content-type": variant === "type" ? "application/x-www-form-urlencoded" : "application/json",
-      "x-story-media-cleanup-key": serviceKey, ...(variant === "origin" ? { origin: "https://member.invalid" } : {}) };
+      "x-story-media-cleanup-key": cleanupKey, ...(variant === "origin" ? { origin: "https://member.invalid" } : {}) };
     const response = await local.handler(new Request(origin + "/functions/v1/cleanup-story-media" + (variant === "query" ? "?operation_id=" + operation : ""),
       { method: variant === "method" ? "GET" : "POST", headers, ...(variant === "method" ? {} : { body: JSON.stringify({ operation_id: operation }) }), signal: abort.signal }));
     assert(response.status === (variant === "method" ? 405 : variant === "aborted" ? 504 : 400) && local.calls.length === 0, "Invalid input executed");
@@ -167,10 +169,35 @@ await check("all claim identity, policy and object-version fields are pinned aga
   }
 });
 await check("authenticated absence errors or a still-visible object never complete a deletion", async () => {
-  for (const status of [200, 206, 401, 403, 500]) {
+  for (const status of [200, 206, 400, 401, 403, 500]) {
     const local = fixture(call => call.url.includes("/object/authenticated/") ? new Response(null, { status }) : null);
     const response = await local.invoke(), body = await response.json();
     assert(response.status !== 200 && body.result !== "storage_api_deleted" && local.state.objects[0].state === "unknown", "Non-404 became absence");
+  }
+});
+await check("exact NoSuchKey absence records the real HTTP400 without claiming physical erasure", async () => {
+  const local = fixture(call => call.url.includes("/object/authenticated/")
+    ? Response.json({ statusCode: "404", code: "NoSuchKey", error: "not_found", message: "Object not found" }, { status: 400 }) : null);
+  const response = await local.invoke(), receipt = await response.json();
+  assert(response.status === 200 && receipt.result === "storage_api_deleted", "Exact provider absence was refused");
+  const finished = local.calls.find(call => call.url.endsWith("/finish_story_media_cleanup_object"));
+  const payload = JSON.parse(String(finished?.init.body));
+  assert(payload.p_get_status === 400 && payload.p_get_code === "NoSuchKey", "Raw absence evidence was rewritten");
+  assert(receipt.physical_delete_confirmed === false && receipt.account_deleted === false, "Absence overclaimed erasure");
+});
+await check("generic, foreign, malformed and oversized HTTP400 errors remain unknown", async () => {
+  for (const variant of ["missing", "bucket", "authorization", "array", "malformed", "oversize", "wrong-type"]) {
+    const local = fixture(call => {
+      if (!call.url.includes("/object/authenticated/")) return null;
+      if (variant === "malformed") return new Response("{", { status: 400, headers: { "content-type": "application/json" } });
+      if (variant === "wrong-type") return new Response('{"code":"NoSuchKey"}', { status: 400, headers: { "content-type": "text/plain" } });
+      return Response.json(variant === "missing" ? { message: "Object not found" }
+        : variant === "array" ? [{ code: "NoSuchKey" }] : variant === "oversize" ? { code: "NoSuchKey", detail: "x".repeat(1025) }
+        : { code: variant === "bucket" ? "NoSuchBucket" : "AccessDenied" }, { status: 400 });
+    });
+    assert((await local.invoke()).status !== 200 && local.state.objects[0].state === "unknown", "Ambiguous provider error became absence: " + variant);
+    const finished = local.calls.filter(call => call.url.endsWith("/finish_story_media_cleanup_object"));
+    assert(finished.length === 1 && JSON.parse(String(finished[0].init.body)).p_result === "unknown", "Ambiguous absence completed a receipt");
   }
 });
 await check("stalled request and response bodies are cancelled by hard step and aggregate deadlines", async () => {
@@ -181,7 +208,7 @@ await check("stalled request and response bodies are cancelled by hard step and 
       ? new Response(stream, { headers: { "content-type": "application/json" } }) : null,
       { stepMs: variant === "aggregate" ? 5000 : 10, aggregateMs: variant === "aggregate" ? 10 : 20000 });
     const response = variant === "request" ? await local.handler(new Request(origin + "/functions/v1/cleanup-story-media", { method: "POST",
-      headers: { "content-type": "application/json", "x-story-media-cleanup-key": serviceKey }, body: stream })) : await local.invoke();
+      headers: { "content-type": "application/json", "x-story-media-cleanup-key": cleanupKey }, body: stream })) : await local.invoke();
     assert(response.status === 504 && cancelled && local.calls.length === (variant === "request" ? 0 : 1), "Body deadline or cancellation failed");
   }
 });
@@ -246,7 +273,7 @@ async function bridge() {
       } else if (message.type === "invoke") {
         const work = (async () => {
           const response = await handler(new Request(origin + "/functions/v1/cleanup-story-media", { method: "POST",
-            headers: { "content-type": "application/json", "x-story-media-cleanup-key": serviceKey, ...message.headers }, body: JSON.stringify(message.body) }));
+            headers: { "content-type": "application/json", "x-story-media-cleanup-key": cleanupKey, ...message.headers }, body: JSON.stringify(message.body) }));
           await send({ type: "result", id: message.id, status: response.status, body: await response.json() });
         })();
         running.add(work); void work.finally(() => running.delete(work));

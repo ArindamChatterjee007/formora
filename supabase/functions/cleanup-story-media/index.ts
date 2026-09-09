@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 export const cleanupLimits = Object.freeze({ objects: 2, requestBytes: 512, jsonBytes: 8192, ackBytes: 4096,
   stepMs: 5000, aggregateMs: 20000, requests: 10 });
-export type CleanupConfig = { enabled: boolean; origin: string; serviceKey: string };
+export type CleanupConfig = { enabled: boolean; origin: string; serviceKey: string; cleanupKey?: string };
 type Json = Record<string, unknown>;
 type Intent = { intent_id: string; object_id: string; bucket: string; object_key: string; object_version: string;
   state: "claimed" | "object_delete_requested" | "completed" | "unknown";
@@ -29,7 +29,7 @@ const cancelBody = (source: Request | Response) => { void source.body?.cancel().
 
 export function cleanupConfiguration(read = (name: string) => Deno.env.get(name)): CleanupConfig {
   return { enabled: read("STORY_MEDIA_CLEANUP_ENABLED") === "true", origin: read("SUPABASE_URL") || "",
-    serviceKey: read("SUPABASE_SERVICE_ROLE_KEY") || "" };
+    serviceKey: read("SUPABASE_SERVICE_ROLE_KEY") || "", cleanupKey: read("STORY_MEDIA_CLEANUP_KEY") || "" };
 }
 
 function parseClaim(value: unknown, operation: string, expectedId?: string, previous?: Claim): Claim {
@@ -97,10 +97,11 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
   return async (request: Request): Promise<Response> => {
     if (config.enabled !== true || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.origin)
       || !/^[A-Za-z0-9._-]{32,4096}$/.test(config.serviceKey)) return reply({ error: "cleanup_disabled" }, 503);
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(config.cleanupKey || "") || config.cleanupKey === config.serviceKey) return reply({ error: "cleanup_disabled" }, 503);
     if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
     const provided = request.headers.get("x-story-media-cleanup-key") || "";
-    if (provided.length > 4096) return reply({ error: "service_auth_required" }, 401);
-    const candidate = encoder.encode(provided), expected = encoder.encode(config.serviceKey);
+    if (provided.length > 128) return reply({ error: "service_auth_required" }, 401);
+    const candidate = encoder.encode(provided), expected = encoder.encode(config.cleanupKey!);
     if (candidate.length !== expected.length || !timingSafeEqual(candidate, expected)) return reply({ error: "service_auth_required" }, 401);
     const incoming = new URL(request.url);
     if (request.headers.has("origin") || incoming.search || incoming.hash || incoming.username || incoming.password
@@ -162,7 +163,13 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
         if (response.redirected || (response.url && response.url !== url) || (response.status >= 300 && response.status < 400)) {
           cancelBody(response); fail();
         }
-        if (absence || response.status !== 200) { cancelBody(response); return { status: response.status, body: null }; }
+        if (absence) {
+          if (response.status === 400 && response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() === "application/json") {
+            return { status: response.status, body: await json(response, 1024) };
+          }
+          cancelBody(response); return { status: response.status, body: null };
+        }
+        if (response.status !== 200) { cancelBody(response); return { status: response.status, body: null }; }
         if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") { cancelBody(response); fail(); }
         return { status: response.status, body: await json(response, maximum) };
       });
@@ -188,7 +195,7 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
         const object = claim.objects.find(candidate => candidate.intent_id === original.intent_id)!;
         if (authorized.delete_allowed ? object.metadata_deleted || !object.delete_requested || object.state !== "object_delete_requested"
           || object.delete_attempts !== original.delete_attempts + 1 : !object.metadata_deleted || !object.delete_requested) fail();
-        let deleteStatus = 0, getStatus = 0;
+        let deleteStatus = 0, getStatus = 0, getCode: string | null = null;
         try {
           let ack: Json | null = null;
           if (authorized.delete_allowed) {
@@ -203,15 +210,17 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
                 ...(Object.hasOwn(matched, "bucket_id") ? { bucket_id: matched.bucket_id } : {}) };
             }
           }
-          getStatus = (await network("/storage/v1/object/authenticated/" + object.bucket + "/" + object.object_key, "GET", undefined, 0, true)).status;
-          if (getStatus !== 404) fail("storage_absence_unknown", 502);
+          const absence = await network("/storage/v1/object/authenticated/" + object.bucket + "/" + object.object_key, "GET", undefined, 0, true);
+          getStatus = absence.status;
+          if (getStatus === 400 && record(absence.body) && absence.body.code === "NoSuchKey") getCode = "NoSuchKey";
+          if (getStatus !== 404 && getCode !== "NoSuchKey") fail("storage_absence_unknown", 502);
           const result = ack ? "storage_api_deleted" : "storage_api_absent_backend_unknown";
           claim = parseClaim(await rpc("finish_story_media_cleanup_object", { ...args, p_result: result, p_delete_status: deleteStatus,
-            p_ack: ack, p_get_status: getStatus }), operation, claim.claim_id, claim);
+            p_ack: ack, p_get_status: getStatus, p_get_code: getCode }), operation, claim.claim_id, claim);
           if (claim.objects.find(candidate => candidate.intent_id === object.intent_id)?.outcome !== result) fail();
         } catch (error) {
           if (!controller.signal.aborted) {
-            try { await rpc("finish_story_media_cleanup_object", { ...args, p_result: "unknown", p_delete_status: deleteStatus, p_ack: null, p_get_status: getStatus }); }
+            try { await rpc("finish_story_media_cleanup_object", { ...args, p_result: "unknown", p_delete_status: deleteStatus, p_ack: null, p_get_status: getStatus, p_get_code: getCode }); }
             catch {}
           }
           throw error;

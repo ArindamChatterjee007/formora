@@ -16,14 +16,14 @@ const files = ['supabase/story-media.sql', 'supabase/story-interactions.sql', 's
   'scripts/verify-story-media-cleanup-runtime.ts', 'scripts/verify-story-media-cleanup-runtime.cjs',
   'tests/story-media-cleanup.test.cjs', 'tests/story-media-cleanup-runtime.test.cjs', 'tests/story-media-sql.test.cjs', 'tests/story-media-independent.test.cjs'];
 const sourceHashes = () => Object.fromEntries(files.map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
-const cleanEnv = { PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin', LANG: 'C',
-  DENO_DIR: path.join(os.homedir(), process.platform === 'darwin' ? 'Library/Caches/deno' : '.cache/deno') };
+const cleanEnv = { PATH: process.env.PATH || '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin', LANG: 'C',
+  DENO_DIR: process.env.STORY_MEDIA_DENO_DIR || process.env.DENO_DIR || path.join(os.homedir(), process.platform === 'darwin' ? 'Library/Caches/deno' : '.cache/deno') };
 const runtimeArgs = ['run', '--no-prompt', '--cached-only', '--deny-net', '--deny-env', '--deny-read', '--deny-write',
   '--config', path.join(root, 'supabase/functions/cleanup-story-media/deno.json'), path.join(root, 'scripts/verify-story-media-cleanup-runtime.ts')];
 const rpcArguments = {
   claim_story_media_cleanup: ['p_operation_id', 'p_claim_id'],
   request_story_media_cleanup_object: ['p_operation_id', 'p_claim_id', 'p_intent_id', 'p_lease_token'],
-  finish_story_media_cleanup_object: ['p_operation_id', 'p_claim_id', 'p_intent_id', 'p_lease_token', 'p_result', 'p_delete_status', 'p_ack', 'p_get_status']
+  finish_story_media_cleanup_object: ['p_operation_id', 'p_claim_id', 'p_intent_id', 'p_lease_token', 'p_result', 'p_delete_status', 'p_ack', 'p_get_status', 'p_get_code']
 };
 
 function assertRuntimeReport(report) {
@@ -179,6 +179,7 @@ async function syntheticFixture(kind = 'cancelled', mode = 'normal', approved = 
         const bucket = key.slice(0, separator), name = key.slice(separator + 1);
         const metadata = (await db.query('SELECT id FROM storage.objects WHERE bucket_id=$1 AND name=$2', [bucket, name])).rows;
         if (mode === 'false_ack_and_404') return response(404, null);
+        if (mode === 'typed_absence' && !metadata.length && !bytes.has(key)) return response(400, { code: 'NoSuchKey' });
         return response(metadata.length && bytes.has(key) ? 200 : 404, null);
       },
       close: () => db.close()
@@ -186,10 +187,11 @@ async function syntheticFixture(kind = 'cancelled', mode = 'normal', approved = 
   } catch (error) { await db.close(); throw error; }
 }
 
-async function runVerification() {
+async function runVerification({ absenceOnly = false } = {}) {
+  assert.equal(typeof absenceOnly, 'boolean');
   const before = sourceHashes(), parent = path.join(root, 'dist/story-media-cleanup');
   fs.mkdirSync(parent, { recursive: true, mode: 0o700 }); assert.equal(fs.realpathSync(parent), parent);
-  const directory = fs.mkdtempSync(path.join(parent, 'run-')), cases = [];
+  const directory = fs.mkdtempSync(path.join(parent, 'run-')), cases = [], unrunSqlCases = [];
   const result = spawnSync(deno, runtimeArgs, { cwd: root, env: cleanEnv, shell: false, timeout: 30000, maxBuffer: 262144, encoding: 'utf8' });
   if (result.error) throw new Error('Actual Deno is required, never silently skipped: ' + result.error.code);
   const unit = assertRuntimeReport(JSON.parse(result.stdout));
@@ -200,6 +202,7 @@ async function runVerification() {
     return currentFixture.network(message);
   });
   async function check(name, kind, mode, work, approved = true) {
+    if (absenceOnly && mode !== 'typed_absence') { unrunSqlCases.push(name); return; }
     try {
       currentFixture = await syntheticFixture(kind, mode, approved);
       await work(currentFixture, () => bridge.invoke({ operation_id: currentFixture.plan.operation_id, claim_id: currentFixture.plan.plan_id }));
@@ -211,6 +214,16 @@ async function runVerification() {
     finally { if (currentFixture) await currentFixture.close(); currentFixture = null; }
   }
   try {
+    await check('Deno + SQL: typed HTTP400 absence preserves raw status and completes only the exact audited delete', 'cancelled', 'typed_absence', async (fixture, invoke) => {
+      const response = await invoke();
+      assert.equal(response.status, 200); assert.equal(response.body.completed, 1); assert.equal(response.body.result, 'storage_api_deleted');
+      assert.equal(response.body.physical_delete_confirmed, false); assert.equal(response.body.account_deleted, false);
+      assert.equal(fixture.apiDeletes, 1); assert.equal(fixture.bytes.size, 1);
+      await fixture.db.exec('RESET ROLE');
+      assert.deepEqual((await fixture.db.query('SELECT absence_http_status,absence_error_code,state FROM public.story_media_cleanup_intents WHERE plan_id=$1', [fixture.plan.plan_id])).rows,
+        [{ absence_http_status: 400, absence_error_code: 'NoSuchKey', state: 'completed' }]);
+      const replay = await invoke(); assert.deepEqual(replay.body, response.body); assert.equal(fixture.apiDeletes, 1);
+    });
     for (const kind of ['cancelled', 'failed', 'published']) await check('Deno + SQL: exact ' + kind + ' cleanup and replay', kind, 'normal', async (fixture, invoke) => {
       const response = await invoke(), expected = kind === 'published' ? 2 : 1;
       assert.equal(response.status, 200); assert.equal(response.body.completed, expected); assert.equal(response.body.result, 'storage_api_deleted');
@@ -265,9 +278,13 @@ async function runVerification() {
     });
   } finally { termination = await bridge.close(); }
   const after = sourceHashes();
-  const report = { result: result.status === 0 && cases.every(entry => entry.passed) && JSON.stringify(before) === JSON.stringify(after)
+  const integrationCount = cases.length - unit.cases.length;
+  const scopeComplete = absenceOnly ? integrationCount === 1 && cases.some(entry => entry.name ===
+    'Deno + SQL: typed HTTP400 absence preserves raw status and completes only the exact audited delete') : integrationCount >= 17;
+  const report = { result: result.status === 0 && scopeComplete && cases.every(entry => entry.passed) && JSON.stringify(before) === JSON.stringify(after)
       && termination.code === 0 ? 'passed' : 'failed', actualDenoExecuted: true, runtime: unit.runtime, network: 'denied',
     scope: 'Actual Deno handler + PGlite executing candidate SQL; all Storage and RPC fetches are synthetic stubs over private stdio. No hosted resources or actual Storage bytes.',
+    selectedScope: absenceOnly ? 'unit_and_typed_absence_integration_only' : 'all_cleanup_runtime_cases', scopeComplete, unrunSqlCases,
     cases, counts: { denoUnit: unit.cases.length, denoSqlIntegration: cases.length - unit.cases.length,
       passed: cases.filter(entry => entry.passed).length, failed: cases.filter(entry => !entry.passed).length },
     sourceHashesBefore: before, sourceHashesAfter: after, sourceUnchanged: JSON.stringify(before) === JSON.stringify(after),
@@ -275,14 +292,14 @@ async function runVerification() {
     physicalErasureVerified: false, accountErasurePerformed: false, productionChanged: false, releaseApproval: 'not_authorized' };
   const artifact = path.join(directory, 'verification.json');
   fs.writeFileSync(artifact, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-  if (report.result !== 'passed') throw new Error('Local cleanup verification failed: ' + path.relative(root, artifact) + ': '
+  if (report.result !== 'passed') throw new Error('Local cleanup verification failed (scope complete: ' + scopeComplete + '): ' + path.relative(root, artifact) + ': '
     + JSON.stringify(cases.filter(entry => !entry.passed)));
   return { ...report, artifact: path.relative(root, artifact) };
 }
 
 module.exports = { assertRuntimeReport, runVerification, runtimeArgs };
 if (require.main === module) {
-  if (process.argv.length !== 3 || process.argv[2] !== '--local') throw new Error('Only --local is supported; no endpoint or credential arguments');
-  runVerification().then(report => console.log(JSON.stringify({ result: report.result, artifact: report.artifact, counts: report.counts,
+  if (process.argv.length !== 3 || !['--local', '--absence'].includes(process.argv[2])) throw new Error('Only --local or --absence is supported; no endpoint or credential arguments');
+  runVerification({ absenceOnly: process.argv[2] === '--absence' }).then(report => console.log(JSON.stringify({ result: report.result, artifact: report.artifact, counts: report.counts,
     sourceUnchanged: report.sourceUnchanged, cleanup: report.cleanup }))).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

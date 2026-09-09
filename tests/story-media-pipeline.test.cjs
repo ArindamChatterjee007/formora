@@ -280,6 +280,28 @@ for (const loss of ['lostUpload', 'lostPublish']) scenario('browser retries ' + 
   assert.equal((await fixture.query('SELECT * FROM public.stories_v2')).length, 1);
   assert.deepEqual(fixture.state.errors, []);
 });
+scenario('browser admission refusal retains its draft and manual retry publishes exactly once', async scope => {
+  const fixture = await openFixture(scope);
+  await fixture.query('UPDATE public.story_media_settings SET global_bytes_per_day=1');
+  await fixture.select('photo.jpg'); await fixture.share();
+  await fixture.page.waitForFunction(() => Social._storyDraft && !Social._storyDraft.sending);
+  const requestId = await fixture.page.evaluate(() => Social._storyDraft.id);
+  assert.match(await fixture.page.locator('#fixture-status').textContent(), /busy or at its limit/);
+  assert.equal(await fixture.page.locator('.sp-share').textContent(), 'Retry sharing');
+  assert.equal(await fixture.page.locator('.sp-share').isEnabled(), true);
+  assert.equal(fixture.state.uploads, 0); assert.equal(fixture.state.promotions, 0);
+  assert.equal((await fixture.query('SELECT id FROM public.story_media_reservations')).length, 0);
+  await fixture.query('UPDATE public.story_media_settings SET global_bytes_per_day=268435456');
+  await fixture.share(); await fixture.confirmed();
+  const admissions = fixture.state.calls.filter(call => call.name === 'reserve_story_media');
+  assert.equal(admissions.length, 2); assert.ok(admissions.every(call => call.body.p_request_id === requestId));
+  assert.equal(fixture.state.uploads, 1); assert.equal(fixture.state.promotions, 1);
+  const rows = await fixture.query('SELECT request_id,status FROM public.story_media_reservations');
+  assert.equal(rows.length, 1); assert.equal(rows[0].request_id, requestId); assert.equal(rows[0].status, 'published');
+  assert.equal((await fixture.query('SELECT id FROM public.stories_v2')).length, 1);
+  assert.equal(await fixture.page.evaluate(() => Social._storyDraft), null);
+  assert.deepEqual(fixture.state.errors, []);
+});
 scenario('browser malformed video is retained as a failed orphan, not published', async scope => {
   const fixture = await openFixture(scope); await fixture.select('truncated-clip.mp4'); await fixture.share();
   await fixture.page.waitForFunction(() => Social._storyDraft && !Social._storyDraft.sending);

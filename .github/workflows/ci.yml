@@ -52,6 +52,9 @@ jobs:
       - name: Verify the exact packaged media runtime offline
         run: node scripts/verify-story-parser-runtime.cjs
 
+      - name: Verify cleanup runtime and typed absence offline
+        run: node scripts/verify-story-media-cleanup-runtime.cjs --absence
+
       - name: Run public-scope unit and browser fixtures
         # The runner executes every suite serially (--test-concurrency=1) and excludes the catalogued
         # private-office suites, which stay explicitly unverified here rather than counted as passing.
@@ -71,6 +74,7 @@ jobs:
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/unit.xml
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/browser.xml
             dist/story-parser/run-*/verification.json
+            dist/story-media-cleanup/run-*/verification.json
           if-no-files-found: error
           retention-days: 14
 

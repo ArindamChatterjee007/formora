@@ -12,12 +12,10 @@ BEGIN
   END IF;
   IF NOT pg_catalog.has_table_privilege(current_user,'storage.objects','TRIGGER')
     OR NOT pg_catalog.has_table_privilege(current_user,'storage.buckets','TRIGGER')
-    OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class WHERE oid = 'storage.objects'::regclass
-      AND pg_catalog.pg_has_role(current_user,relowner,'USAGE'))
     OR (SELECT count(*) FROM information_schema.columns AS actual JOIN (VALUES ('id','uuid'),('bucket_id','text'),('name','text'),
       ('owner','uuid'),('owner_id','text'),('version','text'),('metadata','jsonb'),('user_metadata','jsonb'),('created_at','timestamptz')) AS expected(name,type)
       ON actual.column_name = expected.name AND actual.udt_name = expected.type WHERE actual.table_schema = 'storage' AND actual.table_name = 'objects') <> 9 THEN
-    RAISE EXCEPTION 'Storage DDL ownership, TRIGGER privileges and current user_metadata schema require isolated preflight; do not override ownership';
+    RAISE EXCEPTION 'Storage TRIGGER privileges and current user_metadata schema require isolated DDL preflight; do not override ownership';
   END IF;
 END;
 $predecessor$;
@@ -38,12 +36,16 @@ CREATE TABLE public.story_media_settings (
   pending_per_owner integer NOT NULL DEFAULT 3 CHECK (pending_per_owner BETWEEN 1 AND 3),
   requests_per_day integer NOT NULL DEFAULT 20 CHECK (requests_per_day BETWEEN 1 AND 20),
   bytes_per_day integer NOT NULL DEFAULT 104857600 CHECK (bytes_per_day BETWEEN 1 AND 104857600),
+  global_pending integer CHECK (global_pending > 0),
+  global_requests_per_day integer CHECK (global_requests_per_day > 0),
+  global_bytes_per_day bigint CHECK (global_bytes_per_day BETWEEN 1 AND 9007199254740991),
   cleanup_enabled boolean NOT NULL DEFAULT false,
   cleanup_min_age_seconds integer NOT NULL DEFAULT 86400 CHECK (cleanup_min_age_seconds BETWEEN 0 AND 2592000),
   cleanup_epoch integer NOT NULL DEFAULT 1 CHECK (cleanup_epoch > 0),
   CHECK (NOT cleanup_enabled OR (retention_approved AND retention_policy_ref IS NOT NULL AND storage_policy_approved AND storage_policy_ref IS NOT NULL)),
   CHECK (NOT enabled OR (publication_required AND storage_policy_approved AND quota_approved AND retention_approved
-    AND storage_policy_ref IS NOT NULL AND quota_policy_ref IS NOT NULL AND retention_policy_ref IS NOT NULL))
+    AND storage_policy_ref IS NOT NULL AND quota_policy_ref IS NOT NULL AND retention_policy_ref IS NOT NULL
+    AND global_pending IS NOT NULL AND global_requests_per_day IS NOT NULL AND global_bytes_per_day IS NOT NULL))
 );
 INSERT INTO public.story_media_settings DEFAULT VALUES;
 INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
@@ -84,6 +86,9 @@ CREATE TABLE public.story_media_reservations (
     AND public_sha256 IS NOT NULL AND public_sha256 = sha256))
 );
 CREATE INDEX story_media_owner_budget ON public.story_media_reservations(owner,created_at);
+CREATE INDEX story_media_global_budget ON public.story_media_reservations(created_at);
+CREATE INDEX story_media_global_pending ON public.story_media_reservations(expires_at)
+  WHERE status IN ('reserved','validating','attested','promoting','approved');
 CREATE TABLE public.story_media_publish_intents (
   owner uuid PRIMARY KEY, transaction_id bigint NOT NULL, reservation_id uuid NOT NULL REFERENCES public.story_media_reservations(id),
   request_id uuid NOT NULL, sha256 text NOT NULL
@@ -116,13 +121,15 @@ CREATE TABLE public.story_media_cleanup_intents (
   request_lease_token uuid, authorized_delete_lease_token uuid,
   delete_attempts integer NOT NULL DEFAULT 0 CHECK (delete_attempts BETWEEN 0 AND 3),
   outcome text NOT NULL DEFAULT 'pending' CHECK (outcome IN ('pending','storage_api_deleted','storage_api_absent_backend_unknown','unknown')),
-  delete_http_status integer, absence_http_status integer, api_ack jsonb, observed_at timestamptz,
+  delete_http_status integer, absence_http_status integer, absence_error_code text, api_ack jsonb, observed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
+  CHECK (absence_error_code IS NULL OR (absence_http_status IS NOT DISTINCT FROM 400 AND absence_error_code = 'NoSuchKey')),
   CHECK ((state = 'completed') = (outcome = 'storage_api_deleted')),
   CHECK (state <> 'completed' OR (metadata_deleted_at IS NOT NULL AND delete_requested_at IS NOT NULL
     AND authorized_delete_lease_token IS NOT NULL AND request_lease_token IS NOT DISTINCT FROM authorized_delete_lease_token
     AND observed_at IS NOT NULL AND delete_http_status IS NOT NULL AND delete_http_status = 200
-    AND absence_http_status IS NOT NULL AND absence_http_status = 404 AND api_ack IS NOT NULL)),
+    AND absence_http_status IS NOT NULL AND (absence_http_status = 404
+      OR (absence_http_status = 400 AND absence_error_code IS NOT DISTINCT FROM 'NoSuchKey')) AND api_ack IS NOT NULL)),
   UNIQUE(plan_id,object_id)
 );
 CREATE INDEX story_media_cleanup_pending ON public.story_media_cleanup_intents(reservation_id,state);
@@ -137,7 +144,7 @@ BEGIN
     ADD COLUMN IF NOT EXISTS cancelled_at timestamptz CHECK (cancelled_at IS NULL OR (state IN ('planned','claimed')
       AND outcome = 'pending' AND delete_attempts = 0 AND delete_requested_at IS NULL AND metadata_deleted_at IS NULL
       AND request_lease_token IS NULL AND authorized_delete_lease_token IS NULL AND delete_http_status IS NULL
-      AND absence_http_status IS NULL AND api_ack IS NULL AND observed_at IS NULL));
+      AND absence_http_status IS NULL AND absence_error_code IS NULL AND api_ack IS NULL AND observed_at IS NULL));
 END;
 $cleanup_recovery_schema$;
 
@@ -146,10 +153,12 @@ RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $function$
 BEGIN
   NEW.policy_epoch := OLD.policy_epoch + CASE WHEN ROW(NEW.enabled,NEW.publication_required,NEW.storage_policy_approved,
     NEW.quota_approved,NEW.retention_approved,NEW.storage_policy_ref,NEW.quota_policy_ref,NEW.retention_policy_ref,
-    NEW.photo_bytes,NEW.video_bytes,NEW.video_ms,NEW.max_pixels,NEW.pending_per_owner,NEW.requests_per_day,NEW.bytes_per_day)
+    NEW.photo_bytes,NEW.video_bytes,NEW.video_ms,NEW.max_pixels,NEW.pending_per_owner,NEW.requests_per_day,NEW.bytes_per_day,
+    NEW.global_pending,NEW.global_requests_per_day,NEW.global_bytes_per_day)
     IS DISTINCT FROM ROW(OLD.enabled,OLD.publication_required,OLD.storage_policy_approved,
     OLD.quota_approved,OLD.retention_approved,OLD.storage_policy_ref,OLD.quota_policy_ref,OLD.retention_policy_ref,
-    OLD.photo_bytes,OLD.video_bytes,OLD.video_ms,OLD.max_pixels,OLD.pending_per_owner,OLD.requests_per_day,OLD.bytes_per_day)
+    OLD.photo_bytes,OLD.video_bytes,OLD.video_ms,OLD.max_pixels,OLD.pending_per_owner,OLD.requests_per_day,OLD.bytes_per_day,
+    OLD.global_pending,OLD.global_requests_per_day,OLD.global_bytes_per_day)
     THEN 1 ELSE 0 END;
   NEW.cleanup_epoch := OLD.cleanup_epoch + CASE WHEN ROW(NEW.cleanup_enabled,NEW.cleanup_min_age_seconds,NEW.retention_approved,
     NEW.retention_policy_ref,NEW.storage_policy_approved,NEW.storage_policy_ref) IS DISTINCT FROM ROW(OLD.cleanup_enabled,
@@ -191,7 +200,8 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $fu
       ('storage.buckets'::regclass,'story_media_bucket_guard',pg_catalog.to_regprocedure('public._story_media_bucket_guard()'),31),
       ('public.story_content'::regclass,'story_media_publication_gate',pg_catalog.to_regprocedure('public._story_media_publication_gate()'),23)
     ) AS expected(relation,name,routine,type) ON guard.tgrelid = expected.relation AND guard.tgname = expected.name
-      AND guard.tgfoid = expected.routine AND guard.tgtype = expected.type AND guard.tgenabled IN ('O','A') AND guard.tgqual IS NULL) = 4;
+      AND guard.tgfoid = expected.routine AND guard.tgtype = expected.type AND guard.tgenabled IN ('O','A') AND guard.tgqual IS NULL
+      AND (guard.tgname <> 'story_media_storage_bound' OR (guard.tgdeferrable AND guard.tginitdeferred))) = 4;
 $function$;
 
 CREATE FUNCTION public._story_media_ready()
@@ -227,16 +237,22 @@ $function$;
 
 CREATE FUNCTION public.reserve_story_media(p_request_id uuid,p_kind text,p_content_type text,p_declared_bytes integer)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
-DECLARE caller uuid := public._story_actor(); settings public.story_media_settings := public._story_media_ready();
-  reservation public.story_media_reservations%ROWTYPE; payload_hash text; extension text; stamp timestamptz := pg_catalog.clock_timestamp();
+DECLARE caller uuid; settings public.story_media_settings;
+  reservation public.story_media_reservations%ROWTYPE; payload_hash text; extension text; stamp timestamptz;
   request_count bigint; byte_count bigint; pending_count bigint;
 BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'Story media admission requires read committed isolation' USING ERRCODE = 'PT503';
+  END IF;
+  caller := public._story_actor();
+  settings := public._story_media_ready();
   IF p_request_id IS NULL OR p_kind IS NULL OR p_content_type IS NULL OR p_declared_bytes IS NULL
     OR NOT ((p_kind = 'photo' AND p_content_type IN ('image/jpeg','image/png','image/webp') AND p_declared_bytes BETWEEN 1 AND 8388608)
       OR (p_kind = 'video' AND p_content_type IN ('video/mp4','video/webm') AND p_declared_bytes BETWEEN 1 AND 26214400)) THEN
     RAISE EXCEPTION 'Unsupported Story media declaration' USING ERRCODE = '22023';
   END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('story-media:' || caller::text,0));
+  stamp := pg_catalog.clock_timestamp();
   payload_hash := public._story_digest('reserve_media',pg_catalog.jsonb_build_array(p_kind,p_content_type,p_declared_bytes));
   SELECT * INTO reservation FROM public.story_media_reservations WHERE owner = caller AND request_id = p_request_id FOR UPDATE;
   IF FOUND THEN
@@ -257,16 +273,23 @@ BEGIN
         AND NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id = reservation.public_bucket AND name = reservation.public_key)
         AND (reservation.object_id IS NULL OR EXISTS (SELECT 1 FROM storage.objects WHERE id = reservation.object_id
           AND bucket_id = reservation.bucket AND name = reservation.object_key AND owner_id = caller::text AND version = reservation.object_version)) THEN
-        UPDATE public.story_media_reservations SET status = 'reserved',policy_epoch = settings.policy_epoch,epoch = epoch + 1,
-          lease_token = NULL,lease_until = NULL,sha256 = NULL,actual_bytes = NULL,width = NULL,height = NULL,duration_ms = NULL,
-          parser = NULL,public_key = NULL,media_url = NULL,failure_code = NULL,renewals = renewals + 1,renewed_at = stamp,expires_at = stamp + interval '15 minutes'
-          WHERE id = reservation.id RETURNING * INTO reservation;
-      ELSE
-        UPDATE public.story_media_reservations SET status = 'cancelled',epoch = epoch + 1,lease_token = NULL,lease_until = NULL,
-          failure_code = CASE WHEN promotion_started_at IS NOT NULL OR public_object_id IS NOT NULL THEN 'promotion_review_required'
-            WHEN policy_epoch <> settings.policy_epoch THEN 'policy_changed' ELSE 'reservation_expired' END
-          WHERE id = reservation.id RETURNING * INTO reservation;
+        IF NOT pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended('story-media:global-admission',0)) THEN
+          RAISE EXCEPTION 'Story media admission busy' USING ERRCODE = 'PT429', DETAIL = 'media_admission_busy';
+        END IF;
+        IF (SELECT count(*) FROM public.story_media_reservations AS other WHERE other.id <> reservation.id
+          AND other.status IN ('reserved','validating','attested','promoting','approved') AND other.expires_at > stamp) < settings.global_pending THEN
+          UPDATE public.story_media_reservations SET status = 'reserved',policy_epoch = settings.policy_epoch,epoch = epoch + 1,
+            lease_token = NULL,lease_until = NULL,sha256 = NULL,actual_bytes = NULL,width = NULL,height = NULL,duration_ms = NULL,
+            parser = NULL,public_key = NULL,media_url = NULL,failure_code = NULL,renewals = renewals + 1,renewed_at = stamp,expires_at = stamp + interval '15 minutes'
+            WHERE id = reservation.id RETURNING * INTO reservation;
+          RETURN public._story_media_receipt(reservation);
+        END IF;
+        RAISE EXCEPTION 'Story media global admission limit reached' USING ERRCODE = 'PT429', DETAIL = 'media_admission_global_limit';
       END IF;
+      UPDATE public.story_media_reservations SET status = 'cancelled',epoch = epoch + 1,lease_token = NULL,lease_until = NULL,
+        failure_code = CASE WHEN promotion_started_at IS NOT NULL OR public_object_id IS NOT NULL THEN 'promotion_review_required'
+          WHEN policy_epoch <> settings.policy_epoch THEN 'policy_changed' ELSE 'reservation_expired' END
+        WHERE id = reservation.id RETURNING * INTO reservation;
     END IF;
     RETURN public._story_media_receipt(reservation);
   END IF;
@@ -279,6 +302,18 @@ BEGIN
     AND status IN ('reserved','validating','attested','promoting','approved') AND expires_at > stamp;
   IF request_count >= settings.requests_per_day OR byte_count + p_declared_bytes > settings.bytes_per_day
     OR pending_count >= settings.pending_per_owner THEN RAISE EXCEPTION 'Story media technical limit reached' USING ERRCODE = 'PT429'; END IF;
+  IF NOT pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended('story-media:global-admission',0)) THEN
+    RAISE EXCEPTION 'Story media admission busy' USING ERRCODE = 'PT429', DETAIL = 'media_admission_busy';
+  END IF;
+  stamp := pg_catalog.clock_timestamp();
+  SELECT count(*),coalesce(sum(declared_bytes),0) INTO request_count,byte_count FROM public.story_media_reservations
+    WHERE created_at >= pg_catalog.date_trunc('day',stamp,'UTC');
+  SELECT count(*) INTO pending_count FROM public.story_media_reservations
+    WHERE status IN ('reserved','validating','attested','promoting','approved') AND expires_at > stamp;
+  IF request_count >= settings.global_requests_per_day OR byte_count + p_declared_bytes > settings.global_bytes_per_day
+    OR pending_count >= settings.global_pending THEN
+    RAISE EXCEPTION 'Story media global admission limit reached' USING ERRCODE = 'PT429', DETAIL = 'media_admission_global_limit';
+  END IF;
   extension := CASE p_content_type WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' WHEN 'image/webp' THEN 'webp'
     WHEN 'video/mp4' THEN 'mp4' WHEN 'video/webm' THEN 'webm' END;
   reservation.id := pg_catalog.gen_random_uuid();
@@ -302,7 +337,7 @@ RETURNS boolean LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $
 $function$;
 CREATE FUNCTION public._story_media_storage_guard()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
-DECLARE reservation public.story_media_reservations%ROWTYPE;
+DECLARE reservation public.story_media_reservations%ROWTYPE; permission_probe boolean;
 BEGIN
   IF TG_OP <> 'INSERT' THEN
     IF OLD.bucket_id IN ('story-media-quarantine-v3','story-media-public-v3')
@@ -315,6 +350,7 @@ BEGIN
   END IF;
   IF NEW.bucket_id NOT IN ('story-media-quarantine-v3','story-media-public-v3') THEN RETURN NEW; END IF;
   PERFORM public._story_media_ready();
+  permission_probe := NEW.version = '1' AND NOT coalesce(NEW.metadata ? 'size',false);
   IF NEW.bucket_id = 'story-media-public-v3' THEN
     SELECT * INTO reservation FROM public.story_media_reservations WHERE public_bucket = NEW.bucket_id AND public_key = NEW.name FOR UPDATE;
     IF NOT FOUND OR pg_catalog.current_setting('role',true) IS DISTINCT FROM 'service_role'
@@ -328,7 +364,7 @@ BEGIN
       OR (NEW.owner_id IS NOT NULL AND NEW.owner_id <> reservation.owner::text)
       OR NEW.id IS NULL OR NEW.version IS NULL OR pg_catalog.length(NEW.version) NOT BETWEEN 1 AND 128
       OR coalesce(NEW.metadata->>'mimetype','') <> reservation.content_type
-      OR coalesce(NEW.metadata->>'size','') <> reservation.actual_bytes::text
+      OR coalesce(CASE WHEN permission_probe THEN NEW.metadata->>'contentLength' ELSE NEW.metadata->>'size' END,'') <> reservation.actual_bytes::text
       OR NOT EXISTS (SELECT 1 FROM storage.objects WHERE id = reservation.object_id AND bucket_id = reservation.bucket
         AND name = reservation.object_key AND owner_id = reservation.owner::text AND version = reservation.object_version) THEN
       RAISE EXCEPTION 'Exact service-leased attested public promotion required' USING ERRCODE = 'PT403';
@@ -337,11 +373,16 @@ BEGIN
     RETURN NEW;
   END IF;
   SELECT * INTO reservation FROM public.story_media_reservations WHERE bucket = NEW.bucket_id AND object_key = NEW.name FOR UPDATE;
-  IF NOT FOUND OR public._story_media_storage_insert(NEW.bucket_id,NEW.name,NEW.owner_id) IS NOT TRUE
+  IF NOT FOUND OR NEW.owner_id IS DISTINCT FROM reservation.owner::text
+    OR reservation.status <> 'reserved' OR reservation.object_id IS NOT NULL
+    OR reservation.expires_at <= pg_catalog.clock_timestamp()
+    OR reservation.policy_epoch <> (SELECT policy_epoch FROM public.story_media_settings WHERE singleton)
+    OR (public._story_media_storage_insert(NEW.bucket_id,NEW.name,NEW.owner_id) IS NOT TRUE
+      AND NOT (NOT permission_probe AND pg_catalog.current_setting('role',true) = 'service_role' AND auth.uid() IS NULL))
     OR (NEW.owner IS NOT NULL AND NEW.owner <> reservation.owner) OR NEW.id IS NULL
     OR NEW.version IS NULL OR pg_catalog.length(NEW.version) NOT BETWEEN 1 AND 128
     OR coalesce(NEW.metadata->>'mimetype','') <> reservation.content_type
-    OR coalesce(NEW.metadata->>'size','') <> reservation.declared_bytes::text THEN
+    OR coalesce(CASE WHEN permission_probe THEN NEW.metadata->>'contentLength' ELSE NEW.metadata->>'size' END,'') <> reservation.declared_bytes::text THEN
     RAISE EXCEPTION 'Exact owned Story reservation required' USING ERRCODE = 'PT403';
   END IF;
   RETURN NEW;
@@ -350,20 +391,26 @@ $function$;
 CREATE FUNCTION public._story_media_storage_bound()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
 BEGIN
+  IF NEW.bucket_id IN ('story-media-quarantine-v3','story-media-public-v3')
+    AND (NEW.version = '1' OR NEW.metadata->>'size' IS NULL) THEN
+    RAISE EXCEPTION 'Storage permission probes cannot become committed objects' USING ERRCODE = 'PT403';
+  END IF;
   IF NEW.bucket_id = 'story-media-quarantine-v3' THEN
     UPDATE public.story_media_reservations SET object_id = NEW.id,object_version = NEW.version
       WHERE bucket = NEW.bucket_id AND object_key = NEW.name AND object_id IS NULL;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Exact unbound Story object required at commit' USING ERRCODE = 'PT403'; END IF;
   ELSIF NEW.bucket_id = 'story-media-public-v3' THEN
     UPDATE public.story_media_reservations SET public_object_id = NEW.id,public_object_version = NEW.version,public_sha256 = NEW.user_metadata->>'sha256'
       WHERE public_bucket = NEW.bucket_id AND public_key = NEW.name AND public_object_id IS NULL AND status = 'promoting';
+    IF NOT FOUND THEN RAISE EXCEPTION 'Exact unbound Story promotion required at commit' USING ERRCODE = 'PT403'; END IF;
   END IF;
   RETURN NEW;
 END;
 $function$;
 CREATE TRIGGER story_media_storage_guard BEFORE INSERT OR UPDATE OR DELETE ON storage.objects
   FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_guard();
-CREATE TRIGGER story_media_storage_bound AFTER INSERT ON storage.objects
-  FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_bound();
+CREATE CONSTRAINT TRIGGER story_media_storage_bound AFTER INSERT ON storage.objects
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_bound();
 CREATE POLICY story_media_insert_boundary ON storage.objects AS RESTRICTIVE FOR INSERT TO PUBLIC
   WITH CHECK (bucket_id NOT IN ('story-media-quarantine-v3','story-media-public-v3') OR public._story_media_storage_insert(bucket_id,name,owner_id));
 CREATE POLICY story_media_insert ON storage.objects FOR INSERT TO authenticated
@@ -932,7 +979,7 @@ END;
 $function$;
 
 CREATE FUNCTION public.finish_story_media_cleanup_object(p_operation_id uuid,p_claim_id uuid,p_intent_id uuid,p_lease_token uuid,
-  p_result text,p_delete_status integer,p_ack jsonb,p_get_status integer)
+  p_result text,p_delete_status integer,p_ack jsonb,p_get_status integer,p_get_code text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '2s' AS $function$
 DECLARE plan public.story_media_cleanup_plans%ROWTYPE; intent public.story_media_cleanup_intents%ROWTYPE; present boolean;
 BEGIN
@@ -940,11 +987,12 @@ BEGIN
   SELECT * INTO intent FROM public.story_media_cleanup_intents WHERE id = p_intent_id AND plan_id = plan.id FOR UPDATE;
   IF NOT FOUND OR intent.request_lease_token IS DISTINCT FROM p_lease_token OR intent.state NOT IN ('object_delete_requested','unknown','completed')
     OR p_result IS NULL OR p_result NOT IN ('storage_api_deleted','storage_api_absent_backend_unknown','unknown')
-    OR p_delete_status IS NULL OR p_delete_status NOT BETWEEN 0 AND 599 OR p_get_status IS NULL OR p_get_status NOT BETWEEN 0 AND 599 THEN
+    OR p_delete_status IS NULL OR p_delete_status NOT BETWEEN 0 AND 599 OR p_get_status IS NULL OR p_get_status NOT BETWEEN 0 AND 599
+    OR (p_get_code IS NOT NULL AND (p_get_status <> 400 OR p_get_code <> 'NoSuchKey')) THEN
     RAISE EXCEPTION 'Exact requested object and bounded service observation required' USING ERRCODE = 'PT409';
   END IF;
   present := public._story_media_cleanup_object_check(plan,intent);
-  IF p_result <> 'unknown' AND (present OR p_get_status <> 404) THEN
+  IF p_result <> 'unknown' AND (present OR NOT (p_get_status = 404 OR (p_get_status = 400 AND p_get_code IS NOT DISTINCT FROM 'NoSuchKey'))) THEN
     RAISE EXCEPTION 'Owned catalog-delete audit and authenticated object absence required' USING ERRCODE = 'PT409';
   END IF;
   IF p_result = 'storage_api_deleted' THEN
@@ -963,13 +1011,14 @@ BEGIN
   END IF;
   IF intent.state = 'completed' THEN
     IF p_result IS DISTINCT FROM intent.outcome OR p_delete_status IS DISTINCT FROM intent.delete_http_status
-      OR p_get_status IS DISTINCT FROM intent.absence_http_status OR p_ack IS DISTINCT FROM intent.api_ack THEN
+      OR p_get_status IS DISTINCT FROM intent.absence_http_status OR p_get_code IS DISTINCT FROM intent.absence_error_code
+      OR p_ack IS DISTINCT FROM intent.api_ack THEN
       RAISE EXCEPTION 'Completed cleanup observation is immutable' USING ERRCODE = 'PT409';
     END IF;
     RETURN public._story_media_cleanup_worker_receipt(plan);
   END IF;
   UPDATE public.story_media_cleanup_intents SET state = CASE WHEN p_result = 'storage_api_deleted' THEN 'completed' ELSE 'unknown' END,
-    outcome = p_result,delete_http_status = p_delete_status,absence_http_status = p_get_status,api_ack = p_ack,
+    outcome = p_result,delete_http_status = p_delete_status,absence_http_status = p_get_status,absence_error_code = p_get_code,api_ack = p_ack,
     observed_at = pg_catalog.clock_timestamp() WHERE id = intent.id;
   RETURN public._story_media_cleanup_worker_receipt(plan);
 END;
@@ -1030,7 +1079,7 @@ GRANT EXECUTE ON FUNCTION public.claim_story_media_validation(uuid,uuid),
   public.prepare_story_media_cleanup(uuid,uuid,integer,uuid[],uuid),public.confirm_story_media_cleanup(uuid,text,uuid),
   public.cancel_story_media_cleanup(uuid,text,uuid),
   public.claim_story_media_cleanup(uuid,uuid),public.request_story_media_cleanup_object(uuid,uuid,uuid,uuid),
-  public.finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer),
+  public.finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer,text),
   public.preview_story_media_cleanup(uuid,integer) TO service_role;
 
 COMMIT;

@@ -205,6 +205,107 @@ settings and secret digests. Do not delete accounts or Storage objects as part
 of parser-only cleanup, retry an uncertain publication, or fall back to parsing
 untrusted bytes in the validator isolate.
 
+## Story Media Admission
+
+The fresh `supabase/story-media.sql` schema requires explicit `global_pending`,
+`global_requests_per_day` and `global_bytes_per_day` values before media can be
+enabled. They start unset; supplying a number is not budget or retention approval.
+Existing per-owner limits and all policy approvals still apply. Do not rerun this
+fresh-install migration on existing buckets or tables or invent approved limits
+from a synthetic test configuration.
+
+New reservations take a nonblocking transaction-scoped global advisory lock.
+Contention returns PT429 with `details=media_admission_busy` without inserting a
+reservation; an exhausted global quota uses `details=media_admission_global_limit`.
+The same lock guards
+renewals that can reopen a pending slot. Count and byte budgets cover first
+admissions across every owner for the current UTC day; cancellation, validation
+failure and expiry do not refund that day's charge. Exact active-request replay
+does not consume another admission, and renewal retains the original charge,
+identity and three-attempt limit. Changing any global quota advances the policy
+epoch and fences old work. Owner quota checks run before the global lock. The
+schema provides date and active-expiry indexes; actual query plans remain a
+hosted acceptance check.
+Only one global admission transaction can hold the lock at once. Other owners
+receive a bounded refusal, not an unbounded wait. The current client preserves
+the draft and request ID for manual retry and reports media as busy or limited;
+it does not automatically repeat a reservation, upload or publication. An exact
+retry after capacity is available still uploads at most once. This is not a
+claim of high-throughput or automatic-backoff acceptance.
+Nonrenewable stale work can cancel without taking the global admission lock.
+An otherwise eligible renewal denied by global pending capacity returns PT429
+without cancellation, so the same identity can be retried when a slot is free.
+Stale-policy reservations still occupy their pending slots until cancelled or
+expired; an epoch change does not manufacture new capacity. Lowering a daily
+limit below consumed usage prevents fresh admission, not an otherwise eligible
+uncharged renewal of the same identity.
+
+Admission requires `READ COMMITTED` transactions. Snapshot isolation is refused
+with PT503 before policy rows are read, because an earlier snapshot can hide a competing committed reservation
+even after acquiring an advisory lock. Confirm the actual PostgREST transaction
+isolation during hosted acceptance; even PostgreSQL's `READ UNCOMMITTED` alias
+is conservatively refused. The local multi-session check separately
+observes lock ownership, nonblocking denial and quota readback; removing the lock
+is a failing control, not an accepted alternate configuration.
+
+These limits are not global parser concurrency, retained-byte accounting,
+Storage/egress billing, backend upload-abuse prevention or physical cleanup.
+Yesterday's unchanged reservation can renew today without a new charge; it still
+needs an available global pending slot. Keep cumulative retention and unknown
+object reconciliation as separate gates, and keep media disabled until the
+execution, Storage, policy and operating limits are independently accepted.
+
+## Storage Upload Phases
+
+Hosted Storage performs a permission-probe INSERT with version `1`, MIME and
+declared `contentLength`, then rolls back that transaction before writing bytes.
+The durable INSERT uses a distinct version, measured `size` and the preserved
+owner fields, but runs as `service_role` with no `auth.uid()`. Treat these as
+observed provider behavior, not a stable upstream API guarantee.
+
+The guard validates declared length and authenticated ownership during the
+permission phase. A deferred constraint trigger refuses to commit that temporary
+row, then binds only a measured, exact-owner durable object to its reservation.
+Public promotion additionally requires the existing exact lease and promotion
+metadata. A zero-row binding aborts the transaction; Storage uniqueness is not
+the only duplicate-write barrier. UPDATE, overwrite and unauthorized DELETE stay
+denied. `_story_media_guards_present()` requires the commit trigger to remain
+deferrable and initially deferred.
+
+An immediate-constraint transaction or a provider change that commits the probe
+fails closed. Probe and durable phases cannot share one transaction. Repeat
+bounded, isolated compatibility checks after a provider change before reopening
+admission; do not remove measured-size or commit checks to restore availability.
+DDL rehearsal is not an actual guarded upload, immutable-version or physical
+cleanup pass. Keep customer media off until those separate gates pass.
+
+Cleanup accepts authenticated HTTP404 absence or HTTP400 with the exact JSON
+error code `NoSuchKey` from the same fixed object URL. The HTTP400 error body is
+bounded to 1024 bytes. Generic 400, `NoSuchBucket`, authorization, malformed and
+oversized errors remain unknown. SQL records the raw `absence_http_status` and
+`absence_error_code`, without rewriting a 400 observation to 404. The optional
+last `p_get_code` argument of `finish_story_media_cleanup_object` defaults to
+NULL for existing 404 callers; HTTP400 requires `NoSuchKey`. Deploy the matched
+SQL and worker together. This is a fresh migration, not an upgrade over installed
+cleanup tables or an authorization to rewrite existing receipts.
+
+Completion still requires the original approved object, matching delete ACK,
+exact worker lease and catalog-delete audit. Neither absence form proves backend,
+backup or CDN erasure. The focused offline verifier
+`node scripts/verify-story-media-cleanup-runtime.cjs --absence` runs the actual
+Deno handler unit cases plus one SQL integration case; its other SQL cases are
+explicitly unrun. CI retains that scoped verification record. `--local` runs
+the full cleanup runtime suite separately when required.
+
+Cleanup invocation additionally requires `STORY_MEDIA_CLEANUP_KEY`, a separate
+random server-only credential of at least 32 bytes encoded as base64url, sent in
+`x-story-media-cleanup-key`. Keep normal gateway JWT verification enabled. There
+is no fallback to a member bearer or the backend service key; missing, short or
+reused keys leave cleanup disabled. The injected backend key is used only for
+the fixed same-project RPC/Storage requests. Verify both authentication and
+backend access before authorizing a synthetic upload window, and remove temporary
+invocation keys after tests. Never put either key in client settings or reports.
+
 ## QAT Registration Consent
 
 `supabase/registration-consent.sql` is a fresh, default-off QAT experiment.

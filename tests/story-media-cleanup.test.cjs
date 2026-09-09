@@ -277,6 +277,29 @@ test('R4 completion requires exact API ACK plus authenticated absence and is ide
   await assert.rejects(rpc(db, 'finish_story_media_cleanup_object', [...args, 'unknown', 0, null, 0]), { code: 'PT409' });
 });
 
+test('R4 HTTP400 absence requires exact NoSuchKey evidence and preserves the raw audit on replay', async context => {
+  const db = await database(context), reservation = await cancelled(db); await holdsFixture(db);
+  const plan = await prepare(db, reservation); await confirm(db, plan);
+  const worker = await rpc(db, 'claim_story_media_cleanup', [plan.operation_id, plan.plan_id]);
+  const object = worker.objects[0], args = [worker.operation_id, worker.claim_id, object.intent_id, worker.lease_token];
+  await rpc(db, 'request_story_media_cleanup_object', args);
+  const ack = { name: object.object_key, id: object.object_id, bucket_id: object.bucket };
+  await assert.rejects(rpc(db, 'finish_story_media_cleanup_object', [...args, 'storage_api_deleted', 200, ack, 400, 'NoSuchKey']), { code: 'PT409' });
+  await db.query('DELETE FROM storage.objects WHERE id=$1', [object.object_id]);
+  for (const code of [undefined, null, '', 'NoSuchBucket', 'AccessDenied']) {
+    const tail = code === undefined ? [400] : [400, code];
+    await assert.rejects(rpc(db, 'finish_story_media_cleanup_object', [...args, 'storage_api_deleted', 200, ack, ...tail]), { code: 'PT409' });
+  }
+  const completed = await rpc(db, 'finish_story_media_cleanup_object', [...args, 'storage_api_deleted', 200, ack, 400, 'NoSuchKey']);
+  assert.equal(completed.objects[0].state, 'completed'); assert.equal(completed.physical_delete_confirmed, false);
+  assert.deepEqual(await rpc(db, 'finish_story_media_cleanup_object', [...args, 'storage_api_deleted', 200, ack, 400, 'NoSuchKey']), completed);
+  await assert.rejects(rpc(db, 'finish_story_media_cleanup_object', [...args, 'storage_api_deleted', 200, ack, 404]), { code: 'PT409' });
+  await db.exec('RESET ROLE');
+  assert.deepEqual((await db.query('SELECT absence_http_status,absence_error_code FROM public.story_media_cleanup_intents WHERE id=$1', [object.intent_id])).rows[0],
+    { absence_http_status: 400, absence_error_code: 'NoSuchKey' });
+  await assert.rejects(db.query('UPDATE public.story_media_cleanup_intents SET absence_error_code=NULL WHERE id=$1', [object.intent_id]), { code: '23514' });
+});
+
 test('R4 expired approved operations recover only original intents and missing metadata stays backend-unknown', async context => {
   const db = await database(context), reservation = await cancelled(db); await holdsFixture(db);
   const plan = await prepare(db, reservation), approval = randomUUID(); await confirm(db, plan, approval);

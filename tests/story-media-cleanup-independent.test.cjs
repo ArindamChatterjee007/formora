@@ -454,7 +454,7 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   const config = JSON.parse(fs.readFileSync(path.join(root, 'supabase/functions/cleanup-story-media/deno.json'), 'utf8'));
 
   assert.deepEqual([...source.matchAll(/read\("([A-Z_]+)"\)/g)].map(match => match[1]).sort(),
-    ['STORY_MEDIA_CLEANUP_ENABLED', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_URL']);
+    ['STORY_MEDIA_CLEANUP_ENABLED', 'STORY_MEDIA_CLEANUP_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_URL']);
   assert.match(source, /read\("STORY_MEDIA_CLEANUP_ENABLED"\) === "true"/);
   assert.match(source, /config\.enabled !== true[\s\S]{0,200}cleanup_disabled/);
   assert.match(source, /\^https:\\\/\\\/\[a-z0-9-\]\+\\\.supabase\\\.co\$/, 'the origin is pinned to one canonical https project host');
@@ -466,6 +466,8 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   assert.match(source, /response\.redirected \|\| \(response\.url && response\.url !== url\)/);
   assert.match(source, /timingSafeEqual\(candidate, expected\)/);
   assert.match(source, /candidate\.length !== expected\.length/);
+  assert.match(source, /encoder\.encode\(config\.cleanupKey!\)/);
+  assert.match(source, /config\.cleanupKey === config\.serviceKey/);
   assert.equal(/atob|decodeJwt|jwt|Authorization: "Bearer " \+ provided/.test(source), false, 'no bearer or JWT identity path');
   assert.match(source, /incoming\.search \|\| incoming\.hash \|\| incoming\.username \|\| incoming\.password/);
 
@@ -491,7 +493,8 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   assert.match(source, /setTimeout\(abort, aggregateMs\)/);
   assert.match(source, /setTimeout\(abort, stepMs\)/);
   assert.match(source, /\+\+reads > 128 \|\| used \+ chunk\.value\.byteLength > maximum/);
-  assert.match(source, /range: "bytes=0-0"/, 'the absence read never streams a body');
+  assert.match(source, /range: "bytes=0-0"/, 'successful-object bodies remain unread during absence checks');
+  assert.match(source, /body: await json\(response, 1024\)/, 'only the bounded HTTP400 error body is inspected');
   assert.match(source, /controller\.signal\.addEventListener\("abort", cancel, \{ once: true \}\)/);
   assert.match(source, /if \(active\) return reply\(\{ error: "cleanup_busy" \}, 429\)/);
 
@@ -522,7 +525,7 @@ test('C-7 both activation flags default off and the whole cleanup surface stays 
   assert.equal(settings.cleanup_enabled, false, 'applying the migration never enables cleanup');
 
   const routines = ['claim_story_media_cleanup(uuid,uuid)', 'request_story_media_cleanup_object(uuid,uuid,uuid,uuid)',
-    'finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer)',
+    'finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer,text)',
     'prepare_story_media_cleanup(uuid,uuid,integer,uuid[],uuid)', 'confirm_story_media_cleanup(uuid,text,uuid)',
     'preview_story_media_cleanup(uuid,integer)'];
   for (const routine of routines) {
