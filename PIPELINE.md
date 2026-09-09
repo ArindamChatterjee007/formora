@@ -42,6 +42,10 @@ Do not launch duplicate local suites; the cloud workflow serializes each run.
   reported as unverified, even if those files are absent. This is not a full
   candidate, private-contract, hosted RLS, provider, native or real-device pass.
   Only verification JSON and JUnit are retained in public Actions artifacts.
+   The same job first type-checks and builds the pinned Deno media parser, runs
+   synthetic media against the actual package with networking denied, and checks
+   package tampering controls. Its verification JSON is retained; binary packages
+   and media fixtures are not uploaded. None of these checks deploys a function.
 - `promotion-gate`: same-repository `dev -> release -> beta -> main`; beta/main
   require the newest exact-SHA acceptance deployment to be successful. A later
   pending/failed acceptance cannot fall back to an older success.
@@ -137,6 +141,69 @@ runner mode now removes alerts owned by its exact temporary accounts during
 cleanup. Do not revert to an old connected client or rerun broad `security.sql`
 after these migrations; retain the tighter policies and use the isolated offline
 preview if the matched client/backend contract cannot be verified.
+
+## Story Media Parser
+
+The optional `parse-story-media` function is a separate service-authenticated
+parser isolate. Supabase's hosted runtime does not provide the Web Worker API
+used by the existing local worker path. The parser package instead uses the
+pinned MediaInfo browser module and hash-checked, in-memory WASM. This service
+does not perform Auth, SQL, Storage or publication calls. Its runtime still has
+the project's automatically injected environment; it is not a credential-free
+sandbox for untrusted parser code.
+
+Source placeholders deliberately fail closed. Run
+`node scripts/verify-story-parser-runtime.cjs` with Deno 2.9.6, FFmpeg, the
+installed Chromium fixture dependency and frozen cached Deno dependencies. CI
+prepares that cache with `deno cache --frozen --config
+supabase/functions/parse-story-media/deno.json
+supabase/functions/parse-story-media/index.ts scripts/verify-story-parser-service.ts`.
+The runner builds a fresh package below `dist/story-parser/`, copies the upstream
+license, checks both entrypoints, exercises supported and hostile media, and
+rejects modified package code even when its recorded hash is rewritten. An
+optional existing synthetic fixture directory avoids regenerating local media.
+The package builder is `scripts/prepare-story-parser.cjs`; its only resource
+replacement happens inside a new ignored output directory. Keep the generated
+package, payload and private test evidence out of public commits and site bundles.
+
+Both function entries in the generated `supabase/config.toml` retain
+`verify_jwt = true`. Deploy only the explicitly named `parse-story-media` with
+`--use-api --jobs 1 --workdir <verified-package> --project-ref <isolated-project>`.
+Never deploy all functions or use `--no-verify-jwt`. Verify project identity,
+source/package hashes, original functions and secret inventory before deployment.
+Do not adopt or overwrite an existing function without a reviewed rollout.
+
+Parser startup requires `STORY_MEDIA_PARSER_ENABLED=true` and a random server-only
+`STORY_MEDIA_PARSER_KEY` of at least 32 random bytes encoded as base64url. Keep it
+in the approved secret store, never browser configuration or reports. The
+validator separately requires `STORY_MEDIA_PARSER_SERVICE_ENABLED=true` to use
+the service. Setting the shared key alone does not switch its route. Without
+the explicit route or a supported local Worker, validation fails before any
+reservation claim. Deployment and secret changes are project-wide operations:
+keep `STORY_MEDIA_VALIDATION_ENABLED`, SQL admission and customer flags off while
+deploying and verifying the parser first. Only a separately accepted rollout
+may enable the matched validator and Storage/publication path.
+
+The caller enforces a whole-operation deadline of at most ten seconds and
+rejects late, foreign or mismatched acknowledgements. The callee's lock is per
+isolate, not a global capacity cap, and remains held until parsing settles.
+Neither an aborted fetch nor this lock terminates synchronous WASM at ten
+seconds. Hosted provider CPU/wall limits are different guarantees. Hard callee
+termination, global admission, hosted Storage ordering and approved operating
+policies remain required gates; do not enable customer media on this evidence.
+Service contention returns `parser_busy` and is treated as a retryable
+infrastructure failure, but the earlier reservation claim still consumes one
+of its three validation attempts. Renewal does not reset that cap. Do not
+silently refund attempts or retry in a loop. Load acceptance must cover
+multi-validator contention before opening admission. The fixed service response
+also requires the parser library version; missing provenance fails closed.
+
+Recovery disables validator admission and `STORY_MEDIA_PARSER_SERVICE_ENABLED`
+first, then disables the parser and removes only credentials/functions owned by
+the authorized test window. Recheck original function identities, code, JWT
+settings and secret digests. Do not delete accounts or Storage objects as part
+of parser-only cleanup, retry an uncertain publication, or fall back to parsing
+untrusted bytes in the validator isolate.
 
 ## QAT Registration Consent
 

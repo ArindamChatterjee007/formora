@@ -29,11 +29,18 @@ function checkDeclaration(value: Declaration, limits: MediaLimits) {
   if (!format || format.kind !== value.kind || !integer(value.declared_bytes, value.kind === "photo" ? limits.photo_bytes : limits.video_bytes)) fail();
   return format;
 }
-export async function parseStoryBytes(bytes: Uint8Array) {
+export function createBinaryParser(wasmPath?: string) {
+  if (wasmPath !== undefined && (!wasmPath.startsWith("file:///") || new URL(wasmPath).search || new URL(wasmPath).hash)) fail("invalid_configuration", 503);
+  return mediaInfoFactory({ format: "object", chunkSize: 65536,
+    ...(wasmPath ? { locateFile: () => wasmPath } : {}) });
+}
+type ParserResource = string | Awaited<ReturnType<typeof createBinaryParser>>;
+
+export async function parseStoryBytes(bytes: Uint8Array, resource?: ParserResource) {
   if (!integer(bytes.byteLength, technicalLimits.video_bytes)) fail("size_mismatch");
   const detected = await fileTypeFromBuffer(bytes);
   if (!detected || !formats[detected.mime]) fail();
-  const parser = await mediaInfoFactory({ format: "object", chunkSize: 65536 });
+  const parser = typeof resource === "object" ? resource : await createBinaryParser(resource);
   let readBytes = 0, reads = 0;
   try {
     const metadata = await parser.analyzeData(bytes.byteLength, (size, offset) => {
@@ -49,10 +56,10 @@ export async function parseStoryBytes(bytes: Uint8Array) {
   }
 }
 
-async function inspectStoryBytes(bytes: Uint8Array, declaration: Declaration, limits = technicalLimits) {
+async function inspectStoryBytes(bytes: Uint8Array, declaration: Declaration, limits = technicalLimits, resource?: ParserResource) {
   const format = checkDeclaration(declaration, checkedLimits(limits));
   if (bytes.byteLength !== declaration.declared_bytes) fail("size_mismatch");
-  const { detected, metadata } = await parseStoryBytes(bytes);
+  const { detected, metadata } = await parseStoryBytes(bytes, resource);
   if (detected.mime !== declaration.content_type || detected.ext !== format.extension) fail();
   const tracks = (metadata.media?.track || []) as unknown as Fields[];
   const general = tracks.filter(track => track["@type"] === "General");
@@ -94,8 +101,8 @@ async function sha256Bytes(bytes: Uint8Array<ArrayBuffer>) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
 }
-export async function validateStoryBytes(bytes: Uint8Array<ArrayBuffer>, declaration: Declaration, limits = technicalLimits) {
-  const [result, sha256] = await Promise.all([inspectStoryBytes(bytes, declaration, limits), sha256Bytes(bytes)]);
+export async function validateStoryBytes(bytes: Uint8Array<ArrayBuffer>, declaration: Declaration, limits = technicalLimits, resource?: ParserResource) {
+  const [result, sha256] = await Promise.all([inspectStoryBytes(bytes, declaration, limits, resource), sha256Bytes(bytes)]);
   return { ...result, sha256 };
 }
 
@@ -127,7 +134,7 @@ export async function parseInWorker(bytes: Uint8Array<ArrayBuffer>, declaration:
   }
 }
 
-async function bounded<Result>(work: (signal: AbortSignal) => Promise<Result>, milliseconds: number, parent?: AbortSignal): Promise<Result> {
+export async function bounded<Result>(work: (signal: AbortSignal) => Promise<Result>, milliseconds: number, parent?: AbortSignal): Promise<Result> {
   if (parent?.aborted) fail("validation_timeout", 504);
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -139,7 +146,7 @@ async function bounded<Result>(work: (signal: AbortSignal) => Promise<Result>, m
     }), work(controller.signal)]);
   } finally { clearTimeout(timer); parent?.removeEventListener("abort", abort); }
 }
-async function readBounded(response: Response | Request, maximum: number, signal: AbortSignal, exact?: number) {
+export async function readBounded(response: Response | Request, maximum: number, signal: AbortSignal, exact?: number) {
   const header = response.headers.get("content-length");
   if (header !== null && (!/^\d+$/.test(header) || Number(header) > maximum || (exact !== undefined && Number(header) !== exact))) {
     response.body?.cancel().catch(() => {}); fail("size_mismatch");
@@ -164,7 +171,49 @@ async function readBounded(response: Response | Request, maximum: number, signal
   return total === bytes.byteLength ? bytes : bytes.subarray(0, total);
 }
 
-type HandlerConfiguration = { enabled: boolean; origin: string; anonKey: string; serviceKey: string; clientOrigin?: string };
+type ParserConfiguration = { origin: string; anonKey: string; parserKey: string };
+export async function parseInService(bytes: Uint8Array<ArrayBuffer>, declaration: Declaration, limits: MediaLimits,
+  config: ParserConfiguration, signal?: AbortSignal, timeoutMs = 10000, network: typeof fetch = fetch) {
+  checkDeclaration(declaration, checkedLimits(limits));
+  if (bytes.byteOffset !== 0 || bytes.byteLength !== bytes.buffer.byteLength || bytes.byteLength !== declaration.declared_bytes) fail("size_mismatch");
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.origin) || !/^[A-Za-z0-9_-]{43,128}$/.test(config.parserKey)
+    || !config.anonKey || config.anonKey.length > 8192 || /\s/.test(config.anonKey)) fail("invalid_configuration", 503);
+  const milliseconds = Math.min(10000, Math.max(1, timeoutMs));
+  return bounded(async stepSignal => {
+    const started = performance.now(), requestId = crypto.randomUUID(), sha256 = await sha256Bytes(bytes);
+    const remaining = Math.floor(milliseconds - (performance.now() - started));
+    if (stepSignal.aborted || remaining <= 0) fail("validation_timeout", 504);
+    let response: Response;
+    try {
+      response = await network(config.origin + "/functions/v1/parse-story-media", { method: "POST", body: bytes,
+        signal: stepSignal, redirect: "error", credentials: "omit", cache: "no-store",
+        headers: { apikey: config.anonKey, Authorization: "Bearer " + config.anonKey, "Content-Type": declaration.content_type,
+          "Content-Length": String(bytes.byteLength), "x-story-parser-key": config.parserKey,
+          "x-story-parser-request": requestId, "x-story-parser-timeout-ms": String(remaining), "x-story-parser-limits": JSON.stringify(limits) } });
+    } catch { fail(stepSignal.aborted ? "validation_timeout" : "storage_unavailable", stepSignal.aborted ? 504 : 503); }
+    if (stepSignal.aborted) { response.body?.cancel().catch(() => {}); fail("validation_timeout", 504); }
+    let result: Fields;
+    try { result = JSON.parse(new TextDecoder().decode(await readBounded(response, 2048, stepSignal))); }
+    catch (error) { if (error instanceof MediaFailure && error.code === "validation_timeout") throw error; fail("storage_unavailable", 503); }
+    if (stepSignal.aborted || performance.now() - started >= milliseconds) fail("validation_timeout", 504);
+    if (!response.ok) {
+      if (response.status === 422 && result && Object.keys(result).join() === "error" && ["invalid_media", "size_mismatch"].includes(String(result.error))) fail(String(result.error));
+      fail(response.status === 504 ? "validation_timeout" : "storage_unavailable", response.status === 504 ? 504 : 503);
+    }
+    const fields = ["request_id", "actual_bytes", "content_type", "width", "height", "duration_ms", "duration_verified", "parser", "library", "sha256"];
+    if (response.status !== 200 || !result || Array.isArray(result) || Object.keys(result).length !== fields.length
+      || fields.some(key => !Object.hasOwn(result, key)) || result.request_id !== requestId || result.sha256 !== sha256
+      || result.actual_bytes !== bytes.byteLength || result.content_type !== declaration.content_type
+      || !integer(result.width, 8192) || !integer(result.height, 8192) || result.width * result.height > limits.max_pixels
+      || result.parser !== "file-type@22.0.2+mediainfo.js@0.3.7" || typeof result.library !== "string" || result.library.length > 64
+      || (declaration.kind === "photo" ? result.duration_ms !== null || result.duration_verified !== false
+        : result.duration_verified !== true || !integer(result.duration_ms, limits.video_ms))) fail("storage_unavailable", 503);
+    const { request_id: _requestId, ...inspection } = result;
+    return { ...inspection, bytes } as Awaited<ReturnType<typeof validateStoryBytes>> & { bytes: Uint8Array<ArrayBuffer> };
+  }, milliseconds, signal);
+}
+
+type HandlerConfiguration = { enabled: boolean; origin: string; anonKey: string; serviceKey: string; clientOrigin?: string; parserKey?: string; parserEnabled?: boolean };
 type HandlerOptions = { fetch?: typeof fetch; stepMs?: number; aggregateMs?: number };
 export function createStoryMediaHandler(config: HandlerConfiguration, options: HandlerOptions = {}) {
   let active = false;
@@ -190,6 +239,8 @@ export function createStoryMediaHandler(config: HandlerConfiguration, options: H
     if (request.method !== "POST" || request.headers.get("content-type")?.split(";")[0] !== "application/json") return response(400, { error: "invalid_request" });
     const authorization = request.headers.get("authorization") || "";
     if (!/^Bearer [^\s]{1,16384}$/.test(authorization)) return response(401, { error: "sign_in_required" });
+    if (config.parserEnabled && !/^[A-Za-z0-9_-]{43,128}$/.test(config.parserKey || "")) return response(503, { error: "invalid_configuration" });
+    if (!config.parserEnabled && typeof Worker !== "function") return response(503, { error: "parser_unavailable" });
     if (active) return response(429, { error: "validator_busy" });
     active = true;
     try {
@@ -266,7 +317,10 @@ export function createStoryMediaHandler(config: HandlerConfiguration, options: H
         let attested = reservation, validatedBytes: Uint8Array<ArrayBuffer> | undefined;
         if (reservation.status !== "promoting") {
           try {
-            const result = await parseInWorker(await readMedia(String(reservation.bucket), objectKey), declaration, limits, signal, stepMs);
+            const bytes = await readMedia(String(reservation.bucket), objectKey);
+            const result = config.parserEnabled ? await parseInService(bytes, declaration, limits,
+              { origin: config.origin, anonKey: config.anonKey, parserKey: config.parserKey! }, signal, stepMs, network)
+              : await parseInWorker(bytes, declaration, limits, signal, stepMs);
             check();
             validatedBytes = result.bytes;
             if (reservation.status === "validating") attested = await rpc("attest_story_media", { ...lease, p_sha256: result.sha256,
@@ -329,5 +383,6 @@ if (new URL(import.meta.url).searchParams.has("parser-worker")) {
 } else if (import.meta.main) {
   Deno.serve(createStoryMediaHandler({ enabled: Deno.env.get("STORY_MEDIA_VALIDATION_ENABLED") === "true",
     origin: Deno.env.get("SUPABASE_URL") || "", anonKey: Deno.env.get("SUPABASE_ANON_KEY") || "",
-    serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "", clientOrigin: Deno.env.get("STORY_MEDIA_CLIENT_ORIGIN") || "" }));
+    serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "", clientOrigin: Deno.env.get("STORY_MEDIA_CLIENT_ORIGIN") || "",
+    parserKey: Deno.env.get("STORY_MEDIA_PARSER_KEY") || "", parserEnabled: Deno.env.get("STORY_MEDIA_PARSER_SERVICE_ENABLED") === "true" }));
 }
