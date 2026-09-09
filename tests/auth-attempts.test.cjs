@@ -82,12 +82,46 @@ test('pre-signup metadata preparation remains inside the existing authentication
   assert.equal(requests.length,0);
 });
 
-test('pre-signup prepared metadata uses the same signup transport and session validation',async()=>{
+test('pre-signup proof fields stay out of ordinary signup while session validation remains unchanged',async()=>{
   const {auth,requests,requestSeen}=setup();
   const signingUp=auth.signup('a@example.test','fixture-only-password',async check=>{check();return {name:'A',registration_consent_proof:'a'.repeat(64)};});
   await requestSeen.promise;
   assert.equal(requests.length,1);
-  assert.equal(JSON.parse(requests[0].options.body).data.registration_consent_proof,'a'.repeat(64));
+  assert.equal(requests[0].url,'https://fixture.invalid/auth/v1/signup');
+  assert.deepEqual(JSON.parse(requests[0].options.body).data,{name:'A'});
+  respond(requests[0],session('A'));
+  assert.equal((await signingUp).uid,'A');
+});
+
+test('pre-signup QAT consent uses the sanitized adapter inside the existing auth fence',async()=>{
+  for(const boundary of ['success','cancel','replacement']) {
+    const {auth,context,requests,requestSeen,storage}=setup();
+    context.window.SUPABASE_URL='https://wospznckvryiihfzwwtn.supabase.co';
+    context.Preferences={registrationEnabled:()=>true};
+    const data={name:'A',registration_consent_proof:'a'.repeat(64),registration_consent_binding:'b'.repeat(64)};
+    const signingUp=auth.signup('a@example.test','fixture-only-password',async check=>{check();return data;});
+    await requestSeen.promise;
+    assert.equal(requests[0].url,context.window.SUPABASE_URL+'/functions/v1/registration-signup');
+    assert.deepEqual(JSON.parse(requests[0].options.body).data,data);
+    assert.equal(requests[0].options.credentials,'omit');
+    assert.equal(requests[0].options.redirect,'error');
+    assert.equal(requests[0].options.headers.Authorization,'Bearer fixture-public');
+    if(boundary==='cancel')auth.cancelAuthAttempt();
+    if(boundary==='replacement')auth._store(session('B'));
+    const previous=storage.get(auth.KEY);
+    respond(requests[0],session('A'));
+    if(boundary==='success')assert.equal((await signingUp).uid,'A');
+    else {await assert.rejects(signingUp,cancelled);assert.equal(storage.get(auth.KEY),previous);}
+    assert.equal(requests.length,1);
+    assert.equal([...storage.values()].some(value=>value.includes(data.registration_consent_proof)||value.includes(data.registration_consent_binding)),false);
+  }
+});
+
+test('pre-signup QAT with no consent proof preserves direct GoTrue signup',async()=>{
+  const {auth,context,requests}=setup();
+  context.Preferences={registrationEnabled:()=>true};
+  const signingUp=auth.signup('a@example.test','fixture-only-password',{name:'A'});
+  assert.equal(requests[0].url,'https://fixture.invalid/auth/v1/signup');
   respond(requests[0],session('A'));
   assert.equal((await signingUp).uid,'A');
 });

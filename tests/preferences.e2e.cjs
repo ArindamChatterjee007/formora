@@ -157,7 +157,8 @@ async function signupFixture(contextTest, viewport, outcome='granted') {
       const captured=Date.now();
       await route.fulfill(outcome==='unavailable'?{status:503,json:{message:'Disabled'}}:{json:{proof:'a'.repeat(64),
         version:notice.version,notice_sha256:digest,captured_at:new Date(captured).toISOString(),expires_at:new Date(captured+900000).toISOString()}});
-    }else if(url.pathname==='/auth/v1/signup'){
+    }else if(url.pathname==='/auth/v1/signup'||url.pathname==='/functions/v1/registration-signup'){
+      assert.equal(url.pathname,body.data.registration_consent_proof?'/functions/v1/registration-signup':'/auth/v1/signup');
       state.signups.push(body);
       await route.fulfill({json:{id:owner,email:body.email,user_metadata:{name:body.data.name},confirmation_sent_at:new Date().toISOString()}});
     }else await route.fulfill({status:404,json:{message:'Unexpected fixture request'}});
@@ -198,7 +199,8 @@ for(const width of [390,1280]) {
     assert.equal(metadata.registration_consent_proof,'a'.repeat(64));
     assert.equal(issued.body.p_identity_hash,createHash('sha256').update(metadata.registration_consent_binding+':qat-consent@example.test').digest('hex'));
     assert.equal(issued.body.p_notice_sha256,digest);
-    assert.ok(state.requests.indexOf(issued)<state.requests.findIndex(item=>item.path==='/auth/v1/signup'));
+    assert.ok(state.requests.indexOf(issued)<state.requests.findIndex(item=>item.path==='/functions/v1/registration-signup'));
+    assert.equal(state.requests.some(item=>item.path==='/auth/v1/signup'),false);
     const storage=await page.evaluate(()=>Object.values(localStorage).join(' '));
     assert.equal(storage.includes(metadata.registration_consent_proof),false);assert.equal(storage.includes(metadata.registration_consent_binding),false);
   });
@@ -222,6 +224,7 @@ for(const outcome of ['unchecked','unavailable','mismatch','disabled']) {
     await page.getByRole('button',{name:'Verify & continue',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('auth-err')?.textContent.includes('Check your email'));
     assert.equal(state.signups.length,1);assert.deepEqual(state.signups[0].data,{name:'Synthetic consent member'});
+    assert.equal(state.requests.some(item=>item.path==='/functions/v1/registration-signup'),false);
     assert.equal(state.requests.filter(item=>item.path.endsWith('/issue_registration_consent')).length,outcome==='unavailable'?1:0);
   });
 }

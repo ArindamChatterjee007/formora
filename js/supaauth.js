@@ -101,7 +101,8 @@ const SupaAuth = {
     let response, body;
     try {
       if (typeof options === "function") { options = await options(check); check(); }
-      response = await fetch(this._base() + path, options);
+      const { url = this._base() + path, ...init } = options;
+      response = await fetch(url, init);
       body = await response.json().catch(() => ({}));
     } catch (error) { check(); throw error; }
     check();
@@ -114,7 +115,13 @@ const SupaAuth = {
   },
 
   async signup(email, password, meta) {
-    const options = data => ({ method: "POST", headers: this._hdr(), body: JSON.stringify({ email, password, data: data || {} }) });
+    const options = value => {
+      const { registration_consent_proof: proof, registration_consent_binding: binding, ...data } = value || {};
+      const protectedSignup = typeof Preferences !== "undefined" && Preferences.registrationEnabled()
+        && (proof !== undefined || binding !== undefined);
+      return { method: "POST", headers: this._hdr(protectedSignup ? { Authorization: "Bearer " + window.SUPABASE_ANON_KEY } : {}), body: JSON.stringify({ email, password, data: protectedSignup ? value : data }),
+        ...(protectedSignup ? { url: window.SUPABASE_URL + "/functions/v1/registration-signup", credentials: "omit", cache: "no-store", redirect: "error" } : {}) };
+    };
     return this._authRequest("/signup", typeof meta === "function" ? async check => options(await meta(check)) : options(meta), "Sign-up failed.", body => {
       const user = body?.user || body;
       if (!body?.access_token && !body?.refresh_token && !body?.session && this._validAuthUser(user, email)

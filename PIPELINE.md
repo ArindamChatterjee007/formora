@@ -166,13 +166,35 @@ fixtures. Database/Auth clock disagreement fails closed; do not backdate consent
 or relabel an existing account as newly registered. The existing privacy
 controller supports withdrawal without approving billing or checkout tracking.
 
+GoTrue may echo the original signup metadata in its first response even when
+database triggers removed the proof and salt. QAT proof-bearing signups therefore
+use `supabase/functions/registration-signup/index.ts`, never direct GoTrue. This
+adapter is default-off, pins the isolated QAT project and site origin, forwards
+only the signup fields using its public anon key, discards the initial session,
+and returns an allowlisted user with a newly refreshed, proof-free session.
+Decoded JWT checks protect the response boundary; they are not signature-based
+authorization. The intentional test-cohort claim may remain. Provider-held logs
+and the discarded first token are not claimed to be erased or revoked.
+
+Before enabling `REGISTRATION_SIGNUP_ENABLED`, verify the exact committed Auth
+user and identity scrub triggers are installed and enabled on QAT. Deploy only
+`registration-signup` with `--use-api --project-ref` set to the isolated project;
+retain normal gateway JWT verification. The app sends the public anonymous bearer
+to that gateway. Never deploy all functions, use a service key in the adapter,
+point it at production, or resend a proof-bearing signup through direct GoTrue
+after adapter failure. An uncertain signup asks the member to sign in first.
+Plain signup remains direct and carries no reserved proof fields. Keep the
+adapter disabled outside an explicitly authorized QAT test window until real
+response, JWT, stored metadata, replay and withdrawal checks all pass.
+
 Anonymous issuance has a global twenty-per-minute and three-hundred-outstanding
 cap. A caller can exhaust this test capacity; registration still works without
 measurement. Expiry is not a physical deletion guarantee: bounded issue-time
 cleanup removes old receipts, and the test operator must remove only the exact
 synthetic fixtures and verify cleanup. Do not claim a retention policy from TTL.
 
-Recovery first disables the QAT receipt policy and activation collection, then
+Recovery first disables the QAT receipt policy and activation collection and sets
+`REGISTRATION_SIGNUP_ENABLED=false`, then
 restores the default-off frontend. This invalidates in-flight proofs without
 changing customer records. If an Auth-trigger fault requires removal, use an
 explicitly reviewed transaction that drops `activation_bind_registration_consent`
