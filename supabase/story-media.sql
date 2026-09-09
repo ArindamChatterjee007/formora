@@ -198,7 +198,8 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $fu
       ('storage.buckets'::regclass,'story_media_bucket_guard',pg_catalog.to_regprocedure('public._story_media_bucket_guard()'),31),
       ('public.story_content'::regclass,'story_media_publication_gate',pg_catalog.to_regprocedure('public._story_media_publication_gate()'),23)
     ) AS expected(relation,name,routine,type) ON guard.tgrelid = expected.relation AND guard.tgname = expected.name
-      AND guard.tgfoid = expected.routine AND guard.tgtype = expected.type AND guard.tgenabled IN ('O','A') AND guard.tgqual IS NULL) = 4;
+      AND guard.tgfoid = expected.routine AND guard.tgtype = expected.type AND guard.tgenabled IN ('O','A') AND guard.tgqual IS NULL
+      AND (guard.tgname <> 'story_media_storage_bound' OR (guard.tgdeferrable AND guard.tginitdeferred))) = 4;
 $function$;
 
 CREATE FUNCTION public._story_media_ready()
@@ -334,7 +335,7 @@ RETURNS boolean LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $
 $function$;
 CREATE FUNCTION public._story_media_storage_guard()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
-DECLARE reservation public.story_media_reservations%ROWTYPE;
+DECLARE reservation public.story_media_reservations%ROWTYPE; permission_probe boolean;
 BEGIN
   IF TG_OP <> 'INSERT' THEN
     IF OLD.bucket_id IN ('story-media-quarantine-v3','story-media-public-v3')
@@ -347,6 +348,7 @@ BEGIN
   END IF;
   IF NEW.bucket_id NOT IN ('story-media-quarantine-v3','story-media-public-v3') THEN RETURN NEW; END IF;
   PERFORM public._story_media_ready();
+  permission_probe := NEW.version = '1' AND NOT coalesce(NEW.metadata ? 'size',false);
   IF NEW.bucket_id = 'story-media-public-v3' THEN
     SELECT * INTO reservation FROM public.story_media_reservations WHERE public_bucket = NEW.bucket_id AND public_key = NEW.name FOR UPDATE;
     IF NOT FOUND OR pg_catalog.current_setting('role',true) IS DISTINCT FROM 'service_role'
@@ -360,7 +362,7 @@ BEGIN
       OR (NEW.owner_id IS NOT NULL AND NEW.owner_id <> reservation.owner::text)
       OR NEW.id IS NULL OR NEW.version IS NULL OR pg_catalog.length(NEW.version) NOT BETWEEN 1 AND 128
       OR coalesce(NEW.metadata->>'mimetype','') <> reservation.content_type
-      OR coalesce(NEW.metadata->>'size','') <> reservation.actual_bytes::text
+      OR coalesce(CASE WHEN permission_probe THEN NEW.metadata->>'contentLength' ELSE NEW.metadata->>'size' END,'') <> reservation.actual_bytes::text
       OR NOT EXISTS (SELECT 1 FROM storage.objects WHERE id = reservation.object_id AND bucket_id = reservation.bucket
         AND name = reservation.object_key AND owner_id = reservation.owner::text AND version = reservation.object_version) THEN
       RAISE EXCEPTION 'Exact service-leased attested public promotion required' USING ERRCODE = 'PT403';
@@ -369,11 +371,16 @@ BEGIN
     RETURN NEW;
   END IF;
   SELECT * INTO reservation FROM public.story_media_reservations WHERE bucket = NEW.bucket_id AND object_key = NEW.name FOR UPDATE;
-  IF NOT FOUND OR public._story_media_storage_insert(NEW.bucket_id,NEW.name,NEW.owner_id) IS NOT TRUE
+  IF NOT FOUND OR NEW.owner_id IS DISTINCT FROM reservation.owner::text
+    OR reservation.status <> 'reserved' OR reservation.object_id IS NOT NULL
+    OR reservation.expires_at <= pg_catalog.clock_timestamp()
+    OR reservation.policy_epoch <> (SELECT policy_epoch FROM public.story_media_settings WHERE singleton)
+    OR (public._story_media_storage_insert(NEW.bucket_id,NEW.name,NEW.owner_id) IS NOT TRUE
+      AND NOT (NOT permission_probe AND pg_catalog.current_setting('role',true) = 'service_role' AND auth.uid() IS NULL))
     OR (NEW.owner IS NOT NULL AND NEW.owner <> reservation.owner) OR NEW.id IS NULL
     OR NEW.version IS NULL OR pg_catalog.length(NEW.version) NOT BETWEEN 1 AND 128
     OR coalesce(NEW.metadata->>'mimetype','') <> reservation.content_type
-    OR coalesce(NEW.metadata->>'size','') <> reservation.declared_bytes::text THEN
+    OR coalesce(CASE WHEN permission_probe THEN NEW.metadata->>'contentLength' ELSE NEW.metadata->>'size' END,'') <> reservation.declared_bytes::text THEN
     RAISE EXCEPTION 'Exact owned Story reservation required' USING ERRCODE = 'PT403';
   END IF;
   RETURN NEW;
@@ -382,20 +389,26 @@ $function$;
 CREATE FUNCTION public._story_media_storage_bound()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
 BEGIN
+  IF NEW.bucket_id IN ('story-media-quarantine-v3','story-media-public-v3')
+    AND (NEW.version = '1' OR NEW.metadata->>'size' IS NULL) THEN
+    RAISE EXCEPTION 'Storage permission probes cannot become committed objects' USING ERRCODE = 'PT403';
+  END IF;
   IF NEW.bucket_id = 'story-media-quarantine-v3' THEN
     UPDATE public.story_media_reservations SET object_id = NEW.id,object_version = NEW.version
       WHERE bucket = NEW.bucket_id AND object_key = NEW.name AND object_id IS NULL;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Exact unbound Story object required at commit' USING ERRCODE = 'PT403'; END IF;
   ELSIF NEW.bucket_id = 'story-media-public-v3' THEN
     UPDATE public.story_media_reservations SET public_object_id = NEW.id,public_object_version = NEW.version,public_sha256 = NEW.user_metadata->>'sha256'
       WHERE public_bucket = NEW.bucket_id AND public_key = NEW.name AND public_object_id IS NULL AND status = 'promoting';
+    IF NOT FOUND THEN RAISE EXCEPTION 'Exact unbound Story promotion required at commit' USING ERRCODE = 'PT403'; END IF;
   END IF;
   RETURN NEW;
 END;
 $function$;
 CREATE TRIGGER story_media_storage_guard BEFORE INSERT OR UPDATE OR DELETE ON storage.objects
   FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_guard();
-CREATE TRIGGER story_media_storage_bound AFTER INSERT ON storage.objects
-  FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_bound();
+CREATE CONSTRAINT TRIGGER story_media_storage_bound AFTER INSERT ON storage.objects
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public._story_media_storage_bound();
 CREATE POLICY story_media_insert_boundary ON storage.objects AS RESTRICTIVE FOR INSERT TO PUBLIC
   WITH CHECK (bucket_id NOT IN ('story-media-quarantine-v3','story-media-public-v3') OR public._story_media_storage_insert(bucket_id,name,owner_id));
 CREATE POLICY story_media_insert ON storage.objects FOR INSERT TO authenticated

@@ -255,6 +255,30 @@ needs an available global pending slot. Keep cumulative retention and unknown
 object reconciliation as separate gates, and keep media disabled until the
 execution, Storage, policy and operating limits are independently accepted.
 
+## Storage Upload Phases
+
+Hosted Storage performs a permission-probe INSERT with version `1`, MIME and
+declared `contentLength`, then rolls back that transaction before writing bytes.
+The durable INSERT uses a distinct version, measured `size` and the preserved
+owner fields, but runs as `service_role` with no `auth.uid()`. Treat these as
+observed provider behavior, not a stable upstream API guarantee.
+
+The guard validates declared length and authenticated ownership during the
+permission phase. A deferred constraint trigger refuses to commit that temporary
+row, then binds only a measured, exact-owner durable object to its reservation.
+Public promotion additionally requires the existing exact lease and promotion
+metadata. A zero-row binding aborts the transaction; Storage uniqueness is not
+the only duplicate-write barrier. UPDATE, overwrite and unauthorized DELETE stay
+denied. `_story_media_guards_present()` requires the commit trigger to remain
+deferrable and initially deferred.
+
+An immediate-constraint transaction or a provider change that commits the probe
+fails closed. Probe and durable phases cannot share one transaction. Repeat
+bounded, isolated compatibility checks after a provider change before reopening
+admission; do not remove measured-size or commit checks to restore availability.
+DDL rehearsal is not an actual guarded upload, immutable-version or physical
+cleanup pass. Keep customer media off until those separate gates pass.
+
 ## QAT Registration Consent
 
 `supabase/registration-consent.sql` is a fresh, default-off QAT experiment.
