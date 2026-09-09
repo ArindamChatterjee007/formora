@@ -38,12 +38,16 @@ CREATE TABLE public.story_media_settings (
   pending_per_owner integer NOT NULL DEFAULT 3 CHECK (pending_per_owner BETWEEN 1 AND 3),
   requests_per_day integer NOT NULL DEFAULT 20 CHECK (requests_per_day BETWEEN 1 AND 20),
   bytes_per_day integer NOT NULL DEFAULT 104857600 CHECK (bytes_per_day BETWEEN 1 AND 104857600),
+  global_pending integer CHECK (global_pending > 0),
+  global_requests_per_day integer CHECK (global_requests_per_day > 0),
+  global_bytes_per_day bigint CHECK (global_bytes_per_day BETWEEN 1 AND 9007199254740991),
   cleanup_enabled boolean NOT NULL DEFAULT false,
   cleanup_min_age_seconds integer NOT NULL DEFAULT 86400 CHECK (cleanup_min_age_seconds BETWEEN 0 AND 2592000),
   cleanup_epoch integer NOT NULL DEFAULT 1 CHECK (cleanup_epoch > 0),
   CHECK (NOT cleanup_enabled OR (retention_approved AND retention_policy_ref IS NOT NULL AND storage_policy_approved AND storage_policy_ref IS NOT NULL)),
   CHECK (NOT enabled OR (publication_required AND storage_policy_approved AND quota_approved AND retention_approved
-    AND storage_policy_ref IS NOT NULL AND quota_policy_ref IS NOT NULL AND retention_policy_ref IS NOT NULL))
+    AND storage_policy_ref IS NOT NULL AND quota_policy_ref IS NOT NULL AND retention_policy_ref IS NOT NULL
+    AND global_pending IS NOT NULL AND global_requests_per_day IS NOT NULL AND global_bytes_per_day IS NOT NULL))
 );
 INSERT INTO public.story_media_settings DEFAULT VALUES;
 INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
@@ -84,6 +88,9 @@ CREATE TABLE public.story_media_reservations (
     AND public_sha256 IS NOT NULL AND public_sha256 = sha256))
 );
 CREATE INDEX story_media_owner_budget ON public.story_media_reservations(owner,created_at);
+CREATE INDEX story_media_global_budget ON public.story_media_reservations(created_at);
+CREATE INDEX story_media_global_pending ON public.story_media_reservations(expires_at)
+  WHERE status IN ('reserved','validating','attested','promoting','approved');
 CREATE TABLE public.story_media_publish_intents (
   owner uuid PRIMARY KEY, transaction_id bigint NOT NULL, reservation_id uuid NOT NULL REFERENCES public.story_media_reservations(id),
   request_id uuid NOT NULL, sha256 text NOT NULL
@@ -146,10 +153,12 @@ RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $function$
 BEGIN
   NEW.policy_epoch := OLD.policy_epoch + CASE WHEN ROW(NEW.enabled,NEW.publication_required,NEW.storage_policy_approved,
     NEW.quota_approved,NEW.retention_approved,NEW.storage_policy_ref,NEW.quota_policy_ref,NEW.retention_policy_ref,
-    NEW.photo_bytes,NEW.video_bytes,NEW.video_ms,NEW.max_pixels,NEW.pending_per_owner,NEW.requests_per_day,NEW.bytes_per_day)
+    NEW.photo_bytes,NEW.video_bytes,NEW.video_ms,NEW.max_pixels,NEW.pending_per_owner,NEW.requests_per_day,NEW.bytes_per_day,
+    NEW.global_pending,NEW.global_requests_per_day,NEW.global_bytes_per_day)
     IS DISTINCT FROM ROW(OLD.enabled,OLD.publication_required,OLD.storage_policy_approved,
     OLD.quota_approved,OLD.retention_approved,OLD.storage_policy_ref,OLD.quota_policy_ref,OLD.retention_policy_ref,
-    OLD.photo_bytes,OLD.video_bytes,OLD.video_ms,OLD.max_pixels,OLD.pending_per_owner,OLD.requests_per_day,OLD.bytes_per_day)
+    OLD.photo_bytes,OLD.video_bytes,OLD.video_ms,OLD.max_pixels,OLD.pending_per_owner,OLD.requests_per_day,OLD.bytes_per_day,
+    OLD.global_pending,OLD.global_requests_per_day,OLD.global_bytes_per_day)
     THEN 1 ELSE 0 END;
   NEW.cleanup_epoch := OLD.cleanup_epoch + CASE WHEN ROW(NEW.cleanup_enabled,NEW.cleanup_min_age_seconds,NEW.retention_approved,
     NEW.retention_policy_ref,NEW.storage_policy_approved,NEW.storage_policy_ref) IS DISTINCT FROM ROW(OLD.cleanup_enabled,
@@ -227,16 +236,22 @@ $function$;
 
 CREATE FUNCTION public.reserve_story_media(p_request_id uuid,p_kind text,p_content_type text,p_declared_bytes integer)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
-DECLARE caller uuid := public._story_actor(); settings public.story_media_settings := public._story_media_ready();
-  reservation public.story_media_reservations%ROWTYPE; payload_hash text; extension text; stamp timestamptz := pg_catalog.clock_timestamp();
+DECLARE caller uuid; settings public.story_media_settings;
+  reservation public.story_media_reservations%ROWTYPE; payload_hash text; extension text; stamp timestamptz;
   request_count bigint; byte_count bigint; pending_count bigint;
 BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'Story media admission requires read committed isolation' USING ERRCODE = 'PT503';
+  END IF;
+  caller := public._story_actor();
+  settings := public._story_media_ready();
   IF p_request_id IS NULL OR p_kind IS NULL OR p_content_type IS NULL OR p_declared_bytes IS NULL
     OR NOT ((p_kind = 'photo' AND p_content_type IN ('image/jpeg','image/png','image/webp') AND p_declared_bytes BETWEEN 1 AND 8388608)
       OR (p_kind = 'video' AND p_content_type IN ('video/mp4','video/webm') AND p_declared_bytes BETWEEN 1 AND 26214400)) THEN
     RAISE EXCEPTION 'Unsupported Story media declaration' USING ERRCODE = '22023';
   END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('story-media:' || caller::text,0));
+  stamp := pg_catalog.clock_timestamp();
   payload_hash := public._story_digest('reserve_media',pg_catalog.jsonb_build_array(p_kind,p_content_type,p_declared_bytes));
   SELECT * INTO reservation FROM public.story_media_reservations WHERE owner = caller AND request_id = p_request_id FOR UPDATE;
   IF FOUND THEN
@@ -257,16 +272,23 @@ BEGIN
         AND NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id = reservation.public_bucket AND name = reservation.public_key)
         AND (reservation.object_id IS NULL OR EXISTS (SELECT 1 FROM storage.objects WHERE id = reservation.object_id
           AND bucket_id = reservation.bucket AND name = reservation.object_key AND owner_id = caller::text AND version = reservation.object_version)) THEN
-        UPDATE public.story_media_reservations SET status = 'reserved',policy_epoch = settings.policy_epoch,epoch = epoch + 1,
-          lease_token = NULL,lease_until = NULL,sha256 = NULL,actual_bytes = NULL,width = NULL,height = NULL,duration_ms = NULL,
-          parser = NULL,public_key = NULL,media_url = NULL,failure_code = NULL,renewals = renewals + 1,renewed_at = stamp,expires_at = stamp + interval '15 minutes'
-          WHERE id = reservation.id RETURNING * INTO reservation;
-      ELSE
-        UPDATE public.story_media_reservations SET status = 'cancelled',epoch = epoch + 1,lease_token = NULL,lease_until = NULL,
-          failure_code = CASE WHEN promotion_started_at IS NOT NULL OR public_object_id IS NOT NULL THEN 'promotion_review_required'
-            WHEN policy_epoch <> settings.policy_epoch THEN 'policy_changed' ELSE 'reservation_expired' END
-          WHERE id = reservation.id RETURNING * INTO reservation;
+        IF NOT pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended('story-media:global-admission',0)) THEN
+          RAISE EXCEPTION 'Story media admission busy' USING ERRCODE = 'PT429', DETAIL = 'media_admission_busy';
+        END IF;
+        IF (SELECT count(*) FROM public.story_media_reservations AS other WHERE other.id <> reservation.id
+          AND other.status IN ('reserved','validating','attested','promoting','approved') AND other.expires_at > stamp) < settings.global_pending THEN
+          UPDATE public.story_media_reservations SET status = 'reserved',policy_epoch = settings.policy_epoch,epoch = epoch + 1,
+            lease_token = NULL,lease_until = NULL,sha256 = NULL,actual_bytes = NULL,width = NULL,height = NULL,duration_ms = NULL,
+            parser = NULL,public_key = NULL,media_url = NULL,failure_code = NULL,renewals = renewals + 1,renewed_at = stamp,expires_at = stamp + interval '15 minutes'
+            WHERE id = reservation.id RETURNING * INTO reservation;
+          RETURN public._story_media_receipt(reservation);
+        END IF;
+        RAISE EXCEPTION 'Story media global admission limit reached' USING ERRCODE = 'PT429', DETAIL = 'media_admission_global_limit';
       END IF;
+      UPDATE public.story_media_reservations SET status = 'cancelled',epoch = epoch + 1,lease_token = NULL,lease_until = NULL,
+        failure_code = CASE WHEN promotion_started_at IS NOT NULL OR public_object_id IS NOT NULL THEN 'promotion_review_required'
+          WHEN policy_epoch <> settings.policy_epoch THEN 'policy_changed' ELSE 'reservation_expired' END
+        WHERE id = reservation.id RETURNING * INTO reservation;
     END IF;
     RETURN public._story_media_receipt(reservation);
   END IF;
@@ -279,6 +301,18 @@ BEGIN
     AND status IN ('reserved','validating','attested','promoting','approved') AND expires_at > stamp;
   IF request_count >= settings.requests_per_day OR byte_count + p_declared_bytes > settings.bytes_per_day
     OR pending_count >= settings.pending_per_owner THEN RAISE EXCEPTION 'Story media technical limit reached' USING ERRCODE = 'PT429'; END IF;
+  IF NOT pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended('story-media:global-admission',0)) THEN
+    RAISE EXCEPTION 'Story media admission busy' USING ERRCODE = 'PT429', DETAIL = 'media_admission_busy';
+  END IF;
+  stamp := pg_catalog.clock_timestamp();
+  SELECT count(*),coalesce(sum(declared_bytes),0) INTO request_count,byte_count FROM public.story_media_reservations
+    WHERE created_at >= pg_catalog.date_trunc('day',stamp,'UTC');
+  SELECT count(*) INTO pending_count FROM public.story_media_reservations
+    WHERE status IN ('reserved','validating','attested','promoting','approved') AND expires_at > stamp;
+  IF request_count >= settings.global_requests_per_day OR byte_count + p_declared_bytes > settings.global_bytes_per_day
+    OR pending_count >= settings.global_pending THEN
+    RAISE EXCEPTION 'Story media global admission limit reached' USING ERRCODE = 'PT429', DETAIL = 'media_admission_global_limit';
+  END IF;
   extension := CASE p_content_type WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' WHEN 'image/webp' THEN 'webp'
     WHEN 'video/mp4' THEN 'mp4' WHEN 'video/webm' THEN 'webm' END;
   reservation.id := pg_catalog.gen_random_uuid();

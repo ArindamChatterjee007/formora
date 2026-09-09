@@ -48,7 +48,8 @@ async function database(context, enabled = true, applyMedia = true) {
     await db.query(`UPDATE public.story_settings SET enabled=true,permission_policy_approved=true,media_audience_approved=true,
       public_media_approved=true,retention_approved=true,operator_policy_ref=$1,media_origin='https://fixture.supabase.co',public_bucket='story-media-public-v3'`, [policy]);
     await db.query(`UPDATE public.story_media_settings SET enabled=true,publication_required=true,storage_policy_approved=true,
-      quota_approved=true,retention_approved=true,storage_policy_ref=$1,quota_policy_ref=$1,retention_policy_ref=$1`, [policy]);
+      quota_approved=true,retention_approved=true,storage_policy_ref=$1,quota_policy_ref=$1,retention_policy_ref=$1,
+      global_pending=64,global_requests_per_day=100,global_bytes_per_day=268435456`, [policy]);
     await db.exec("UPDATE storage.buckets SET public=true WHERE id='story-media-public-v3'");
   }
   return db;

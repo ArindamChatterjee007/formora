@@ -76,7 +76,7 @@ const Cloud = {
         : code === "promotion_review_required" ? "Media promotion needs a storage review before this request can be reused."
         : code === "reservation_expired" ? "This media reservation expired and could not be renewed. Select the file again."
         : status === 422 ? "Choose a supported photo or a video up to 30 seconds."
-        : status === 429 ? "Story media limit reached. Try again later."
+        : status === 429 ? "Media is busy or at its limit. Try again later."
         : status === 409 ? "This media attempt could not be reused. Retake or check the previous Story."
         : "Story media was not confirmed. Your draft is kept; retry when online."), { status, ...(code ? { code } : {}) });
       const owner = this._publishingUid(), generation = this._publishingGeneration, authEpoch = typeof SupaAuth !== "undefined" ? SupaAuth._authEpoch : null;

@@ -139,3 +139,24 @@ test('policy cancellation and uncertain promotion are explicit and never auto-su
     assert.equal(client.state.calls.length, 1); assert.equal(JSON.parse(client.state.calls[0].init.body).p_request_id, client.requestId);
   }
 });
+
+test('busy or exhausted admission keeps the request for manual retry and never uploads on denial', async () => {
+  for (const detail of ['media_admission_busy', 'media_admission_global_limit']) {
+    let denied = true;
+    const client = fixture({ fetch: async (url, _init, { reservation, receipt }) => {
+      if (denied) return Response.json({ code: 'PT429', details: detail }, { status: 429 });
+      if (url.endsWith('/reserve_story_media')) return Response.json(reservation);
+      if (url.includes('/storage/')) return Response.json({ Key: 'story-media-quarantine-v3/' + reservation.object_key, Id: randomUUID() });
+      return Response.json(receipt);
+    } });
+    await assert.rejects(client.upload(), error => error.status === 429 && /busy or at its limit/.test(error.message));
+    assert.equal(client.state.calls.length, 1);
+    assert.equal(client.state.calls.some(call => call.url.includes('/storage/')), false);
+    denied = false;
+    assert.equal((await client.upload()).sha256, client.receipt.sha256);
+    const reservations = client.state.calls.filter(call => call.url.endsWith('/reserve_story_media'));
+    assert.equal(reservations.length, 2);
+    assert.ok(reservations.every(call => JSON.parse(call.init.body).p_request_id === client.requestId));
+    assert.equal(client.state.calls.filter(call => call.url.includes('/storage/')).length, 1);
+  }
+});
