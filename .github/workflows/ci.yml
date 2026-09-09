@@ -38,6 +38,20 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
 
+      - name: Set up the pinned media runtime
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.9.6"
+
+      - name: Install the synthetic media encoder
+        run: sudo -n apt-get update && sudo -n apt-get install --no-install-recommends -y ffmpeg
+
+      - name: Cache frozen parser dependencies
+        run: deno cache --frozen --config supabase/functions/parse-story-media/deno.json supabase/functions/parse-story-media/index.ts scripts/verify-story-parser-service.ts
+
+      - name: Verify the exact packaged media runtime offline
+        run: node scripts/verify-story-parser-runtime.cjs
+
       - name: Run public-scope unit and browser fixtures
         # The runner executes every suite serially (--test-concurrency=1) and excludes the catalogued
         # private-office suites, which stay explicitly unverified here rather than counted as passing.
@@ -56,6 +70,7 @@ jobs:
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/verification.json
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/unit.xml
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/browser.xml
+            dist/story-parser/run-*/verification.json
           if-no-files-found: error
           retention-days: 14
 
