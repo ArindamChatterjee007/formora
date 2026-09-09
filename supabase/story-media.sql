@@ -121,13 +121,15 @@ CREATE TABLE public.story_media_cleanup_intents (
   request_lease_token uuid, authorized_delete_lease_token uuid,
   delete_attempts integer NOT NULL DEFAULT 0 CHECK (delete_attempts BETWEEN 0 AND 3),
   outcome text NOT NULL DEFAULT 'pending' CHECK (outcome IN ('pending','storage_api_deleted','storage_api_absent_backend_unknown','unknown')),
-  delete_http_status integer, absence_http_status integer, api_ack jsonb, observed_at timestamptz,
+  delete_http_status integer, absence_http_status integer, absence_error_code text, api_ack jsonb, observed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
+  CHECK (absence_error_code IS NULL OR (absence_http_status IS NOT DISTINCT FROM 400 AND absence_error_code = 'NoSuchKey')),
   CHECK ((state = 'completed') = (outcome = 'storage_api_deleted')),
   CHECK (state <> 'completed' OR (metadata_deleted_at IS NOT NULL AND delete_requested_at IS NOT NULL
     AND authorized_delete_lease_token IS NOT NULL AND request_lease_token IS NOT DISTINCT FROM authorized_delete_lease_token
     AND observed_at IS NOT NULL AND delete_http_status IS NOT NULL AND delete_http_status = 200
-    AND absence_http_status IS NOT NULL AND absence_http_status = 404 AND api_ack IS NOT NULL)),
+    AND absence_http_status IS NOT NULL AND (absence_http_status = 404
+      OR (absence_http_status = 400 AND absence_error_code IS NOT DISTINCT FROM 'NoSuchKey')) AND api_ack IS NOT NULL)),
   UNIQUE(plan_id,object_id)
 );
 CREATE INDEX story_media_cleanup_pending ON public.story_media_cleanup_intents(reservation_id,state);
@@ -142,7 +144,7 @@ BEGIN
     ADD COLUMN IF NOT EXISTS cancelled_at timestamptz CHECK (cancelled_at IS NULL OR (state IN ('planned','claimed')
       AND outcome = 'pending' AND delete_attempts = 0 AND delete_requested_at IS NULL AND metadata_deleted_at IS NULL
       AND request_lease_token IS NULL AND authorized_delete_lease_token IS NULL AND delete_http_status IS NULL
-      AND absence_http_status IS NULL AND api_ack IS NULL AND observed_at IS NULL));
+      AND absence_http_status IS NULL AND absence_error_code IS NULL AND api_ack IS NULL AND observed_at IS NULL));
 END;
 $cleanup_recovery_schema$;
 
@@ -977,7 +979,7 @@ END;
 $function$;
 
 CREATE FUNCTION public.finish_story_media_cleanup_object(p_operation_id uuid,p_claim_id uuid,p_intent_id uuid,p_lease_token uuid,
-  p_result text,p_delete_status integer,p_ack jsonb,p_get_status integer)
+  p_result text,p_delete_status integer,p_ack jsonb,p_get_status integer,p_get_code text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '2s' AS $function$
 DECLARE plan public.story_media_cleanup_plans%ROWTYPE; intent public.story_media_cleanup_intents%ROWTYPE; present boolean;
 BEGIN
@@ -985,11 +987,12 @@ BEGIN
   SELECT * INTO intent FROM public.story_media_cleanup_intents WHERE id = p_intent_id AND plan_id = plan.id FOR UPDATE;
   IF NOT FOUND OR intent.request_lease_token IS DISTINCT FROM p_lease_token OR intent.state NOT IN ('object_delete_requested','unknown','completed')
     OR p_result IS NULL OR p_result NOT IN ('storage_api_deleted','storage_api_absent_backend_unknown','unknown')
-    OR p_delete_status IS NULL OR p_delete_status NOT BETWEEN 0 AND 599 OR p_get_status IS NULL OR p_get_status NOT BETWEEN 0 AND 599 THEN
+    OR p_delete_status IS NULL OR p_delete_status NOT BETWEEN 0 AND 599 OR p_get_status IS NULL OR p_get_status NOT BETWEEN 0 AND 599
+    OR (p_get_code IS NOT NULL AND (p_get_status <> 400 OR p_get_code <> 'NoSuchKey')) THEN
     RAISE EXCEPTION 'Exact requested object and bounded service observation required' USING ERRCODE = 'PT409';
   END IF;
   present := public._story_media_cleanup_object_check(plan,intent);
-  IF p_result <> 'unknown' AND (present OR p_get_status <> 404) THEN
+  IF p_result <> 'unknown' AND (present OR NOT (p_get_status = 404 OR (p_get_status = 400 AND p_get_code IS NOT DISTINCT FROM 'NoSuchKey'))) THEN
     RAISE EXCEPTION 'Owned catalog-delete audit and authenticated object absence required' USING ERRCODE = 'PT409';
   END IF;
   IF p_result = 'storage_api_deleted' THEN
@@ -1008,13 +1011,14 @@ BEGIN
   END IF;
   IF intent.state = 'completed' THEN
     IF p_result IS DISTINCT FROM intent.outcome OR p_delete_status IS DISTINCT FROM intent.delete_http_status
-      OR p_get_status IS DISTINCT FROM intent.absence_http_status OR p_ack IS DISTINCT FROM intent.api_ack THEN
+      OR p_get_status IS DISTINCT FROM intent.absence_http_status OR p_get_code IS DISTINCT FROM intent.absence_error_code
+      OR p_ack IS DISTINCT FROM intent.api_ack THEN
       RAISE EXCEPTION 'Completed cleanup observation is immutable' USING ERRCODE = 'PT409';
     END IF;
     RETURN public._story_media_cleanup_worker_receipt(plan);
   END IF;
   UPDATE public.story_media_cleanup_intents SET state = CASE WHEN p_result = 'storage_api_deleted' THEN 'completed' ELSE 'unknown' END,
-    outcome = p_result,delete_http_status = p_delete_status,absence_http_status = p_get_status,api_ack = p_ack,
+    outcome = p_result,delete_http_status = p_delete_status,absence_http_status = p_get_status,absence_error_code = p_get_code,api_ack = p_ack,
     observed_at = pg_catalog.clock_timestamp() WHERE id = intent.id;
   RETURN public._story_media_cleanup_worker_receipt(plan);
 END;
@@ -1075,7 +1079,7 @@ GRANT EXECUTE ON FUNCTION public.claim_story_media_validation(uuid,uuid),
   public.prepare_story_media_cleanup(uuid,uuid,integer,uuid[],uuid),public.confirm_story_media_cleanup(uuid,text,uuid),
   public.cancel_story_media_cleanup(uuid,text,uuid),
   public.claim_story_media_cleanup(uuid,uuid),public.request_story_media_cleanup_object(uuid,uuid,uuid,uuid),
-  public.finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer),
+  public.finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer,text),
   public.preview_story_media_cleanup(uuid,integer) TO service_role;
 
 COMMIT;

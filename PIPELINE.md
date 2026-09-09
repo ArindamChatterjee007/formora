@@ -279,6 +279,24 @@ admission; do not remove measured-size or commit checks to restore availability.
 DDL rehearsal is not an actual guarded upload, immutable-version or physical
 cleanup pass. Keep customer media off until those separate gates pass.
 
+Cleanup accepts authenticated HTTP404 absence or HTTP400 with the exact JSON
+error code `NoSuchKey` from the same fixed object URL. The HTTP400 error body is
+bounded to 1024 bytes. Generic 400, `NoSuchBucket`, authorization, malformed and
+oversized errors remain unknown. SQL records the raw `absence_http_status` and
+`absence_error_code`, without rewriting a 400 observation to 404. The optional
+last `p_get_code` argument of `finish_story_media_cleanup_object` defaults to
+NULL for existing 404 callers; HTTP400 requires `NoSuchKey`. Deploy the matched
+SQL and worker together. This is a fresh migration, not an upgrade over installed
+cleanup tables or an authorization to rewrite existing receipts.
+
+Completion still requires the original approved object, matching delete ACK,
+exact worker lease and catalog-delete audit. Neither absence form proves backend,
+backup or CDN erasure. The focused offline verifier
+`node scripts/verify-story-media-cleanup-runtime.cjs --absence` runs the actual
+Deno handler unit cases plus one SQL integration case; its other SQL cases are
+explicitly unrun. CI retains that scoped verification record. `--local` runs
+the full cleanup runtime suite separately when required.
+
 ## QAT Registration Consent
 
 `supabase/registration-consent.sql` is a fresh, default-off QAT experiment.

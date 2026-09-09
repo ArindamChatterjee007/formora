@@ -167,10 +167,35 @@ await check("all claim identity, policy and object-version fields are pinned aga
   }
 });
 await check("authenticated absence errors or a still-visible object never complete a deletion", async () => {
-  for (const status of [200, 206, 401, 403, 500]) {
+  for (const status of [200, 206, 400, 401, 403, 500]) {
     const local = fixture(call => call.url.includes("/object/authenticated/") ? new Response(null, { status }) : null);
     const response = await local.invoke(), body = await response.json();
     assert(response.status !== 200 && body.result !== "storage_api_deleted" && local.state.objects[0].state === "unknown", "Non-404 became absence");
+  }
+});
+await check("exact NoSuchKey absence records the real HTTP400 without claiming physical erasure", async () => {
+  const local = fixture(call => call.url.includes("/object/authenticated/")
+    ? Response.json({ statusCode: "404", code: "NoSuchKey", error: "not_found", message: "Object not found" }, { status: 400 }) : null);
+  const response = await local.invoke(), receipt = await response.json();
+  assert(response.status === 200 && receipt.result === "storage_api_deleted", "Exact provider absence was refused");
+  const finished = local.calls.find(call => call.url.endsWith("/finish_story_media_cleanup_object"));
+  const payload = JSON.parse(String(finished?.init.body));
+  assert(payload.p_get_status === 400 && payload.p_get_code === "NoSuchKey", "Raw absence evidence was rewritten");
+  assert(receipt.physical_delete_confirmed === false && receipt.account_deleted === false, "Absence overclaimed erasure");
+});
+await check("generic, foreign, malformed and oversized HTTP400 errors remain unknown", async () => {
+  for (const variant of ["missing", "bucket", "authorization", "array", "malformed", "oversize", "wrong-type"]) {
+    const local = fixture(call => {
+      if (!call.url.includes("/object/authenticated/")) return null;
+      if (variant === "malformed") return new Response("{", { status: 400, headers: { "content-type": "application/json" } });
+      if (variant === "wrong-type") return new Response('{"code":"NoSuchKey"}', { status: 400, headers: { "content-type": "text/plain" } });
+      return Response.json(variant === "missing" ? { message: "Object not found" }
+        : variant === "array" ? [{ code: "NoSuchKey" }] : variant === "oversize" ? { code: "NoSuchKey", detail: "x".repeat(1025) }
+        : { code: variant === "bucket" ? "NoSuchBucket" : "AccessDenied" }, { status: 400 });
+    });
+    assert((await local.invoke()).status !== 200 && local.state.objects[0].state === "unknown", "Ambiguous provider error became absence: " + variant);
+    const finished = local.calls.filter(call => call.url.endsWith("/finish_story_media_cleanup_object"));
+    assert(finished.length === 1 && JSON.parse(String(finished[0].init.body)).p_result === "unknown", "Ambiguous absence completed a receipt");
   }
 });
 await check("stalled request and response bodies are cancelled by hard step and aggregate deadlines", async () => {

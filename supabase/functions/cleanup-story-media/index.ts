@@ -162,7 +162,13 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
         if (response.redirected || (response.url && response.url !== url) || (response.status >= 300 && response.status < 400)) {
           cancelBody(response); fail();
         }
-        if (absence || response.status !== 200) { cancelBody(response); return { status: response.status, body: null }; }
+        if (absence) {
+          if (response.status === 400 && response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() === "application/json") {
+            return { status: response.status, body: await json(response, 1024) };
+          }
+          cancelBody(response); return { status: response.status, body: null };
+        }
+        if (response.status !== 200) { cancelBody(response); return { status: response.status, body: null }; }
         if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") { cancelBody(response); fail(); }
         return { status: response.status, body: await json(response, maximum) };
       });
@@ -188,7 +194,7 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
         const object = claim.objects.find(candidate => candidate.intent_id === original.intent_id)!;
         if (authorized.delete_allowed ? object.metadata_deleted || !object.delete_requested || object.state !== "object_delete_requested"
           || object.delete_attempts !== original.delete_attempts + 1 : !object.metadata_deleted || !object.delete_requested) fail();
-        let deleteStatus = 0, getStatus = 0;
+        let deleteStatus = 0, getStatus = 0, getCode: string | null = null;
         try {
           let ack: Json | null = null;
           if (authorized.delete_allowed) {
@@ -203,15 +209,17 @@ export function createStoryMediaCleanupHandler(input: CleanupConfig, options: Op
                 ...(Object.hasOwn(matched, "bucket_id") ? { bucket_id: matched.bucket_id } : {}) };
             }
           }
-          getStatus = (await network("/storage/v1/object/authenticated/" + object.bucket + "/" + object.object_key, "GET", undefined, 0, true)).status;
-          if (getStatus !== 404) fail("storage_absence_unknown", 502);
+          const absence = await network("/storage/v1/object/authenticated/" + object.bucket + "/" + object.object_key, "GET", undefined, 0, true);
+          getStatus = absence.status;
+          if (getStatus === 400 && record(absence.body) && absence.body.code === "NoSuchKey") getCode = "NoSuchKey";
+          if (getStatus !== 404 && getCode !== "NoSuchKey") fail("storage_absence_unknown", 502);
           const result = ack ? "storage_api_deleted" : "storage_api_absent_backend_unknown";
           claim = parseClaim(await rpc("finish_story_media_cleanup_object", { ...args, p_result: result, p_delete_status: deleteStatus,
-            p_ack: ack, p_get_status: getStatus }), operation, claim.claim_id, claim);
+            p_ack: ack, p_get_status: getStatus, p_get_code: getCode }), operation, claim.claim_id, claim);
           if (claim.objects.find(candidate => candidate.intent_id === object.intent_id)?.outcome !== result) fail();
         } catch (error) {
           if (!controller.signal.aborted) {
-            try { await rpc("finish_story_media_cleanup_object", { ...args, p_result: "unknown", p_delete_status: deleteStatus, p_ack: null, p_get_status: getStatus }); }
+            try { await rpc("finish_story_media_cleanup_object", { ...args, p_result: "unknown", p_delete_status: deleteStatus, p_ack: null, p_get_status: getStatus, p_get_code: getCode }); }
             catch {}
           }
           throw error;

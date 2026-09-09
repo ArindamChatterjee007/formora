@@ -491,7 +491,8 @@ test('C-6 the deployed cleanup handler has one fixed destination set, no caller-
   assert.match(source, /setTimeout\(abort, aggregateMs\)/);
   assert.match(source, /setTimeout\(abort, stepMs\)/);
   assert.match(source, /\+\+reads > 128 \|\| used \+ chunk\.value\.byteLength > maximum/);
-  assert.match(source, /range: "bytes=0-0"/, 'the absence read never streams a body');
+  assert.match(source, /range: "bytes=0-0"/, 'successful-object bodies remain unread during absence checks');
+  assert.match(source, /body: await json\(response, 1024\)/, 'only the bounded HTTP400 error body is inspected');
   assert.match(source, /controller\.signal\.addEventListener\("abort", cancel, \{ once: true \}\)/);
   assert.match(source, /if \(active\) return reply\(\{ error: "cleanup_busy" \}, 429\)/);
 
@@ -522,7 +523,7 @@ test('C-7 both activation flags default off and the whole cleanup surface stays 
   assert.equal(settings.cleanup_enabled, false, 'applying the migration never enables cleanup');
 
   const routines = ['claim_story_media_cleanup(uuid,uuid)', 'request_story_media_cleanup_object(uuid,uuid,uuid,uuid)',
-    'finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer)',
+    'finish_story_media_cleanup_object(uuid,uuid,uuid,uuid,text,integer,jsonb,integer,text)',
     'prepare_story_media_cleanup(uuid,uuid,integer,uuid[],uuid)', 'confirm_story_media_cleanup(uuid,text,uuid)',
     'preview_story_media_cleanup(uuid,integer)'];
   for (const routine of routines) {
