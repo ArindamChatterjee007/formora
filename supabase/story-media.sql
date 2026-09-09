@@ -12,12 +12,10 @@ BEGIN
   END IF;
   IF NOT pg_catalog.has_table_privilege(current_user,'storage.objects','TRIGGER')
     OR NOT pg_catalog.has_table_privilege(current_user,'storage.buckets','TRIGGER')
-    OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class WHERE oid = 'storage.objects'::regclass
-      AND pg_catalog.pg_has_role(current_user,relowner,'USAGE'))
     OR (SELECT count(*) FROM information_schema.columns AS actual JOIN (VALUES ('id','uuid'),('bucket_id','text'),('name','text'),
       ('owner','uuid'),('owner_id','text'),('version','text'),('metadata','jsonb'),('user_metadata','jsonb'),('created_at','timestamptz')) AS expected(name,type)
       ON actual.column_name = expected.name AND actual.udt_name = expected.type WHERE actual.table_schema = 'storage' AND actual.table_name = 'objects') <> 9 THEN
-    RAISE EXCEPTION 'Storage DDL ownership, TRIGGER privileges and current user_metadata schema require isolated preflight; do not override ownership';
+    RAISE EXCEPTION 'Storage TRIGGER privileges and current user_metadata schema require isolated DDL preflight; do not override ownership';
   END IF;
 END;
 $predecessor$;

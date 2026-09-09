@@ -96,10 +96,25 @@ if (require.main === module) {
       else if (condition === 'missing-column') await db.exec('ALTER TABLE storage.objects DROP COLUMN user_metadata');
       else await db.query('INSERT INTO storage.buckets(id,name,public) VALUES($1,$1,false)', [condition]);
       await assert.rejects(db.exec(fs.readFileSync(path.join(root, 'supabase/story-media.sql'), 'utf8')),
-        error => /automatic adoption is forbidden|Storage DDL ownership/.test(error.message));
+        error => /automatic adoption is forbidden|Storage TRIGGER privileges/.test(error.message));
       await db.exec('ROLLBACK; RESET ROLE');
       assert.equal((await db.query("SELECT to_regclass('public.story_media_settings') AS relation")).rows[0].relation, null);
     }
+  });
+  test('trigger privileges alone cannot bypass denied policy DDL or leave a partial media schema', async context => {
+    const db = await database(context, false, false);
+    await db.exec(`CREATE ROLE media_trigger_only;
+      GRANT CREATE ON SCHEMA public TO media_trigger_only;
+      GRANT SELECT,TRIGGER ON storage.objects,storage.buckets,public.story_content TO media_trigger_only;
+      GRANT INSERT ON storage.buckets TO media_trigger_only;
+      GRANT REFERENCES ON public.stories_v2 TO media_trigger_only;
+      SET ROLE media_trigger_only`);
+    await assert.rejects(db.exec(fs.readFileSync(path.join(root, 'supabase/story-media.sql'), 'utf8')),
+      error => error.code === '42501' && /must be owner of table objects/.test(error.message));
+    await db.exec('ROLLBACK; RESET ROLE');
+    assert.equal((await db.query("SELECT to_regclass('public.story_media_settings') AS relation")).rows[0].relation, null);
+    assert.equal((await db.query("SELECT id FROM storage.buckets WHERE id IN('story-media-quarantine-v3','story-media-public-v3')")).rows.length, 0);
+    assert.equal((await db.query("SELECT tgname FROM pg_trigger WHERE tgname IN('story_media_storage_guard','story_media_storage_bound','story_media_bucket_guard')")).rows.length, 0);
   });
   test('missing or disabled Storage guards and schema drift fail closed before any new reservation', async context => {
     const db = await database(context);
