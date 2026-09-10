@@ -205,6 +205,56 @@ settings and secret digests. Do not delete accounts or Storage objects as part
 of parser-only cleanup, retry an uncertain publication, or fall back to parsing
 untrusted bytes in the validator isolate.
 
+### Local Supervised Prototype
+
+`scripts/story-parser-supervisor.cjs` and `scripts/story-parser-process.ts`
+provide a local-only process boundary. They are not connected to the deployed
+validator or a public endpoint. Use GNU coreutils `timeout` (Homebrew `gtimeout`
+on macOS) and the existing pinned, cached Deno/parser dependencies:
+
+```sh
+node --test --test-concurrency=1 tests/story-parser-supervisor.test.cjs
+node scripts/verify-story-parser-supervisor.cjs --photo <existing-synthetic-fixture-directory>
+node scripts/verify-story-parser-supervisor.cjs --formats <existing-synthetic-fixture-directory>
+node scripts/verify-story-parser-supervisor.cjs --controls
+```
+
+`STORY_MEDIA_TIMEOUT` and `STORY_MEDIA_DENO` can specify trusted absolute
+executable paths; `STORY_MEDIA_DENO_DIR` selects the existing dependency cache.
+No downloads, hosted calls or browser fixture generation occur in these checks.
+The format runner rehashes an existing synthetic manifest and creates a fresh
+parser package and private evidence below `dist/story-parser-supervisor/`.
+The Linux CI job reuses the fixture directory returned by the existing package
+verifier, then runs both formats and process controls with resolved absolute
+runtime/watchdog paths. Only the verification JSON reports are uploaded; media,
+generated parser packages and private office records are not artifacts. The
+ordinary public unit phase also runs the process-boundary regression tests.
+
+The caller supplies a monotonic deadline before startup and input transfer.
+Ten percent of its remaining budget is explicitly reserved for termination and
+cleanup, never added after the deadline. An independent GNU watchdog and a parent
+timer send `SIGKILL` to the owned process group. An ACK is returned only after
+exit, stream closure and bounded process-group readback, within the original
+deadline. Cancellation/deadline rejection can precede cleanup: callers must await
+the separate `cleanup` promise. Unconfirmed cleanup leaves that supervisor busy;
+it has no automatic retry or unsafe reset. Group-only readback records zombies
+as stopped, not reaped, and does not prove an escaped process was contained.
+
+Input is capped at 25 MiB, stdout at 2 KiB, stderr at 1 KiB and concurrency at
+one job per supervisor instance. The Deno worker denies file reads/writes,
+network, subprocesses, FFI, system-information APIs and remote imports. Its
+pinned debug dependency requires environment enumeration, so only an explicitly
+clean launch environment is supplied; the worker rejects unexpected names and
+allows the observed Deno/macOS shim variables. No backend credentials are passed.
+The 128 MiB V8 old-space setting is not a native/WASM/RSS memory limit.
+
+The controls exercise actual permission-denied operations and non-yielding WASM,
+without allowing ordinary I/O failures to stand for denied permissions. Local
+measured termination is not a real-time or hosted guarantee. OS memory/process
+containment, Linux target tests, global capacity, remote deadline admission and
+hosted acceptance remain required before adopting this route. Existing customer
+flags and production are unchanged by this prototype.
+
 ## Story Media Admission
 
 The fresh `supabase/story-media.sql` schema requires explicit `global_pending`,

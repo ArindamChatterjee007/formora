@@ -45,7 +45,8 @@ async function run(fixtureDirectory) {
       path.join(packageDirectory, 'supabase/functions/parse-story-media/index.ts')]);
     assert.equal(checked.status, 0, checked.stderr);
     report.cases.push({ name: 'Source and packaged entrypoints pass Deno type checking', passed: true });
-    const fixtures = fixtureDirectory || await createFixtures({ large: true });
+    const fixtures = fixtureDirectory ? path.resolve(fixtureDirectory) : await createFixtures({ large: true });
+    report.fixtures = path.relative(root, fixtures);
     const argumentsFor = (folder, deny = true) => ['run', '--no-prompt', '--frozen', '--cached-only', ...(deny ? ['--deny-net'] : []),
       '--allow-read', '--allow-env', '--config', config, verifier, folder, fixtures];
     const result = execute(argumentsFor(packageDirectory));
@@ -87,7 +88,7 @@ async function run(fixtureDirectory) {
   const evidence = path.relative(root, path.join(directory, 'verification.json'));
   if (report.result !== 'passed') throw new Error('Parser package verification failed: ' + evidence + ': ' + report.error);
   return { result: report.result, passed: report.passed, failed: report.failed, package: report.package,
-    sourceUnchanged: report.sourceUnchanged, evidence };
+    sourceUnchanged: report.sourceUnchanged, fixtures: report.fixtures, evidence };
 }
 
 module.exports = { run };

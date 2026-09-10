@@ -50,7 +50,24 @@ jobs:
         run: deno cache --frozen --config supabase/functions/parse-story-media/deno.json supabase/functions/parse-story-media/index.ts scripts/verify-story-parser-service.ts
 
       - name: Verify the exact packaged media runtime offline
-        run: node scripts/verify-story-parser-runtime.cjs
+        id: media_package
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          require('./scripts/verify-story-parser-runtime.cjs').run().then(result => {
+            assert.match(result.fixtures, /^dist\/story-media\/fixtures-[A-Za-z0-9]+$/);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'fixtures=' + result.fixtures + '\n');
+            console.log(JSON.stringify(result));
+          }).catch(error => { console.error(error.message); process.exitCode = 1; });
+          NODE
+
+      - name: Verify the local process supervisor on Linux
+        run: |
+          export STORY_MEDIA_DENO="$(command -v deno)"
+          export STORY_MEDIA_TIMEOUT="$(command -v timeout)"
+          node scripts/verify-story-parser-supervisor.cjs --formats "${{ steps.media_package.outputs.fixtures }}"
+          node scripts/verify-story-parser-supervisor.cjs --controls
 
       - name: Verify cleanup runtime and typed absence offline
         run: node scripts/verify-story-media-cleanup-runtime.cjs --absence
@@ -74,6 +91,8 @@ jobs:
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/unit.xml
             ${{ env.FORMORA_QA_OUTPUT }}/run-*/browser.xml
             dist/story-parser/run-*/verification.json
+            dist/story-parser-supervisor/run-*/verification.json
+            dist/story-parser-supervisor/controls-*/verification.json
             dist/story-media-cleanup/run-*/verification.json
           if-no-files-found: error
           retention-days: 14
