@@ -391,6 +391,52 @@ test('operator preview performs a bounded inventory, audits exact retries and ne
   assert.equal(audit.length, 1); assert.equal(audit[0].actor_role, 'service_role');
 });
 
+test('operator preview inventories retained media journals even when Storage is empty', async () => {
+  const requestOwner = randomUUID(); await identity(requestOwner); const request = await submit('erasure');
+  const sources = ['story_media_reservations', 'story_media_publish_intents', 'story_media_cleanup_plans', 'story_media_cleanup_intents'];
+  const categories = ['media_reservations', 'media_publish_intents', 'media_cleanup_plans', 'media_cleanup_intents'];
+  await db.exec('RESET ROLE; CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid, owner_id text)');
+  try {
+    for (const table of sources) {
+      await db.exec('CREATE TABLE public.' + table + '(owner uuid, state text, lease_token text)');
+      await db.query('INSERT INTO public.' + table + ' VALUES ($1,$2,$3),($4,$2,$3)',
+        [requestOwner, 'unknown', 'never-export-media-lease', other]);
+    }
+    await identity(null, 'service_role');
+    const operation = randomUUID();
+    const preview = await rpc('preview_account_rights_erasure', [request.id, requestOwner, operation]);
+    assert.equal(preview.inventory.find(row => row.category === 'media').matched_rows, 0);
+    for (const [index, category] of categories.entries()) {
+      const item = preview.inventory.find(row => row.category === category);
+      assert.ok(item, category + ' must not disappear with an empty Storage catalogue');
+      assert.equal(item.source, 'public.' + sources[index]);
+      assert.equal(item.available, true); assert.equal(item.matched_rows, 1); assert.equal(item.has_more, false);
+      assert.equal(item.source_execution_allowed, false); assert.equal(item.deletion_authorized, false);
+      assert.equal(item.scope, 'count_only_ownership_and_policy_review_required');
+    }
+    assert.equal(preview.execution_allowed, false);
+    assert.doesNotMatch(JSON.stringify(preview), new RegExp(other + '|never-export-media-lease|lease_token'));
+    await identity(requestOwner);
+    await assert.rejects(rpc('preview_account_rights_erasure', [request.id, requestOwner, randomUUID()]), { code: '42501' });
+    await identity(null, 'service_role');
+    await assert.rejects(rpc('preview_account_rights_erasure', [request.id, other, randomUUID()]), { code: 'PT404' });
+    await db.exec('RESET ROLE');
+    await db.query("INSERT INTO story_media_cleanup_intents(owner,state) SELECT $1::uuid,'unknown' FROM generate_series(1,10000)", [requestOwner]);
+    await db.exec('ALTER TABLE story_media_publish_intents DROP COLUMN owner');
+    await identity(null, 'service_role');
+    assert.deepEqual(await rpc('preview_account_rights_erasure', [request.id, requestOwner, operation]), preview);
+    const current = await rpc('preview_account_rights_erasure', [request.id, requestOwner, randomUUID()]);
+    const intents = current.inventory.find(row => row.category === 'media_cleanup_intents');
+    assert.equal(intents.matched_rows, 10000); assert.equal(intents.has_more, true);
+    const missing = current.inventory.find(row => row.category === 'media_publish_intents');
+    assert.equal(missing.available, false); assert.equal(missing.matched_rows, null);
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query('SELECT count(*)::integer AS count FROM story_media_cleanup_intents WHERE owner=$1', [requestOwner])).rows[0].count, 10001);
+  } finally {
+    await db.exec('RESET ROLE; ' + sources.map(table => 'DROP TABLE IF EXISTS public.' + table).join('; ') + '; DROP SCHEMA storage CASCADE');
+  }
+});
+
 test('service actions and holds roll back if their audit cannot commit; interrupted retries are safe', async () => {
   const requestOwner = randomUUID(); await identity(requestOwner); const first = await submit('erasure');
   await db.exec("RESET ROLE; ALTER TABLE account_rights_actions ADD CONSTRAINT qa_reject_hold CHECK (action <> 'hold') NOT VALID");

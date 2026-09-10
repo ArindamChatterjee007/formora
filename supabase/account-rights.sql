@@ -853,6 +853,10 @@ BEGIN
   END LOOP;
   FOR probe IN SELECT * FROM (VALUES
     ('media', 'storage', 'objects', 'owner_id', false),
+    ('media_reservations', 'public', 'story_media_reservations', 'owner', false),
+    ('media_publish_intents', 'public', 'story_media_publish_intents', 'owner', false),
+    ('media_cleanup_plans', 'public', 'story_media_cleanup_plans', 'owner', false),
+    ('media_cleanup_intents', 'public', 'story_media_cleanup_intents', 'owner', false),
     ('authored_messages', 'public', 'messages', 'from_uid', true),
     ('received_messages', 'public', 'messages', 'to_uid', true),
     ('subject_reports', 'public', 'report_cases', 'reported_uid', true)
