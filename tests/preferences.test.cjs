@@ -66,9 +66,9 @@ function registrationFixture() {
   context.SupaAuth._hdr=extra=>({apikey:'public','Content-Type':'application/json',...extra});
   context.SupaAuth._timedFetch=async(url,options)=>{
     captured.registration={url,options,body:JSON.parse(options.body)};
-    const body=captured.registration.body;
+    const body=captured.registration.body,capturedAt=Date.now();
     return {ok:true,body:{proof:'a'.repeat(64),version:body.p_version,notice_sha256:body.p_notice_sha256,
-      captured_at:new Date().toISOString(),expires_at:new Date(Date.now()+900000).toISOString()}};
+      captured_at:new Date(capturedAt).toISOString(),expires_at:new Date(capturedAt+900000).toISOString()}};
   };
   return {...fixtureState,draft:async()=>({name:'Synthetic member',email:' Person@Example.test ',registrationConsent:{
     version:preferences._registrationNotice.version,notice_sha256:await preferences.registrationHash(preferences._registrationNotice.text)}})};
