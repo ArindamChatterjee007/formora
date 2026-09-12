@@ -555,7 +555,43 @@ const Social = {
   sharePost(id) {
     const list = this.cloudActive() ? (this.cloud.feed || []) : (this.feed() || []);
     const post = list.find((p) => p.id === id);
-    this._share(post && post.text ? post.text : "Check out this fitness progress on Formora");
+    if (!post || !this._canSeePost(post)) return false;
+    if (!this.cloudActive() || typeof Stories === "undefined" || !Stories.enabled()) {
+      return this._share(post.text || "Check out this fitness progress on Formora");
+    }
+    App.openSheet("Share post", [
+      { icon: "film", label: "Add to story", fn: () => this.addPostToStory(id) },
+      { icon: "share", label: "Share outside Formora", fn: () => this._share(post.text || "Check out this fitness progress on Formora") },
+      { icon: "copy", label: "Copy link", fn: () => this.copyPostLink(id) }
+    ]);
+    return true;
+  },
+  async addPostToStory(id) {
+    if (!this.cloudActive() || !Cloud._publishingUid()) { App.toast("Sign in to add this post to your story."); return false; }
+    if (typeof Stories === "undefined" || !Stories.enabled()) { App.toast("Post sharing to Stories is not available on this version."); return false; }
+    const scope = this._actionScope(), selection = this._postStorySelection = {};
+    try {
+      const post = await Stories.shareablePost(id);
+      if (this._postStorySelection !== selection || this._actionScope() !== scope) return false;
+      this.cancelStory();
+      this._storyDraft = { post, owner: Cloud._publishingUid(), scope, id: Cloud._newActionId(), v2: true };
+      this.storyPreview(); return true;
+    } catch (error) {
+      if (this._postStorySelection === selection && this._actionScope() === scope) App.toast(error.message || "This post could not be opened. Try again.");
+      return false;
+    }
+  },
+  openStoryPost(post) {
+    const original = this.cloud.feed.find(item => item.id === post.id && item.author === post.author);
+    if (original && this._canSeePost(original)) {
+      App.selectTab("home"); this.sub = "feed"; this.render();
+      const card = document.getElementById("cmts-" + post.id)?.closest(".post");
+      if (card) { card.tabIndex = -1; card.scrollIntoView({ block: "center", behavior: "instant" }); card.focus({ preventScroll: true }); return; }
+    }
+    const card = document.getElementById("modal-card"); if (!card) return;
+    card.innerHTML = `<div class="modal-head"><h2>Original post</h2><button class="icon-btn" onclick="App.closeModal()" aria-label="Close original post">${App.ic("close")}</button></div>`;
+    card.appendChild(Stories.postCard(post));
+    document.getElementById("modal").classList.remove("hidden");
   },
   shareApp() { this._share("I'm tracking workouts and progress with Formora, a fitness and social app"); },
   _myRef() { try { let r = localStorage.getItem("fm_myref"); if (!r) { r = Math.random().toString(36).slice(2, 8); localStorage.setItem("fm_myref", r); } return r; } catch (e) { return ""; } },
@@ -857,6 +893,7 @@ const Social = {
       App.toast("Validated Stories require a photo up to 8 MiB or a video up to 25 MiB."); return;
     }
     if (isVid && f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
+    this._postStorySelection = null;
     if (this._storyDraft && this._storyDraft.url) URL.revokeObjectURL(this._storyDraft.url);
     this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f), owner, scope: this._actionScope(), id: Cloud._newActionId(), v2: window.STORY_INTERACTIONS === true };
     this.storyPreview();
@@ -866,14 +903,16 @@ const Social = {
     let ov = document.getElementById("story-preview");
     if (!ov) { ov = document.createElement("div"); ov.id = "story-preview"; document.body.appendChild(ov); }
     ov.className = "story-viewer preview";
-    const media = d.isVid ? `<video src="${esc(d.url)}" class="sv-media" autoplay loop muted playsinline></video>` : `<img src="${esc(d.url)}" class="sv-media" alt="preview" draggable="false">`;
+    const media = d.post ? `<div id="story-post-preview" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:72px 0 84px;box-sizing:border-box"></div>`
+      : d.isVid ? `<video src="${esc(d.url)}" class="sv-media" autoplay loop muted playsinline></video>` : `<img src="${esc(d.url)}" class="sv-media" alt="preview" draggable="false">`;
     ov.innerHTML = `<div class="sv-card">
       <div class="sv-head"><button class="sv-x" onclick="Social.cancelStory()">✕</button><div class="sv-name" style="margin-left:4px">New story</div><button class="sp-redo" onclick="Social.cancelStory();Social.addStoryPick()">↻ Retake</button></div>
       ${media}
       <div class="sp-bar"><button class="sp-share" onclick="Social.shareStory()">${d.isVid ? "Share Flex to your story" : "Share to your story"} →</button></div>
     </div>`;
+    if (d.post) ov.querySelector("#story-post-preview").appendChild(Stories.postCard(d.post));
   },
-  cancelStory() { const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; this.pendingStoryUploading = false; const ov = typeof document !== "undefined" && document.getElementById("story-preview"); if (ov) ov.remove(); },
+  cancelStory() { this._postStorySelection = null; const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; this.pendingStoryUploading = false; const ov = typeof document !== "undefined" && document.getElementById("story-preview"); if (ov) ov.remove(); },
   async shareStory() {
     const d = this._storyDraft; if (!d || d.sending || !this.cloudActive() || !d.id) return false;
     d.v2 ??= window.STORY_INTERACTIONS === true;
@@ -886,7 +925,7 @@ const Social = {
     d.sending = true; this.pendingStoryUploading = true;
     try {
       if (d.validation && !d.v2) throw new Error("Validated Stories unavailable");
-      if (!d.uploadedURL) {
+      if (!d.post && !d.uploadedURL) {
         let file = d.file;
         if (!d.isVid) {
           const dataUrl = await resizeImage(file, 1280, 0.82);
@@ -906,11 +945,13 @@ const Social = {
       let story;
       if (d.v2) {
         if (typeof Stories === "undefined") throw new Error("Stories unavailable");
-        const result = await Stories.publish(d.uploadedURL, d.isVid ? "video" : "photo", d.id, d.mediaReceipt);
+        const result = d.post ? await Stories.publishPost(d.post.id, d.id, d.post)
+          : await Stories.publish(d.uploadedURL, d.isVid ? "video" : "photo", d.id, d.mediaReceipt);
         if (!current()) return false;
         if (result?.receipt?.committed !== true || result.receipt.request_id !== d.id || result.receipt.author !== d.owner) throw new Error("story_unconfirmed");
         story = result.row;
-        if (story && (story.id !== result.receipt.id || story.author !== d.owner || story.photo !== d.uploadedURL)) throw new Error("story_unconfirmed");
+        if (story && (story.id !== result.receipt.id || story.author !== d.owner
+          || (d.post ? story.kind !== "post" || story.post_id !== d.post.id : story.photo !== d.uploadedURL))) throw new Error("story_unconfirmed");
       } else story = await Cloud.addStory(d.uploadedURL, d.isVid ? "video" : "photo", d.id);
       if (!current()) return false;
       if (!d.v2 && (!story || story.id !== d.id || story.author !== d.owner || story.photo !== d.uploadedURL)) throw new Error("story_unconfirmed");
@@ -939,7 +980,7 @@ const Social = {
     if (!draft?.v2 || draft.sending || typeof Stories === "undefined" || draft.owner !== Stories.owner()) return;
     draft.sending = true;
     try {
-      const receipt = await Stories.reconcile(draft.isVid ? "publish_video" : "publish_photo", draft.owner);
+      const receipt = await Stories.reconcile(draft.post ? "publish_post" : draft.isVid ? "publish_video" : "publish_photo", draft.owner);
       if (this._storyDraft !== draft || draft.owner !== Stories.owner()) return;
       draft.id = Cloud._newActionId();
       if (draft.validation) { delete draft.uploadedURL; delete draft.mediaReceipt; }

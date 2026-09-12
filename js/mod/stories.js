@@ -25,6 +25,7 @@
   const pick = (value, fields) => Object.fromEntries(fields.map(field => [field, value[field]]));
   const calls = Object.freeze({
     publish_story: ["p_request_id", "p_media_url", "p_kind", "p_audience"],
+    publish_post_story: ["p_request_id", "p_post_id", "p_post_author", "p_post_created_at"], get_shareable_story_post: ["p_post_id"],
     publish_validated_story: ["p_request_id", "p_reservation_id", "p_sha256"],
     story_feed: ["p_cursor"], get_story: ["p_id"], record_story_view: ["p_id", "p_request_id"],
     set_story_like: ["p_id", "p_desired", "p_request_id"], story_viewers: ["p_id", "p_cursor"],
@@ -135,9 +136,9 @@
         || parsed.pathname !== "/rest/v1" || parsed.href !== value) throw failure(503);
       return parsed;
     },
-    async _body(response) {
+    async _body(response, maximum = this.limits.responseBytes) {
       const length = Number(response.headers?.get("content-length"));
-      if (length > this.limits.responseBytes) throw failure(502);
+      if (length > maximum) throw failure(502);
       let text = "";
       if (response.body?.getReader) {
         const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -147,13 +148,13 @@
             const chunk = await reader.read();
             if (chunk.done) break;
             total += chunk.value.byteLength;
-            if (total > this.limits.responseBytes) throw failure(502);
+            if (total > maximum) throw failure(502);
             text += decoder.decode(chunk.value, { stream: true });
           }
           text += decoder.decode();
         } finally { reader.cancel().catch(() => {}); }
       } else text = await response.text();
-      if (bytes(text) > this.limits.responseBytes) throw failure(502);
+      if (bytes(text) > maximum) throw failure(502);
       try { return JSON.parse(text); } catch (_) { throw failure(502); }
     },
     async _call(name, body = {}, scope = this._scope()) {
@@ -192,7 +193,7 @@
         });
         check();
         let result;
-        try { result = await this._body(response); }
+        try { result = await this._body(response, name === "get_shareable_story_post" ? 2129920 : this.limits.responseBytes); }
         catch (error) {
           if (!response.ok && [401, 403, 404, 409, 429, 503].includes(response.status)) throw failure(response.status);
           throw error;
@@ -254,7 +255,7 @@
       } catch (_) {}
     },
     _storageTarget(action, target) {
-      if (!/^(publish_photo|publish_video|view|like|reply|delete|preferences|read_notifications|block|report|report_message)$/.test(action)) throw failure(400);
+      if (!/^(publish_photo|publish_video|publish_post|view|like|reply|delete|preferences|read_notifications|block|report|report_message)$/.test(action)) throw failure(400);
       if (action === "report_message") {
         if (!messageId(target) || bytes(target) > 1020) throw failure(400);
         try { return encodeURIComponent(target); } catch (_) { throw failure(400); }
@@ -301,7 +302,9 @@
       });
     },
     _shape(value, scope) {
-      if (!value || !uuid(value.id) || !uuid(value.author) || !this._media(value.photo, value.kind, value.author)
+      if (!value || !uuid(value.id) || !uuid(value.author)
+        || (value.kind === "post" ? value.photo !== null || !messageId(value.post_id) || !uuid(value.post_author)
+          || !iso(value.post_created_at) : !this._media(value.photo, value.kind, value.author))
         || value.audience !== "authenticated" || !integer(value.ts) || !iso(value.expires_at)
         || typeof value.mine !== "boolean" || value.mine !== (value.author === scope.owner)
         || typeof value.seen !== "boolean" || typeof value.liked !== "boolean"
@@ -309,6 +312,7 @@
         || (value.created_at !== undefined && !iso(value.created_at))) throw failure(502);
       if (Date.parse(value.expires_at) <= wallNow()) throw failure(404);
       const row = pick(value, ["id", "author", "photo", "kind", "audience", "ts", "expires_at", "mine", "seen", "liked", "view_count", "like_count"]);
+      if (value.kind === "post") Object.assign(row, pick(value, ["post_id", "post_author", "post_created_at"]));
       if (value.created_at !== undefined) row.created_at = value.created_at;
       return Object.freeze(row);
     },
@@ -394,8 +398,16 @@
       let fields;
       switch (action) {
         case "publish":
+        case "publish_post":
           if (!uuid(value.id) || value.author !== scope.owner || !iso(value.created_at) || !iso(value.expires_at)) throw failure(502);
-          fields = ["id", "author", "created_at", "expires_at"]; break;
+          fields = ["id", "author", "created_at", "expires_at"];
+          if (action === "publish_post") {
+            if (!messageId(value.post_id) || !uuid(value.post_author) || !iso(value.post_created_at)
+              || (body.p_post_id !== undefined && (value.post_id !== body.p_post_id || value.post_author !== body.p_post_author
+                || value.post_created_at !== body.p_post_created_at))) throw failure(502);
+            fields.push("post_id", "post_author", "post_created_at");
+          }
+          break;
         case "delete":
           if (!uuid(value.id) || (body.p_id && value.id !== body.p_id) || value.author !== scope.owner || !iso(value.deleted_at)) throw failure(502);
           fields = ["id", "author", "deleted_at"]; break;
@@ -460,6 +472,83 @@
       });
       this.pending.set(pendingKey, flight); this._updateActions?.();
       return flight.promise;
+    },
+    async shareablePost(id) {
+      if (!this.enabled()) throw failure(503);
+      if (!messageId(id)) throw failure(400);
+      const scope = this._scope(), value = await this._call("get_shareable_story_post", { p_post_id: id }, scope);
+      if (!value || value.id !== id || !uuid(value.author) || !iso(value.created_at) || typeof value.has_video !== "boolean"
+        || !["available", "none", "unavailable"].includes(value.photo_status) || (value.photo_status === "available") !== (value.photo !== null)
+        || ["name", "username", "text"].some(key => typeof value[key] !== "string")
+        || [...value.name].length > 80 || [...value.username].length > 80 || [...value.text].length > 1600) throw failure(502);
+      if (value.photo !== null) {
+        const origin = options.mediaOrigin || this._base().origin;
+        if (typeof value.photo !== "string" || !(value.photo.length <= 2097152 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value.photo)
+          || value.photo.length <= 2048 && value.photo.startsWith(origin + "/storage/v1/object/public/")
+          && /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/[A-Za-z0-9_./-]+$/.test(value.photo)
+          && !/(^|\/)\.\.?($|\/)/.test(value.photo))) throw failure(502);
+      }
+      this._assert(scope);
+      return Object.freeze(pick(value, ["id", "author", "created_at", "name", "username", "text", "photo", "photo_status", "has_video"]));
+    },
+    async publishPost(postId, requestId, source) {
+      if (!this.enabled()) throw failure(503);
+      if (!messageId(postId) || source?.id !== postId || !uuid(source.author) || !iso(source.created_at)) throw failure(400);
+      const scope = this._scope();
+      return this._mutate("publish_post", "publish_post_story", scope.owner,
+        { p_post_id: postId, p_post_author: source.author, p_post_created_at: source.created_at }, async receipt => {
+        let row;
+        try { row = await this.get(receipt.id); } catch (error) { if (error.status !== 404) throw error; row = null; }
+        if (row && (row.author !== scope.owner || row.kind !== "post" || !this._samePost(row, source))) throw failure(502);
+        return { receipt, row };
+      }, requestId);
+    },
+    _samePost(row, post) {
+      return row.post_id === post.id && row.post_author === post.author && row.post_created_at === post.created_at;
+    },
+    postCard(post) {
+      const card = doc().createElement("article");
+      card.className = "story-post-card";
+      card.style.cssText = "width:360px;max-width:calc(100% - 32px);max-height:100%;display:flex;flex-direction:column;overflow:hidden;background:#fff;color:#181818;border:1px solid #d5d5d5;border-radius:8px;text-align:left;letter-spacing:0";
+      const author = doc().createElement("strong"); author.textContent = post.name || "Member";
+      author.style.cssText = "padding:12px 14px 4px;font-size:15px;overflow-wrap:anywhere"; card.appendChild(author);
+      if (post.username) {
+        const handle = doc().createElement("span"); handle.textContent = "@" + post.username;
+        handle.style.cssText = "padding:0 14px 10px;font-size:12px;color:#565656;overflow-wrap:anywhere"; card.appendChild(handle);
+      }
+      if (post.photo) {
+        const photo = doc().createElement("img"); photo.src = post.photo; photo.alt = "Shared post photo"; photo.draggable = false;
+        photo.style.cssText = "display:block;width:100%;min-height:0;max-height:320px;object-fit:contain;flex-shrink:1;background:#f2f3f3";
+        card.appendChild(photo);
+      } else if (post.photo_status === "unavailable") {
+        const missing = doc().createElement("p"); missing.textContent = "Photo preview unavailable";
+        missing.style.cssText = "margin:0;padding:32px 14px;background:#f2f3f3;color:#565656;text-align:center;font-size:14px";
+        card.appendChild(missing);
+      }
+      if (post.has_video) {
+        const kind = doc().createElement("span"); kind.textContent = "Video post";
+        kind.style.cssText = "padding:8px 14px 0;font-size:12px;color:#565656"; card.appendChild(kind);
+      }
+      const caption = doc().createElement("p"); caption.textContent = post.text;
+      caption.style.cssText = "margin:0;padding:12px 14px;overflow-wrap:anywhere;white-space:pre-wrap;font-size:14px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;flex-shrink:0";
+      card.appendChild(caption);
+      return card;
+    },
+    async openPost() {
+      const play = this._play;
+      if (!play || play.row.kind !== "post" || play.openingPost) return;
+      play.openingPost = true; this.pause("opening-post", true);
+      try {
+        const row = await this.get(play.row.id), post = await this.shareablePost(row.post_id);
+        if (this._play !== play || !this._current(play.scope)) return;
+        if (!this._samePost(row, post)) throw failure(404);
+        if (typeof social()?.openStoryPost !== "function") throw failure(503);
+        this.close(); social().openStoryPost(post);
+      } catch (error) {
+        if (this._play === play && this._current(play.scope)) {
+          if (error.status === 404) this._unavailable(error); else this._feedback(error);
+        }
+      } finally { if (this._play === play) { play.openingPost = false; this.pause("opening-post", false); } }
     },
     async publish(url, kind, requestId, mediaReceipt) {
       if (!this.enabled()) return null;
@@ -685,6 +774,7 @@
         this._background.push({ element, inert: element.inert, inertAttribute: element.hasAttribute("inert"), hidden: element.getAttribute("aria-hidden") });
         element.inert = true; element.setAttribute("aria-hidden", "true");
       }
+      document.querySelectorAll(".toast").forEach(toast => toast.remove());
       this._previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
       document.body.appendChild(root); this._root = root;
       this._listen(root, "click", event => {
@@ -814,9 +904,11 @@
       if (!id) return null;
       try {
         const row = await this.get(id);
+        const post = row.kind === "post" ? await this.shareablePost(row.post_id) : null;
+        if (post && !this._samePost(row, post)) throw failure(404);
         this._assert(scope);
         if (revision !== this._revision || !this._root) return null;
-        this._render(row, scope, revision);
+        this._render(row, scope, revision, post);
         const focus = doc().getElementById(focusId?.startsWith("stories-") ? focusId : "stories-close");
         if (focus && this._root.contains(focus) && !focus.disabled) focus.focus(); else this._element("close").focus();
         return row;
@@ -825,7 +917,7 @@
         throw error;
       }
     },
-    _render(row, scope, revision) {
+    _render(row, scope, revision, post = null) {
       const person = (row.mine ? social()?.me?.() : social()?.cloudUser?.(row.author)) || {};
       const name = typeof person.name === "string" ? [...person.name].slice(0, 80).join("") : "Member";
       const safeAvatar = typeof person.avatar === "string" && person.avatar.startsWith(this._base().origin + "/storage/v1/object/public/") && !/[<>"'\s]/.test(person.avatar) ? person.avatar : null;
@@ -835,9 +927,13 @@
         <div class="sv-head" style="position:static;cursor:default;padding:6px 10px;gap:6px">${avatar}<div style="flex:1;min-width:0"><div class="sv-name" style="overflow-wrap:anywhere;line-height:1.2">${this._text(name)}</div><time class="sv-time" datetime="${this._text(row.expires_at)}" title="Expires ${this._text(new Date(row.expires_at).toLocaleString())}">${this._text(new Date(row.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</time></div>${this._button("close", "Close stories", "close")}</div>`;
       const stage = this._element("stage");
       stage.innerHTML = `<div id="stories-media-status" role="status" style="position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#fff"><progress aria-label="Loading media"></progress><p>Loading...</p></div>${this._navigation()}`;
-      const media = doc().createElement(row.kind === "photo" ? "img" : "video");
+      const media = doc().createElement(row.kind === "post" ? "button" : row.kind === "photo" ? "img" : "video");
       media.className = "sv-media"; media.id = "stories-media"; media.draggable = false; media.style.display = "block";
-      if (row.kind === "photo") media.alt = "Story photo";
+      if (row.kind === "post") {
+        media.type = "button"; media.title = "Open original post"; media.setAttribute("aria-label", "Open original post");
+        media.style.cssText = "display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:16px 0;border:0;background:transparent;cursor:pointer";
+        media.appendChild(this.postCard(post));
+      } else if (row.kind === "photo") media.alt = "Story photo";
       else { media.playsInline = true; media.muted = this.muted; media.preload = "auto"; }
       stage.prepend(media);
       this._element("footer").innerHTML = `<div style="display:flex;gap:4px;align-items:center;justify-content:space-between;flex-wrap:wrap">
@@ -863,7 +959,16 @@
       }
       const current = () => this._play === play && this._revision === revision && this._current(scope);
       this._listen(media, "error", () => { if (current()) this._unavailable(failure(502)); }, undefined, play.handlers);
-      if (row.kind === "photo") {
+      if (row.kind === "post") {
+        this._listen(media, "click", event => { event.stopPropagation(); this.openPost(); }, undefined, play.handlers);
+        const photo = media.querySelector("img");
+        if (photo) {
+          const ready = () => { if (current() && photo.complete && photo.naturalWidth) this._ready(play); };
+          this._listen(photo, "load", ready, undefined, play.handlers);
+          this._listen(photo, "error", () => { if (current()) this._unavailable(failure(502)); }, undefined, play.handlers);
+          ready();
+        }
+      } else if (row.kind === "photo") {
         const loaded = async () => {
           try {
             if (media.decode) await media.decode();
@@ -898,7 +1003,8 @@
         if (!this._current(scope)) this.reset(); else this._unavailable(failure(404));
       }, Math.max(0, Date.parse(row.expires_at) - wallNow()));
       this._loadTimer = later(() => { if (current() && !play.ready) this._unavailable(failure(504)); }, this.limits.deadlineMs);
-      media.src = row.photo;
+      if (row.kind !== "post") media.src = row.photo;
+      else if (!post.photo) this._ready(play);
       if (row.kind === "video") this._playVideo(play);
       this._updateActions();
     },
@@ -954,17 +1060,17 @@
         }
       }
       play.elapsed += elapsed; play.qualifiedMs += elapsed;
-      const duration = this.getDuration(), position = play.row.kind === "photo" ? play.elapsed / 1000 : play.media.currentTime;
+      const duration = this.getDuration(), position = play.row.kind !== "video" ? play.elapsed / 1000 : play.media.currentTime;
       const progress = this._element("progress");
       if (progress && duration) progress.style.width = Math.min(100, position / duration * 100) + "%";
       if (play.qualifiedMs >= this.limits.qualifySeconds * 1000 && !play.viewAttempted && !play.row.mine) this._recordQualified(play);
-      if (play.row.kind === "photo" && play.elapsed >= this.limits.photoSeconds * 1000) { this.next(true).catch(error => this._feedback(error)); return; }
+      if (play.row.kind !== "video" && play.elapsed >= this.limits.photoSeconds * 1000) { this.next(true).catch(error => this._feedback(error)); return; }
       this._queueTick();
     },
     getDuration() {
       const play = this._play;
       if (!play) return null;
-      return play.row.kind === "photo" ? this.limits.photoSeconds : Number.isFinite(play.media.duration) && play.media.duration > 0 ? play.media.duration : null;
+      return play.row.kind !== "video" ? this.limits.photoSeconds : Number.isFinite(play.media.duration) && play.media.duration > 0 ? play.media.duration : null;
     },
     _recordQualified(play) {
       if (this._play !== play || play.row.mine || play.viewAttempted || play.qualifiedMs < 2000) return;
@@ -1026,7 +1132,7 @@
       if (!play.rechecking) {
         play.rechecking = this.get(play.row.id).then(row => {
           if (this._play !== play || !this._current(play.scope)) return;
-          if (row.photo !== play.media.getAttribute("src")) { this._show().catch(error => this._feedback(error)); return; }
+          if (row.kind === "post" || row.photo !== play.media.getAttribute("src")) { this._show().catch(error => this._feedback(error)); return; }
           play.media.style.visibility = "";
           play.pauses.delete("hidden"); play.pauses.delete("blur"); this.pause("checking", false);
         }).catch(error => { if (this._play === play) this._unavailable(error); }).finally(() => { play.rechecking = null; });

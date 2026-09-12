@@ -337,6 +337,91 @@ function socialHarness() {
   return { ...harnessed, social, elements, storage };
 }
 
+test('Story photos upload decoded bytes without fetching a data URL and await the saved Story', async () => {
+  const { social, context, cloud, elements, state } = socialHarness();
+  const uploaded = deferred(), started = deferred(), published = deferred();
+  const button = { textContent: 'Share to your story', disabled: false };
+  elements.set('story-preview', { querySelector: selector => selector === '.sp-share' ? button : null,
+    remove: () => elements.delete('story-preview') });
+  Object.assign(context, { File, Uint8Array, atob, resizeImage: async () => 'data:image/jpeg;base64,AQIDBA==',
+    fetch: async () => { throw new Error('CSP blocks data: connections'); } });
+  const draft = { file: new File([Uint8Array.of(9)], 'photo.png', { type: 'image/png' }), isVid: false,
+    owner, scope: social._actionScope(), id: postId, v2: false };
+  social._storyDraft = draft;
+  cloud.uploadMedia = async (file, folder) => {
+    assert.equal(file.type, 'image/jpeg'); assert.equal(folder, 'stories');
+    assert.deepEqual([...new Uint8Array(await file.arrayBuffer())], [1, 2, 3, 4]);
+    started.resolve(); return uploaded.promise;
+  };
+  let publishCalls = 0;
+  cloud.addStory = async (url, kind, id) => {
+    publishCalls++;
+    assert.equal(url, 'https://fixture.invalid/story.jpg'); assert.equal(kind, 'photo'); assert.equal(id, postId);
+    return published.promise;
+  };
+  const sharing = social.shareStory();
+  await started.promise;
+  assert.equal(button.disabled, true); assert.equal(await social.shareStory(), false);
+  uploaded.resolve('https://fixture.invalid/story.jpg');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(publishCalls, 1); assert.equal(social._storyDraft, draft);
+  assert.equal(social.cloud.stories.length, 0); assert.deepEqual(state.toasts, []);
+  published.resolve({ id: postId, author: owner, photo: 'https://fixture.invalid/story.jpg', kind: 'photo' });
+  assert.equal(await sharing, true);
+  assert.equal(social.cloud.stories.length, 1); assert.equal(social._storyDraft, null);
+});
+
+test('Share menu previews a post Story and retries the same reference without uploading copied media', async () => {
+  const { social, context, cloud, state } = socialHarness();
+  const post = { id: 'source-post', author: peer, name: 'Member', username: 'member', text: 'A public post', photo: null, has_video: false };
+  social.cloud.feed = [post];
+  const actions = []; context.App.openSheet = (title, items) => actions.push(...items);
+  context.STORY_INTERACTIONS = true;
+  const calls = []; let fail = true, previews = 0;
+  context.Stories = { enabled: () => true, shareablePost: async id => { assert.equal(id, post.id); return post; },
+    publishPost: async (id, requestId) => {
+      calls.push({ id, requestId });
+      if (fail) throw Object.assign(new Error('Confirmation unavailable'), { status: 502 });
+      return { receipt: { committed: true, request_id: requestId, author: owner, id: postId },
+        row: { id: postId, author: owner, kind: 'post', post_id: id, photo: null } };
+    } };
+  cloud.uploadMedia = () => { throw new Error('Shared posts must not copy media'); };
+  social.storyPreview = () => previews++;
+  assert.equal(social.sharePost(post.id), true);
+  assert.deepEqual(actions.map(action => action.label), ['Add to story', 'Share outside Formora', 'Copy link']);
+  assert.equal(await actions[0].fn(), true); assert.equal(previews, 1);
+  const draft = social._storyDraft;
+  assert.equal(await social.shareStory(), false); assert.equal(social._storyDraft, draft);
+  fail = false;
+  assert.equal(await social.shareStory(), true); assert.equal(calls.length, 2);
+  assert.equal(calls[0].requestId, calls[1].requestId); assert.equal(calls[0].id, post.id);
+  assert.equal(social._storyDraft, null); assert.ok(state.toasts.at(-1).startsWith('Story shared'));
+});
+
+test('Cancelled or switched-account post previews never reopen the Story composer', async () => {
+  for (const cancel of ['cancel', 'account']) {
+    const { social, context, state } = socialHarness(), pending = deferred();
+    let previews = 0; social.storyPreview = () => previews++;
+    context.Stories = { enabled: () => true, shareablePost: () => pending.promise };
+    const opening = social.addPostToStory('source-post');
+    if (cancel === 'cancel') social.cancelStory(); else state.uid = peer;
+    pending.resolve({ id: 'source-post', author: peer });
+    assert.equal(await opening, false); assert.equal(previews, 0); assert.equal(social._storyDraft ?? null, null);
+  }
+});
+
+test('Disabled post-to-Story sharing preserves the one-step external share action', () => {
+  const { social, context } = socialHarness();
+  const post = { id: 'source-post', author: peer, text: 'Public post' };
+  social.cloud.feed = [post];
+  const shared = [];
+  context.App.openSheet = () => { throw new Error('Unavailable Story actions must not be shown'); };
+  context.Stories = { enabled: () => false };
+  social._share = text => shared.push(text);
+  social.sharePost(post.id);
+  assert.deepEqual(shared, ['Public post']);
+});
+
 test('DEF-065: UI commits once after acknowledgement and retains all draft media while pending', async () => {
   const { social, context, state, elements, storage } = socialHarness();
   const pending = deferred(), started = deferred();
@@ -881,6 +966,22 @@ test('a secure publishing upload never falls back to the anonymous key', async (
   context.SupaAuth.active = () => false;
   assert.equal(await cloud.uploadMedia({ type: 'video/webm', size: 10 }, 'videos'), null);
   assert.equal(state.requests.length, 0);
+});
+
+test('Story uploads refresh an expired bearer and use the authenticated owner path', async () => {
+  const { cloud, context, state } = harness();
+  let refreshed = 0;
+  context.SupaAuth.bearer = () => 'expired-bearer';
+  context.SupaAuth.token = async () => { refreshed++; return 'refreshed-story-bearer'; };
+  context.fetch = async (url, options) => {
+    state.requests.push({ url, options });
+    assert.equal(options.headers.Authorization, 'Bearer refreshed-story-bearer');
+    assert.ok(new URL(url).pathname.startsWith('/storage/v1/object/media/stories/' + owner + '/'));
+    return response(200, {});
+  };
+  const result = await cloud.uploadMedia({ type: 'image/jpeg', size: 4 }, 'stories');
+  assert.equal(refreshed, 1); assert.equal(state.requests.length, 1);
+  assert.ok(result.startsWith('https://fixture.invalid/storage/v1/object/public/media/stories/' + owner + '/'));
 });
 
 for (const action of dmActions) {

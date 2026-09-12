@@ -101,6 +101,22 @@ test('HTML transformation installs fail-closed CSP and guard before all app scri
   assert.match(html, /<h1>Formora<\/h1>/);
 });
 
+test('Post sharing has an exclusive QAT-only test switch without media or provider activation', () => {
+  const backend = { projectRef: qat.projectRef, anonKey: testKey() };
+  const config = stageConfig('qat', commit, origin, backend, false, true), window = {};
+  vm.runInNewContext(guardSource(config, backend), { window });
+  assert.equal(config.storyPostSharing, true); assert.equal(window.STORY_INTERACTIONS, true);
+  for (const flag of ['STORY_MEDIA_VALIDATION', 'SERVER_MEASUREMENT', 'REGISTRATION_CONSENT', 'FORMORA_WEB_PUSH', 'ACCOUNT_RIGHTS']) assert.equal(window[flag], false);
+  assert.equal(window.RAZORPAY.enabled, false);
+  assert.throws(() => stageConfig('qat', commit, origin, null, false, true));
+  assert.throws(() => stageConfig('qat', commit, origin, backend, true, true));
+  assert.throws(() => stageConfig('qat', commit, origin, backend, false, 'true'));
+  assert.throws(() => stageConfig('beta', commit, origin, backend, false, true));
+  assert.throws(() => guardSource({ ...stageConfig('qat', commit, origin), storyPostSharing: true }));
+  vm.runInNewContext('window.STORY_INTERACTIONS=false;window.STORY_MEDIA_VALIDATION=true;', { window });
+  assert.equal(window.STORY_INTERACTIONS, true); assert.equal(window.STORY_MEDIA_VALIDATION, false);
+});
+
 function fixture(context) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'formora-stage-'));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
