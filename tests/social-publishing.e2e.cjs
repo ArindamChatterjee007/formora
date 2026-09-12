@@ -6,8 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
+const { database: storyDatabase, identity: storyIdentity, rpc: storyRpc, policy: storyPolicy } = require('./story-media-sql.test.cjs');
 
 const root = path.resolve(__dirname, '..');
+const storyOrigin = 'https://fixture.supabase.co';
 const owner = '11111111-1111-4111-8111-111111111111';
 const peer = '22222222-2222-4222-8222-222222222222';
 const members = new Map([
@@ -58,7 +60,8 @@ before(async () => {
     if (!file) { response.writeHead(404).end(); return; }
     let body = fs.readFileSync(file);
     if (file === path.join(root, 'js/config.js')) body = Buffer.from(body.toString() + `\nObject.assign(window, {
-      SUPABASE_URL: ${JSON.stringify(origin)}, SUPABASE_ANON_KEY: 'fixture-public-anon',
+      SUPABASE_URL: window.__storyFixture ? ${JSON.stringify(storyOrigin)} : ${JSON.stringify(origin)}, SUPABASE_ANON_KEY: 'fixture-public-anon',
+      STORY_INTERACTIONS: window.__storyPostFixture === true,
       GOOGLE_CLIENT_ID: '', GOOGLE_IOS_CLIENT_ID: '', POSTHOG_KEY: '', EMAILJS_PUBLIC_KEY: '',
       EMAILJS_SERVICE_ID: '', EMAILJS_TEMPLATE_ID: '', EMAIL_FN_URL: '', SHEETS_API: '', SOCIAL_API: '', PEXELS_KEY: ''
     }); if (window.Currency) Object.assign(window.Currency, { ready: true, cur: 'INR', rate: 83, country: 'IN' });\n`);
@@ -76,7 +79,7 @@ after(async () => {
   finally { if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } }
 });
 
-async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
+async function openApp(testContext, viewport = { width: 1280, height: 900 }, { storyPosts = false, storyUpload = false } = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width < 600, reducedMotion: 'reduce', serviceWorkers: 'block' });
   const state = {
     posts: new Map([
@@ -89,9 +92,25 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
       ['dm-last', { id: 'dm-last', from_uid: peer, to_uid: owner, body: initialBodies[2], ts: '2026-09-01T12:02:00Z' }],
     ]),
     accounts: new Map([...members.keys()].map(uid => [uid, accountState(uid)])),
-    media: new Map(), mediaWrites: [],
+    media: new Map(), mediaWrites: [], stories: new Map(), storyCalls: [],
     writes: [], reads: [], gates: [], activeGates: [], external: [], unexpected: [], pageErrors: [], consoleErrors: [],
   };
+  let storyDb, storyTail = Promise.resolve();
+  const storySerial = callback => { const result = storyTail.then(callback); storyTail = result.catch(() => {}); return result; };
+  if (storyPosts) {
+    storyDb = await storyDatabase(null, false, false);
+    await storyDb.exec('CREATE TABLE public.posts(id text PRIMARY KEY,author text,data jsonb,likes jsonb,ts timestamptz)');
+    await storyDb.exec(fs.readFileSync(path.join(root, 'supabase/story-post-sharing.sql'), 'utf8'));
+    const photo = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(root, 'assets/female-ex-byid/bench_press-1.jpg')).toString('base64');
+    state.posts.get('post-peer').data.photo = photo;
+    for (const post of state.posts.values()) await storyDb.query('INSERT INTO public.posts VALUES($1,$2,$3,$4,$5)',
+      [post.id, post.author, post.data, post.likes, post.ts]);
+    for (const member of members.values()) await storyDb.query('UPDATE public.profiles SET data=$2 WHERE uid=$1',
+      [member.uid, { name: member.name, username: member.username, privacy: 'public' }]);
+    await storyDb.query(`UPDATE story_settings SET enabled=true,permission_policy_approved=true,media_audience_approved=true,
+      public_media_approved=true,retention_approved=true,operator_policy_ref=$1,media_origin=$2,public_bucket='media'`, [storyPolicy, storyOrigin]);
+    state.storyQuery = (sql, args = []) => storySerial(async () => { await storyDb.exec('RESET ROLE'); return (await storyDb.query(sql, args)).rows; });
+  }
   state.hold = (table, method, id) => {
     const started = deferred(), released = deferred();
     const gate = { table, method, id, started: started.promise, release: released.resolve, begin: started.resolve, result: released.promise };
@@ -105,7 +124,7 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
   await context.route('**/*', async route => {
     try {
       const request = route.request(), url = new URL(request.url()), method = request.method();
-      if (url.origin !== origin) {
+      if (url.origin !== origin && !((storyPosts || storyUpload) && url.origin === storyOrigin)) {
         state.external.push(url.origin + url.pathname);
         if (url.hostname === 'fonts.googleapis.com') return route.fulfill({ contentType: 'text/css', body: '' });
         return route.abort('blockedbyclient');
@@ -126,8 +145,8 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
           const asset = state.media.get(url.pathname.slice(publicPrefix.length));
           return asset ? route.fulfill({ status: 200, contentType: asset.type, body: asset.body }) : route.fulfill({ status: 404, body: '' });
         }
-        const prefix = '/storage/v1/object/media/videos/' + uid + '/';
-        if (!uid || method !== 'POST' || !url.pathname.startsWith(prefix)) return reply(route, 403, {});
+        const prefix = '/storage/v1/object/media/';
+        if (!uid || method !== 'POST' || !['videos', ...(storyUpload ? ['stories'] : [])].some(folder => url.pathname.startsWith(prefix + folder + '/' + uid + '/'))) return reply(route, 403, {});
         state.mediaWrites.push({ uid, method, path: url.pathname });
         state.media.set(url.pathname.slice('/storage/v1/object/media/'.length), { body: request.postDataBuffer(), type: request.headers()['content-type'] });
         return reply(route, 200, { Key: url.pathname });
@@ -138,9 +157,28 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
       if (table === 'rpc/get_state') return reply(route, 200, {
         users: Object.fromEntries([...members].map(([id]) => [id, { uid: id, ...state.accounts.get(id).profile }])),
         posts: Object.fromEntries([...state.posts].map(([id, row]) => [id, { id, author: row.author, ...row.data, likes: row.likes, ts: Date.parse(row.ts) }])),
-        requests: { connection: { id: 'connection', from: owner, to: peer, status: 'accepted', ts: 1 } }, comments: {}, stories: {},
+        requests: { connection: { id: 'connection', from: owner, to: peer, status: 'accepted', ts: 1 } }, comments: {}, stories: Object.fromEntries(state.stories),
       });
       const body = request.postData() ? request.postDataJSON() : undefined;
+      if (storyDb && table.startsWith('rpc/')) {
+        const name = table.slice(4), argumentsByName = {
+          get_shareable_story_post: ['p_post_id'], publish_post_story: ['p_request_id', 'p_post_id', 'p_post_author', 'p_post_created_at'],
+          get_story: ['p_id'], story_feed: ['p_cursor'], story_reply_references: ['p_message_ids'],
+          story_viewers: ['p_id', 'p_cursor'], record_story_view: ['p_id', 'p_request_id'],
+        };
+        if (Object.hasOwn(argumentsByName, name)) {
+          state.storyCalls.push({ name, body, uid });
+          return storySerial(async () => {
+            try {
+              await storyIdentity(storyDb, uid);
+              return reply(route, 200, await storyRpc(storyDb, name, argumentsByName[name].map(key => body[key] ?? null)));
+            } catch (error) {
+              const status = /^PT(\d{3})$/.exec(error.code || '');
+              return reply(route, status ? Number(status[1]) : error.code === '42501' ? 403 : 400, { code: error.code });
+            }
+          });
+        }
+      }
       const id = url.searchParams.get('id')?.slice(3) || body?.id;
       if (method !== 'GET') state.writes.push({ table, method, id, uid, body, url: url.toString(), prefer: request.headers().prefer });
       else state.reads.push({ table, uid, url: url.toString() });
@@ -170,8 +208,8 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
         return route.fulfill({ status: 201, body: '' });
       }
       if (table === 'rpc/admit_social_notification') return reply(route, 200, true);
-      if (table !== 'posts' && table !== 'messages') { state.unexpected.push(method + ' ' + table); return reply(route, 501, {}); }
-      const records = state[table], ownerField = table === 'posts' ? 'author' : 'from_uid';
+      if (table !== 'posts' && table !== 'messages' && !(storyUpload && table === 'stories')) { state.unexpected.push(method + ' ' + table); return reply(route, 501, {}); }
+      const records = state[table], ownerField = table === 'messages' ? 'from_uid' : 'author';
       if (method === 'GET') {
         let rows = [...records.values()].filter(row => table === 'posts' || row.from_uid === uid || row.to_uid === uid);
         for (const column of ['id', ownerField, 'to_uid']) {
@@ -212,13 +250,15 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
     }
   });
   await context.addInitScript(seed => {
+    window.__storyFixture = seed.stories;
+    window.__storyPostFixture = seed.storyPosts;
     if (sessionStorage.getItem('publishing-fixture-seeded')) return;
     sessionStorage.setItem('publishing-fixture-seeded', '1');
     localStorage.setItem('formora_supa_session', JSON.stringify({ uid: seed.member.uid, email: seed.member.email, access_token: seed.member.token, refresh_token: seed.member.refresh, expires_at: Math.floor(Date.now() / 1000) + 3600 }));
     localStorage.setItem('gymcoach_auth', JSON.stringify({ accounts: [{ id: 'fixture-owner', email: seed.member.email, name: seed.member.name, provider: 'supabase', emailVerified: true }], currentUserId: 'fixture-owner' }));
     localStorage.setItem('gymcoach_v1_fixture-owner', JSON.stringify(seed.account));
     localStorage.setItem('fm_dl_x', '1'); localStorage.setItem('fm_msgsound', 'off');
-  }, { member: members.get(owner), account: accountState(owner) });
+  }, { member: members.get(owner), account: accountState(owner), stories: storyPosts || storyUpload, storyPosts });
   const page = await context.newPage();
   page.setDefaultTimeout(8000); page.setDefaultNavigationTimeout(8000);
   page.on('pageerror', error => state.pageErrors.push(error.message));
@@ -227,6 +267,7 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
   testContext.after(async () => {
     state.activeGates.forEach(gate => gate.release(503));
     await context.close();
+    if (storyDb) { await storyTail; await storyDb.close(); }
     assert.deepEqual(state.pageErrors, []);
     assert.deepEqual(state.unexpected, []);
     assert.ok(state.external.every(url => url.startsWith('https://fonts.googleapis.com/')), 'Only the blocked font stylesheet may request an external origin');
@@ -234,6 +275,18 @@ async function openApp(testContext, viewport = { width: 1280, height: 900 }) {
   });
   await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   await ready(page);
+  if (storyPosts) {
+    await page.waitForFunction(() => Stories.enabled() && typeof Stories.onClose === 'function');
+    const photo = await page.evaluate(async source => {
+      const image = new Image(); image.src = source; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = Math.round(1080 * image.naturalHeight / image.naturalWidth);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.95);
+    }, state.posts.get('post-peer').data.photo);
+    assert.ok(Buffer.byteLength(photo) > 131072 && Buffer.byteLength(photo) < 2097152, 'Use a decoded exercise photo larger than the former preview cap');
+    state.posts.get('post-peer').data.photo = photo;
+    await state.storyQuery("UPDATE posts SET data=jsonb_set(data,'{photo}',$1::jsonb) WHERE id='post-peer'", [JSON.stringify(photo)]);
+  }
   return { page, state, context };
 }
 
@@ -252,6 +305,70 @@ async function thread(page) {
 async function bodies(page) {
   return page.locator('#chat-thread .bubble').evaluateAll(nodes => nodes.map(node => Array.from(node.childNodes)
     .filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
+}
+
+test('Story upload browser: photo conversion obeys CSP and publication waits for acknowledgement', async testContext => {
+  const { page, state } = await openApp(testContext, { width: 390, height: 844 }, { storyUpload: true });
+  await page.getByRole('button', { name: /Your story/ }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('#modal').getByRole('button', { name: /Choose from gallery/ }).click();
+  await (await chooser).setFiles({ name: 'synthetic.png', mimeType: 'image/png', buffer: fs.readFileSync(path.join(root, 'icons/icon-192.png')) });
+  await page.locator('#story-preview img').waitFor();
+  const gate = state.hold('stories', 'POST');
+  await page.locator('#story-preview .sp-share').click();
+  await gate.started;
+  assert.equal(state.mediaWrites.length, 1); assert.equal(state.stories.size, 0);
+  assert.equal(await page.locator('#story-preview .sp-share').isDisabled(), true);
+  gate.release(503);
+  await page.getByRole('button', { name: 'Retry sharing', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Retry sharing', exact: true }).click();
+  await page.locator('#story-preview').waitFor({ state: 'detached' });
+  assert.equal(state.mediaWrites.length, 1); assert.equal(state.stories.size, 1);
+  assert.ok([...state.media.values()].every(media => media.type === 'image/jpeg' && media.body.length > 0));
+  assert.ok(!state.consoleErrors.some(error => /connect-src|Refused to connect|data:/.test(error)));
+});
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  test('Post-to-Story browser: preview, publish, open original and revoked source at ' + viewport.width, async testContext => {
+    const { page, state } = await openApp(testContext, viewport, { storyPosts: true });
+    const sourceCard = page.locator('.post').filter({ has: page.locator('[data-saved-post="post-peer"]') });
+    await sourceCard.getByRole('button', { name: 'Share', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Share post', exact: true }).getByRole('button', { name: 'Add to story', exact: true }).click();
+    await page.locator('#story-post-preview .story-post-card').waitFor();
+    assert.equal(await page.locator('#story-post-preview strong').innerText(), 'Fixture Peer');
+    assert.ok(await page.locator('#story-post-preview img').evaluate(image => image.complete && image.naturalWidth > 0));
+    const preview = await page.locator('#story-post-preview .story-post-card').boundingBox();
+    assert.ok(preview.width > 100 && preview.x >= 0 && preview.x + preview.width <= viewport.width);
+    await page.locator('#story-preview .sp-share').click();
+    await page.locator('#story-preview').waitFor({ state: 'detached' });
+    assert.equal(state.mediaWrites.length, 0);
+    const rows = await state.storyQuery('SELECT id,post_id FROM stories_v2');
+    assert.equal(rows.length, 1); assert.equal(rows[0].post_id, 'post-peer');
+    await page.getByRole('button', { name: /Your story/ }).click();
+    const original = page.getByRole('button', { name: 'Open original post', exact: true });
+    await original.waitFor();
+    await page.waitForFunction(() => Stories._play?.ready === true);
+    assert.equal(await page.locator('.toast').count(), 0, 'Previous success toast is removed before Story controls appear');
+    const pause = page.locator('#stories-pause');
+    if (await pause.getAttribute('aria-pressed') === 'false') await pause.click();
+    assert.equal(await pause.getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#story-viewer .story-post-card strong').innerText(), 'Fixture Peer');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (process.env.APP_QA_SCREENSHOTS) {
+      fs.mkdirSync(process.env.APP_QA_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.APP_QA_SCREENSHOTS, 'post-story-' + viewport.width + '.png'), animations: 'disabled' });
+    }
+    await original.click();
+    await page.locator('#story-viewer').waitFor({ state: 'detached' });
+    assert.ok(await sourceCard.isVisible());
+    await page.waitForFunction(() => Stories.groups().some(group => group.author === Cloud.me));
+    await page.getByRole('button', { name: /Your story/ }).click();
+    await page.getByRole('button', { name: 'Open original post', exact: true }).waitFor();
+    await state.storyQuery("UPDATE profiles SET data=jsonb_set(data,'{privacy}','\"friends\"') WHERE uid=$1", [peer]);
+    await page.getByRole('button', { name: 'Open original post', exact: true }).click();
+    await page.getByText('Story unavailable.', { exact: true }).waitFor();
+    assert.equal(await page.locator('#story-viewer .story-post-card').count(), 0);
+  });
 }
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {

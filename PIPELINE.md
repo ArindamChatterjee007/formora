@@ -7,7 +7,8 @@ cloud fixtures   isolated test site    isolated beta site    existing Pages site
 ```
 
 Production is last, never the environment used to discover QAT failures.
-Production: https://arindamchatterjee007.github.io/formora/
+Production: https://formora-app.pages.dev/
+Legacy fallback: https://arindamchatterjee007.github.io/formora/
 CI: https://github.com/ArindamChatterjee007/formora/actions/workflows/ci.yml
 
 ## Candidate Handoff
@@ -254,6 +255,49 @@ measured termination is not a real-time or hosted guarantee. OS memory/process
 containment, Linux target tests, global capacity, remote deadline admission and
 hosted acceptance remain required before adopting this route. Existing customer
 flags and production are unchanged by this prototype.
+
+## Sharing Posts To Stories
+
+`supabase/story-post-sharing.sql` is a separate, one-time migration after
+`story-interactions.sql` and the canonical posts schema. It can be installed
+before or after `story-media.sql`; it neither enables Story policy nor bypasses
+the media validation/Storage triggers. Save the existing Story function
+definitions, constraints and permissions before an authorized deployment.
+Do not reapply the fresh Story or media schemas to an installed environment.
+
+The share sheet offers Add to story only when Stories are enabled. It requests
+the current public post preview, shows its author and photo/caption, and waits
+for explicit confirmation. `publish_post_story` stores only the post ID,
+original author UUID and original creation timestamp, not copied caption or
+media. Those three values are bound to the same retry receipt. Removed or
+replaced sources, non-public source profiles and source-author/sharer blocks
+make the reference unavailable to every viewer; viewer-specific blocks also
+apply. A source caption edit is reflected on the next checked read. The Story
+expires after 24 hours; no physical erasure claim is introduced.
+
+`get_shareable_story_post` returns a minimized current preview, not a general
+post dump. Inline JPEG/PNG/WebP previews are capped at 2 MiB including the data
+URL; same-project public Storage URLs are separately validated. Unsupported or
+larger images return an explicit unavailable-photo state. Only this endpoint
+has a 2 MiB + 32 KiB response bound; ordinary Story responses remain 256 KiB.
+Carousels preview the first photo; video references show a Video post label and
+open the original post. A view costs two actor reads (Story and current post);
+opening the original repeats these checks. Fresh sharing also consumes the
+source author's existing recipient limit, bounding cross-account share traffic.
+It sends no notification or copied private content.
+
+The existing photo upload must decode resized JPEG data locally, never use
+`fetch(dataUrl)`: production `connect-src` does not allow `data:`. Storage uploads
+refresh the authenticated bearer and use the canonical owner path. A saved
+upload is reused when Story publication needs retry, and the composer clears
+only after the exact owned publication receipt. Do not loosen CSP or use an
+anonymous bearer to work around an expired session.
+
+Run the focused `story-post-sharing.test.cjs` and Story cases in
+`social-publishing.test.cjs` / `social-publishing.e2e.cjs`. The latter uses real
+app controls with isolated services and SQL; it is not a production or provider
+test. Default flags remain off until the matching hosted policies, actual
+workflow checks and normal stage approvals are satisfied.
 
 ## Story Media Admission
 

@@ -10,7 +10,7 @@ const branches = Object.freeze({ dev: 'dev', qat: 'release', beta: 'beta' });
 const entries = ['index.html', 'legal.html', 'manifest.webmanifest', 'version.txt', 'push-worker.js', 'js', 'css', 'assets', 'icons', 'guides'];
 const policy = "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' data: blob:; manifest-src 'self'; connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'";
 
-function stageConfig(stage, commit, origin, backend = null, registrationConsent = false) {
+function stageConfig(stage, commit, origin, backend = null, registrationConsent = false, storyPostSharing = false) {
   if (!Object.hasOwn(branches, stage)) throw new Error('Only dev, qat and beta test sites can be built.');
   if (!/^[a-f0-9]{40}$/.test(commit || '')) throw new Error('A full candidate commit is required.');
   const url = new URL(origin);
@@ -25,10 +25,14 @@ function stageConfig(stage, commit, origin, backend = null, registrationConsent 
   if (typeof registrationConsent !== 'boolean' || (registrationConsent && !isolated)) {
     throw new Error('Registration consent tests require the isolated QAT backend.');
   }
+  if (typeof storyPostSharing !== 'boolean' || (storyPostSharing && (!isolated || registrationConsent))) {
+    throw new Error('Story sharing tests require an exclusive isolated QAT window.');
+  }
   return { schemaVersion: 1, stage, branch: branches[stage], commit, origin: url.origin,
     mode: isolated ? 'isolated-backend' : 'offline-preview', backendConfigured: !!isolated,
     ...(isolated ? { backendProjectRef: isolated.projectRef, backendOrigin: isolated.origin } : {}),
     ...(registrationConsent ? { registrationConsent: true } : {}),
+    ...(storyPostSharing ? { storyPostSharing: true } : {}),
     paymentEnabled: false, acceptance: 'pending' };
 }
 
@@ -43,12 +47,13 @@ function guardSource(config, backend = null) {
   const isolated = config.backendConfigured ? qat.validateBackend(backend) : null;
   stagePolicy(config);
   if (config.registrationConsent && (!isolated || config.registrationConsent !== true)) throw new Error('Invalid QAT consent test configuration.');
+  if (config.storyPostSharing && (!isolated || config.storyPostSharing !== true || config.registrationConsent)) throw new Error('Invalid QAT Story test configuration.');
   const locked = {
     FORMORA_STAGE: config, SUPABASE_URL: isolated?.origin || '', SUPABASE_ANON_KEY: isolated?.anonKey || '', USE_SUPABASE_AUTH: !!isolated,
     SHEETS_API: '', SOCIAL_API: '', GOOGLE_CLIENT_ID: '', GOOGLE_IOS_CLIENT_ID: '',
     PEXELS_KEY: '', EMAIL_FN_URL: '', EMAILJS_PUBLIC_KEY: '', EMAILJS_SERVICE_ID: '', EMAILJS_TEMPLATE_ID: '',
     POSTHOG_KEY: '', POSTHOG_HOST: '', FORMORA_WEB_PUSH: false, FORMORA_PUSH_VAPID_PUBLIC_KEY: '',
-    MODERATION_RECEIPTS: false, STORY_INTERACTIONS: false, STORY_MEDIA_VALIDATION: false,
+    MODERATION_RECEIPTS: false, STORY_INTERACTIONS: config.storyPostSharing === true, STORY_MEDIA_VALIDATION: false,
     SUPPORT_RECEIPTS: false, ACCOUNT_RIGHTS: false, SERVER_MEASUREMENT: false, REGISTRATION_CONSENT: config.registrationConsent === true, MEASUREMENT_PERMISSIONS: {},
     LAUNCH_OFFER: false, FOUNDING: { on: false },
     RAZORPAY: { enabled: false }, LEMONSQUEEZY: { testMode: true, buy: {} }, MUSIC: { tracks: [] }
@@ -102,8 +107,8 @@ function inputFiles(root) {
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function buildStageSite({ root, output, stage, commit, origin, backend = null, registrationConsent = false }) {
-  const config = stageConfig(stage, commit, origin, backend, registrationConsent);
+async function buildStageSite({ root, output, stage, commit, origin, backend = null, registrationConsent = false, storyPostSharing = false }) {
+  const config = stageConfig(stage, commit, origin, backend, registrationConsent, storyPostSharing);
   const relative = path.relative(path.resolve(root), path.resolve(output));
   if (!relative.startsWith('dist' + path.sep)) throw new Error('Stage output must be a new directory below dist/.');
   root = fs.realpathSync(root);
@@ -155,19 +160,22 @@ async function main() {
   const consentSwitch = process.env.FORMORA_QAT_REGISTRATION_CONSENT;
   if (consentSwitch && consentSwitch !== '1') throw new Error('The QAT consent test switch must be 1 or absent.');
   const registrationConsent = consentSwitch === '1';
+  const storySwitch = process.env.FORMORA_QAT_STORY_POSTS;
+  if (storySwitch && storySwitch !== '1') throw new Error('The QAT Story test switch must be 1 or absent.');
+  const storyPostSharing = storySwitch === '1';
   let backend = null;
   if (backendFile) {
     if (!fs.lstatSync(backendFile).isFile() || fs.lstatSync(backendFile).size > 4096) throw new Error('Invalid QAT public configuration file.');
     backend = JSON.parse(fs.readFileSync(backendFile, 'utf8'));
   }
-  const config = stageConfig(stage, commit, origin, backend, registrationConsent);
+  const config = stageConfig(stage, commit, origin, backend, registrationConsent, storyPostSharing);
   const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   if (git(['rev-parse', 'HEAD']) !== commit) throw new Error('Requested candidate does not match checkout HEAD.');
   const branch = process.env.GITHUB_ACTIONS === 'true' ? process.env.GITHUB_REF_NAME : git(['branch', '--show-current']);
   if (branch !== config.branch) throw new Error('The stage must match its branch.');
   const checked = [...entries, 'tools/build-stage-site.cjs', 'scripts/qat-config.cjs', 'package.json', 'package-lock.json'];
   if (git(['status', '--porcelain', '--untracked-files=all', '--', ...checked])) throw new Error('Stage publication requires a clean app checkout.');
-  const result = await buildStageSite({ root, stage, commit, origin, backend, registrationConsent, output: path.resolve(root, destination || 'dist/stages/' + stage + '-' + commit) });
+  const result = await buildStageSite({ root, stage, commit, origin, backend, registrationConsent, storyPostSharing, output: path.resolve(root, destination || 'dist/stages/' + stage + '-' + commit) });
   if (git(['rev-parse', 'HEAD']) !== commit || git(['status', '--porcelain', '--untracked-files=all', '--', ...checked])) throw new Error('Candidate changed during packaging.');
   console.log(JSON.stringify(result, null, 2));
 }
