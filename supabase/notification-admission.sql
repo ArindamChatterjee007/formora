@@ -25,7 +25,7 @@ END;
 $preflight$;
 
 DROP POLICY notifs_ins ON public.notifications;
-REVOKE INSERT,UPDATE ON public.notifications FROM PUBLIC,anon,authenticated;
+REVOKE INSERT,UPDATE,TRIGGER,TRUNCATE ON public.notifications FROM PUBLIC,anon,authenticated;
 REVOKE INSERT(id,uid,type,actor,post_id,body,read,ts),UPDATE(id,uid,type,actor,post_id,body,read,ts)
   ON public.notifications FROM PUBLIC,anon,authenticated;
 GRANT UPDATE(read) ON public.notifications TO authenticated;
@@ -198,9 +198,10 @@ DO $permissions$
 DECLARE column_name text; role_name text;
 BEGIN
   IF pg_catalog.has_any_column_privilege('authenticated','public.notifications','INSERT')
-    OR pg_catalog.has_table_privilege('authenticated','public.notifications','UPDATE')
+    OR pg_catalog.has_table_privilege('authenticated','public.notifications','UPDATE,TRIGGER,TRUNCATE')
     OR NOT pg_catalog.has_column_privilege('authenticated','public.notifications','read','UPDATE')
     OR pg_catalog.has_any_column_privilege('anon','public.notifications','SELECT,INSERT,UPDATE')
+    OR pg_catalog.has_table_privilege('anon','public.notifications','TRIGGER,TRUNCATE')
     OR pg_catalog.has_function_privilege('anon','public.admit_social_notification(text,text,text,text)','EXECUTE')
     OR pg_catalog.has_function_privilege('service_role','public.admit_social_notification(text,text,text,text)','EXECUTE')
     OR pg_catalog.has_function_privilege('authenticated','public.emit_source_notifications()','EXECUTE')
