@@ -13,6 +13,8 @@ const security = fs.readFileSync(path.join(root, 'supabase/security.sql'), 'utf8
 const requestActions = fs.readFileSync(path.join(root, 'supabase/request-actions.sql'), 'utf8');
 const requestLegacyCompatibility = fs.readFileSync(path.join(root, 'supabase/request-legacy-compatibility.sql'), 'utf8');
 const notificationAdmission = fs.readFileSync(path.join(root, 'supabase/notification-admission.sql'), 'utf8');
+const legacyRequestUpgrade = 'BEGIN;\n' + [requestActions, requestLegacyCompatibility, notificationAdmission]
+  .map(source => source.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '')).join('\n') + '\nCOMMIT;';
 const owner = '11111111-1111-4111-8111-111111111111';
 const peer = '22222222-2222-4222-8222-222222222222';
 const stranger = '33333333-3333-4333-8333-333333333333';
@@ -158,7 +160,7 @@ async function legacyRequestCore() {
       CREATE POLICY requests_ins ON requests FOR INSERT WITH CHECK(auth.uid()::text=from_uid);
       CREATE POLICY requests_read ON requests FOR SELECT USING(true);
       CREATE POLICY requests_upd ON requests FOR UPDATE USING(auth.uid()::text=to_uid OR auth.uid()::text=from_uid);
-      GRANT UPDATE ON requests TO authenticated;`);
+      GRANT ALL ON requests TO authenticated;`);
     await instance.query('INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4),($5,$3,$2,$6)',
       [owner + '__' + peer, owner, peer, 'pending', peer + '__' + owner, 'accepted']);
     return instance;
@@ -180,6 +182,7 @@ test('The request migration upgrades the exact legacy production policies withou
   await assert.rejects(instance.query('UPDATE requests SET from_uid=$1 WHERE id=$2', [stranger, owner + '__' + peer]), { code: '42501' });
   await instance.exec('RESET ROLE');
   assert.equal((await instance.query("SELECT count(*)::int AS count FROM pg_policies WHERE tablename='requests' AND policyname='requests_upd'")).rows[0].count, 0);
+  assert.equal((await instance.query("SELECT has_table_privilege('authenticated','requests','TRIGGER,TRUNCATE') AS allowed")).rows[0].allowed, false);
 });
 
 test('The request migration rejects altered legacy policy expressions and preserves the original rows and policies', async context => {
@@ -345,6 +348,54 @@ test('Notification admission rejects invented alerts and preserves one source-de
     assert.equal((await database.query('SELECT admit_social_notification($1,$2,$3,$4) AS accepted', parameters)).rows[0].accepted, false);
   }
   await database.exec('RESET ROLE');
+});
+
+test('Legacy maintenance grants are removed before request compatibility and notification admission', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  await instance.exec('GRANT ALL ON notifications TO authenticated');
+  const before = (await instance.query('SELECT * FROM requests ORDER BY id')).rows;
+  await instance.exec(legacyRequestUpgrade);
+  assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, before);
+  await asMember(owner, instance);
+  for (const table of ['requests', 'notifications']) {
+    assert.equal((await instance.query('SELECT has_table_privilege(current_user,$1,$2) AS allowed', [table, 'TRIGGER,TRUNCATE'])).rows[0].allowed, false);
+    await assert.rejects(instance.query('TRUNCATE ' + table), { code: '42501' });
+  }
+  await instance.exec('RESET ROLE');
+  assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, before);
+});
+
+test('Inherited maintenance grants abort the combined upgrade and restore rows, policies and privileges', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  await instance.exec('CREATE ROLE legacy_maintenance; GRANT ALL ON notifications TO authenticated');
+  await instance.query('INSERT INTO notifications(id,uid,actor,type,body) VALUES($1,$2,$3,$4,$5)',
+    ['legacy-alert', peer, owner, 'message', 'Synthetic existing alert']);
+  const snapshot = async () => ({
+    requests: (await instance.query('SELECT * FROM requests ORDER BY id')).rows,
+    notifications: (await instance.query('SELECT * FROM notifications ORDER BY id')).rows,
+    policies: (await instance.query("SELECT * FROM pg_policies WHERE schemaname='public' AND tablename IN ('requests','notifications') ORDER BY tablename,policyname")).rows,
+    privileges: (await instance.query("SELECT relname,relacl::text,relrowsecurity FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ('requests','notifications') ORDER BY relname")).rows,
+    columns: (await instance.query("SELECT attrelid::regclass::text,attname,attacl::text FROM pg_attribute WHERE attrelid IN ('public.requests'::regclass,'public.notifications'::regclass) AND attnum>0 ORDER BY attrelid,attnum")).rows,
+    routines: (await instance.query("SELECT proname,pg_get_functiondef(oid) AS definition FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('guard_legacy_request_retry','admit_social_notification','emit_source_notifications','lock_source_notifications') ORDER BY proname")).rows,
+    triggers: (await instance.query("SELECT tgname,pg_get_triggerdef(oid) AS definition FROM pg_trigger WHERE NOT tgisinternal ORDER BY tgname")).rows
+  });
+  for (const role of ['anon', 'authenticated']) {
+    await instance.exec('GRANT legacy_maintenance TO ' + role);
+    for (const table of ['requests', 'notifications']) for (const privilege of ['TRIGGER', 'TRUNCATE']) {
+      await context.test(role + ' inherits ' + privilege + ' on ' + table, async () => {
+        await instance.exec('GRANT ' + privilege + ' ON ' + table + ' TO legacy_maintenance');
+        assert.equal((await instance.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [role, table, privilege])).rows[0].allowed, true);
+        const before = await snapshot();
+        await assert.rejects(instance.exec(legacyRequestUpgrade), { code: '42501' });
+        await instance.exec('ROLLBACK');
+        assert.deepEqual(await snapshot(), before);
+        await instance.exec('REVOKE ' + privilege + ' ON ' + table + ' FROM legacy_maintenance');
+      });
+    }
+    await instance.exec('REVOKE legacy_maintenance FROM ' + role);
+  }
 });
 
 test('Notification source triggers fan out comments once per actual recipient and reject forged targets', async context => {

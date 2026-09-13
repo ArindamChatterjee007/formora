@@ -53,15 +53,15 @@ CREATE POLICY requests_accept ON public.requests FOR UPDATE TO authenticated
 CREATE POLICY requests_remove ON public.requests FOR DELETE TO authenticated
   USING (auth.uid()::text = from_uid OR auth.uid()::text = to_uid);
 
-REVOKE UPDATE ON public.requests FROM PUBLIC, anon, authenticated;
+REVOKE UPDATE, TRIGGER, TRUNCATE ON public.requests FROM PUBLIC, anon, authenticated;
 REVOKE UPDATE (id, from_uid, to_uid, status, ts) ON public.requests FROM PUBLIC, anon, authenticated;
 GRANT UPDATE (status), DELETE ON public.requests TO authenticated;
 
 DO $permissions$
 DECLARE column_name text;
 BEGIN
-  IF pg_catalog.has_table_privilege('anon', 'public.requests', 'SELECT,INSERT,UPDATE,DELETE')
-    OR pg_catalog.has_table_privilege('authenticated', 'public.requests', 'UPDATE')
+  IF pg_catalog.has_table_privilege('anon', 'public.requests', 'SELECT,INSERT,UPDATE,DELETE,TRIGGER,TRUNCATE')
+    OR pg_catalog.has_table_privilege('authenticated', 'public.requests', 'UPDATE,TRIGGER,TRUNCATE')
     OR NOT pg_catalog.has_column_privilege('authenticated', 'public.requests', 'status', 'UPDATE')
     OR NOT pg_catalog.has_table_privilege('authenticated', 'public.requests', 'DELETE') THEN
     RAISE EXCEPTION 'Unexpected effective request action privileges' USING ERRCODE = '42501';
