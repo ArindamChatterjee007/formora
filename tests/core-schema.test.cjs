@@ -150,6 +150,49 @@ test('The request migration refuses unknown or already-applied policy baselines 
   assert.equal((await database.query("SELECT has_table_privilege('authenticated','public.requests','UPDATE') AS broad")).rows[0].broad, false);
 });
 
+async function legacyRequestCore() {
+  const instance = await freshCore({ requests: false, notifications: false });
+  try {
+    await instance.exec(`DROP POLICY requests_ins ON requests; DROP POLICY requests_read ON requests;
+      CREATE POLICY requests_ins ON requests FOR INSERT WITH CHECK(auth.uid()::text=from_uid);
+      CREATE POLICY requests_read ON requests FOR SELECT USING(true);
+      CREATE POLICY requests_upd ON requests FOR UPDATE USING(auth.uid()::text=to_uid OR auth.uid()::text=from_uid);
+      GRANT UPDATE ON requests TO authenticated;`);
+    await instance.query('INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4),($5,$3,$2,$6)',
+      [owner + '__' + peer, owner, peer, 'pending', peer + '__' + owner, 'accepted']);
+    return instance;
+  } catch (error) { await instance.close(); throw error; }
+}
+
+test('The request migration upgrades the exact legacy production policies without changing member rows', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  const before = (await instance.query('SELECT * FROM requests ORDER BY id')).rows;
+  await instance.exec(requestActions);
+  assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, before);
+  await asMember(stranger, instance);
+  assert.deepEqual((await instance.query('SELECT * FROM requests')).rows, []);
+  await asMember(owner, instance);
+  assert.deepEqual((await instance.query("UPDATE requests SET status='accepted' WHERE id=$1 RETURNING id", [owner + '__' + peer])).rows, []);
+  await asMember(peer, instance);
+  assert.equal((await instance.query("UPDATE requests SET status='accepted' WHERE id=$1 RETURNING id", [owner + '__' + peer])).rows.length, 1);
+  await assert.rejects(instance.query('UPDATE requests SET from_uid=$1 WHERE id=$2', [stranger, owner + '__' + peer]), { code: '42501' });
+  await instance.exec('RESET ROLE');
+  assert.equal((await instance.query("SELECT count(*)::int AS count FROM pg_policies WHERE tablename='requests' AND policyname='requests_upd'")).rows[0].count, 0);
+});
+
+test('The request migration rejects altered legacy policy expressions and preserves the original rows and policies', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  await instance.exec('ALTER POLICY requests_upd ON requests USING(true)');
+  const rows = (await instance.query('SELECT * FROM requests ORDER BY id')).rows;
+  const policies = (await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows;
+  await assert.rejects(instance.exec(requestActions), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, rows);
+  assert.deepEqual((await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows, policies);
+});
+
 for (const incompatible of ['security-definer feed', 'legacy request identity']) {
   test('The request migration refuses ' + incompatible + ' without rewriting it', async context => {
     const instance = await freshCore({ requests: false });

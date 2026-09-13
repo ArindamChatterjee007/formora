@@ -8,8 +8,16 @@ cloud fixtures   isolated test site    isolated beta site    existing Pages site
 
 Production is last, never the environment used to discover QAT failures.
 Production: https://formora-app.pages.dev/
+Automatic root redirect: https://arindamchatterjee007.github.io/
 Legacy fallback: https://arindamchatterjee007.github.io/formora/
 CI: https://github.com/ArindamChatterjee007/formora/actions/workflows/ci.yml
+
+The username-root site redirects to the official application without a prompt.
+Its JavaScript redirect preserves query strings and fragments; a no-JavaScript
+fallback redirects to the application home. Other project paths, including the
+study planner, are not redirect targets. The Formora project path remains a
+legacy fallback until the protected application cutover is complete. Never
+publish the private office taskboard as a public replacement.
 
 ## Candidate Handoff
 
@@ -89,8 +97,12 @@ transaction refuses any existing public table or view. Apply the existing
 `supabase/security.sql` afterward on the isolated project, followed by
 `supabase/request-actions.sql`. The request-only migration requires the exact
 core policy names, a security-invoker feed RPC and compatible canonical request
-identities; it refuses legacy or already-applied baselines without rewriting
-them. It restricts reads to participants, acceptance to the recipient and
+identities. It also accepts the explicitly verified older three-policy
+production baseline: public read, authenticated sender insert and the original
+participant update expression. Policy names, roles, expressions and check
+clauses must all match; an unknown or already-applied baseline is refused. A
+transactional write lock protects preflight and replacement, and member rows
+are not rewritten. It restricts reads to participants, acceptance to the recipient and
 updates to the status column. Participant deletion also supports disconnects;
 the client decline/cancel path additionally requires pending status so stale
 controls cannot remove an accepted connection. Never apply the
@@ -105,7 +117,9 @@ replaces the named policies. Preserve a restricted policy/grant snapshot before
 an authorized upgrade; there is no destructive automatic rollback. Retain the
 tighter request policies if reverting the UI, and keep QAT offline if its
 request contract cannot be verified. Production rollout needs its own legacy
-inventory and recovery approval.
+inventory, restricted backup and recovery approval. Test the older baseline
+with populated synthetic rows before the coordinated production window; the
+new policy rejects old cached clients that try to rewrite request identities.
 
 `supabase/notification-admission.sql` follows the core security and request
 actions migrations. It refuses unexpected policy names, a preclaimed server
