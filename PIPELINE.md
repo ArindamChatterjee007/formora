@@ -121,6 +121,29 @@ inventory, restricted backup and recovery approval. Test the older baseline
 with populated synthetic rows before the coordinated production window; the
 new policy rejects old cached clients that try to rewrite request identities.
 
+`supabase/request-legacy-compatibility.sql` follows request actions when older
+installed clients still submit PostgREST `resolution=merge-duplicates`. Apply
+both request scripts in one reviewed outer transaction for that cutover, without
+their separate transaction envelopes. Applying request actions alone blocks
+even the old client's first insert because its upsert requires identity-column
+UPDATE privileges. The adapter accepts only the exact four-policy baseline and
+adds column-specific grants plus a sender retry policy. Its BEFORE UPDATE
+trigger rejects any changed ID, sender, recipient or timestamp, permits only
+recipient acceptance, and returns the original row for a sender's pending retry.
+An accepted connection cannot be reset by a retry. No blanket UPDATE or TRIGGER
+privilege is granted. Check anonymous column privileges, the trigger definition
+and enabled state, and effective policies after installing. Do not disable this
+guard while its retry grants are present. Direct privileged/replica writes are
+not member-facing compatibility; this trigger is not an administrative boundary.
+
+Notification admission can precede the matched client: source triggers provide
+the verified alert even when an older client's now-denied direct notification
+POST follows it. Preserve historical alerts and test the old reader's nullable
+body handling. The compatibility adapter removes the requirement to claim that
+all installed clients have drained before tightening request identity rules.
+Retain both request and notification protections if reverting a frontend; never
+restore broad request identity writes or unauthenticated notification insertion.
+
 `supabase/notification-admission.sql` follows the core security and request
 actions migrations. It refuses unexpected policy names, a preclaimed server
 notification namespace or legacy source identities. Save a restricted schema,
