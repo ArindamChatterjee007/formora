@@ -13,16 +13,16 @@ BEGIN
   SELECT array_agg(policyname::text ORDER BY policyname) INTO policy_names FROM pg_catalog.pg_policies
     WHERE schemaname = 'public' AND tablename = 'requests';
   legacy_policy := policy_names IS NOT DISTINCT FROM ARRAY['requests_ins', 'requests_read', 'requests_upd']::text[];
-  IF legacy_policy AND (SELECT count(*) FROM pg_catalog.pg_policies
+  IF NOT legacy_policy AND policy_names IS DISTINCT FROM ARRAY['requests_ins', 'requests_read']::text[] THEN
+    RAISE EXCEPTION 'Request actions require the reviewed core policy baseline' USING ERRCODE = '55000';
+  END IF;
+  IF (SELECT count(*) FROM pg_catalog.pg_policies
     WHERE schemaname = 'public' AND tablename = 'requests' AND permissive = 'PERMISSIVE' AND roles = ARRAY['public']::name[] AND (
       (policyname = 'requests_read' AND cmd = 'SELECT' AND qual = 'true' AND with_check IS NULL)
       OR (policyname = 'requests_ins' AND cmd = 'INSERT' AND qual IS NULL AND with_check = '((auth.uid())::text = from_uid)')
       OR (policyname = 'requests_upd' AND cmd = 'UPDATE' AND qual = '(((auth.uid())::text = to_uid) OR ((auth.uid())::text = from_uid))' AND with_check IS NULL)
-    )) <> 3 THEN
-    RAISE EXCEPTION 'Legacy request policies differ from the reviewed production baseline' USING ERRCODE = '55000';
-  END IF;
-  IF NOT legacy_policy AND policy_names IS DISTINCT FROM ARRAY['requests_ins', 'requests_read']::text[] THEN
-    RAISE EXCEPTION 'Request actions require the reviewed core policy baseline' USING ERRCODE = '55000';
+    )) <> pg_catalog.cardinality(policy_names) THEN
+    RAISE EXCEPTION 'Request policies differ from the reviewed baseline' USING ERRCODE = '55000';
   END IF;
   IF (SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = 'public.requests'::regclass) IS NOT TRUE THEN
     RAISE EXCEPTION 'Request row security must already be enabled' USING ERRCODE = '55000';

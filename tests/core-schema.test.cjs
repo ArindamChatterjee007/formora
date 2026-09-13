@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, '..');
 const bootstrap = fs.readFileSync(path.join(root, 'supabase/core-schema.sql'), 'utf8');
 const security = fs.readFileSync(path.join(root, 'supabase/security.sql'), 'utf8');
 const requestActions = fs.readFileSync(path.join(root, 'supabase/request-actions.sql'), 'utf8');
+const requestLegacyCompatibility = fs.readFileSync(path.join(root, 'supabase/request-legacy-compatibility.sql'), 'utf8');
 const notificationAdmission = fs.readFileSync(path.join(root, 'supabase/notification-admission.sql'), 'utf8');
 const owner = '11111111-1111-4111-8111-111111111111';
 const peer = '22222222-2222-4222-8222-222222222222';
@@ -191,6 +192,106 @@ test('The request migration rejects altered legacy policy expressions and preser
   await instance.exec('ROLLBACK');
   assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, rows);
   assert.deepEqual((await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows, policies);
+});
+
+test('The request migration checks definitions on the two-policy core baseline as well as names', async context => {
+  const instance = await freshCore({ requests: false, notifications: false });
+  context.after(() => instance.close());
+  await instance.exec('ALTER POLICY requests_ins ON requests WITH CHECK(true)');
+  const before = (await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows;
+  await assert.rejects(instance.exec(requestActions), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  assert.deepEqual((await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows, before);
+});
+
+test('Legacy request compatibility admits original upserts without resetting an accepted connection', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec(requestLegacyCompatibility);
+  const requestId = owner + '__' + peer;
+  const payload = [requestId, owner, peer, 'pending'];
+  const legacy = 'INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET id=EXCLUDED.id,from_uid=EXCLUDED.from_uid,to_uid=EXCLUDED.to_uid,status=EXCLUDED.status RETURNING id,status,ts';
+  await asMember(owner, instance);
+  const created = (await instance.query(legacy, payload)).rows[0];
+  assert.equal(created.status, 'pending');
+  assert.deepEqual((await instance.query(legacy, payload)).rows, [created]);
+  await asMember(peer, instance);
+  assert.equal((await instance.query("UPDATE requests SET status='accepted' WHERE id=$1 RETURNING id", [requestId])).rows.length, 1);
+  const accepted = (await instance.query('SELECT * FROM requests WHERE id=$1', [requestId])).rows[0];
+  await asMember(owner, instance);
+  assert.equal((await instance.query(legacy, payload)).rows[0].status, 'accepted');
+  assert.deepEqual((await instance.query('SELECT * FROM requests WHERE id=$1', [requestId])).rows, [accepted]);
+  assert.deepEqual((await instance.query('INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING RETURNING id', payload)).rows, []);
+  await instance.exec('RESET ROLE');
+  assert.deepEqual((await instance.query("SELECT type,count(*)::int AS count FROM notifications GROUP BY type ORDER BY type")).rows,
+    [{ type: 'accept', count: 1 }, { type: 'connect', count: 1 }]);
+});
+
+test('Legacy request compatibility rejects spoofing, state forgery and identity rewrites for either participant', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec(requestLegacyCompatibility);
+  const requestId = owner + '__' + peer;
+  await asMember(owner, instance);
+  await instance.query('INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4)', [requestId, owner, peer, 'pending']);
+  const before = (await instance.query('SELECT * FROM requests')).rows;
+  await assert.rejects(instance.query("UPDATE requests SET status='accepted' WHERE id=$1", [requestId]), { code: '42501' });
+  for (const caller of [owner, peer]) {
+    await asMember(caller, instance);
+    for (const column of ['id','from_uid','to_uid']) await assert.rejects(
+      instance.query('UPDATE requests SET '+column+'=$1 WHERE id=$2', [stranger, requestId]), { code: '42501' });
+    await assert.rejects(instance.query('UPDATE requests SET ts=now() WHERE id=$1', [requestId]), { code: '42501' });
+    await assert.rejects(instance.query("UPDATE requests SET status='forged' WHERE id=$1", [requestId]), { code: '42501' });
+    assert.deepEqual((await instance.query('SELECT * FROM requests')).rows, before);
+  }
+  await asMember(stranger, instance);
+  assert.deepEqual((await instance.query('SELECT * FROM requests')).rows, []);
+  assert.deepEqual((await instance.query("UPDATE requests SET status='accepted' WHERE id=$1 RETURNING id", [requestId])).rows, []);
+  await assert.rejects(instance.query('INSERT INTO requests(id,from_uid,to_uid,status) VALUES($1,$2,$3,$4)', [requestId, owner, peer, 'pending']), { code: '42501' });
+});
+
+test('Legacy request compatibility refuses altered baselines and a second application without changing state', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  await instance.exec('ALTER POLICY requests_accept ON requests USING(true)');
+  await assert.rejects(instance.exec(requestLegacyCompatibility), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  assert.equal((await instance.query("SELECT to_regprocedure('public.guard_legacy_request_retry()') AS routine")).rows[0].routine, null);
+  await instance.exec('ALTER POLICY requests_accept ON requests USING(auth.uid()::text=to_uid)');
+  await instance.exec(requestLegacyCompatibility);
+  const policies = (await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows;
+  await assert.rejects(instance.exec(requestLegacyCompatibility), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  assert.deepEqual((await instance.query("SELECT * FROM pg_policies WHERE tablename='requests' ORDER BY policyname")).rows, policies);
+  for (const role of ['anon','authenticated','service_role']) assert.equal((await instance.query(
+    "SELECT has_function_privilege($1,'public.guard_legacy_request_retry()','EXECUTE') AS allowed", [role])).rows[0].allowed, false);
+});
+
+test('Legacy request compatibility refuses inherited or direct anonymous column grants', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  for (const privilege of ['SELECT','INSERT','UPDATE','REFERENCES']) {
+    await instance.exec('GRANT '+privilege+'(id) ON requests TO anon');
+    await assert.rejects(instance.exec(requestLegacyCompatibility), { code: '55000' });
+    await instance.exec('ROLLBACK');
+    assert.equal((await instance.query("SELECT to_regprocedure('public.guard_legacy_request_retry()') AS routine")).rows[0].routine, null);
+    await instance.exec('REVOKE '+privilege+'(id) ON requests FROM anon');
+  }
+  await instance.exec('CREATE ROLE legacy_column_reader; GRANT SELECT(id) ON requests TO legacy_column_reader; GRANT legacy_column_reader TO anon');
+  await assert.rejects(instance.exec(requestLegacyCompatibility), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  assert.equal((await instance.query("SELECT count(*)::int AS count FROM pg_policies WHERE tablename='requests' AND policyname='requests_retry'")).rows[0].count, 0);
+});
+
+test('Legacy request compatibility rolls back if the required retry guard is missing', async context => {
+  const instance = await freshCore();
+  context.after(() => instance.close());
+  const withoutGuard = requestLegacyCompatibility.replace(/CREATE TRIGGER guard_legacy_request_retry BEFORE UPDATE ON public\.requests\s+FOR EACH ROW EXECUTE FUNCTION public\.guard_legacy_request_retry\(\);/, '');
+  assert.notEqual(withoutGuard, requestLegacyCompatibility);
+  await assert.rejects(instance.exec(withoutGuard), /compatibility guard is missing/);
+  await instance.exec('ROLLBACK');
+  assert.equal((await instance.query("SELECT to_regprocedure('public.guard_legacy_request_retry()') AS routine")).rows[0].routine, null);
+  assert.equal((await instance.query("SELECT has_column_privilege('authenticated','public.requests','id','UPDATE') AS allowed")).rows[0].allowed, false);
 });
 
 for (const incompatible of ['security-definer feed', 'legacy request identity']) {
