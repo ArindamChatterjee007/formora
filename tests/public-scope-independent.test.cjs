@@ -66,8 +66,8 @@ function copiedPublic(context) {
 
 test('DEF-126 independent: actual recursive scan and discovery retain full scope and exactly exclude the catalog', context => {
   const discovered = discover();
-  assert.equal(catalogFiles.length, 26);
-  assert.equal(new Set(catalogFiles).size, 26);
+  assert.equal(catalogFiles.length, 28);
+  assert.equal(new Set(catalogFiles).size, 28);
   actualGuard(root)();
   const full = runner.suites(root, scope.FULL_SCOPE).flatMap(suite => suite.files);
   const defaults = runner.suites(root).flatMap(suite => suite.files);
@@ -95,7 +95,7 @@ test('DEF-126 independent: actual recursive scan and discovery retain full scope
 
 test('DEF-126 independent: in-memory predecessor reproduces the unchanged guard failure with two readers and one literal', context => {
   const precedingCatalog = scope.EXCLUDED_TESTS.filter(entry => !readerFiles.includes(entry.file));
-  assert.equal(precedingCatalog.length, 24);
+  assert.equal(precedingCatalog.length, 26);
   const preceding = { ...scope, EXCLUDED_TESTS: precedingCatalog,
     FIXTURE_ONLY_OFFICE_LITERALS: scope.FIXTURE_ONLY_OFFICE_LITERALS.filter(file => file !== helperFile),
     expectedPrivateRecordTests: discovered => precedingCatalog
@@ -130,11 +130,11 @@ test('DEF-126 independent: a copied public checkout keeps all absent exclusions 
   const suites = copiedRunner.suites(directory, copiedScope.PUBLIC_SCOPE);
   const excluded = suites.flatMap(suite => suite.excluded);
   const description = copiedScope.describe(excluded);
-  assert.equal(description.excludedTestCount, 26);
-  assert.equal(description.excludedPrivateOfficeRecordTests, 25);
+  assert.equal(description.excludedTestCount, 28);
+  assert.equal(description.excludedPrivateOfficeRecordTests, 27);
   assert.equal(description.excludedOfficeToolingTests, 1);
   assert.equal(description.excludedFilesPresent, 0);
-  assert.equal(description.excludedFilesAbsent, 26);
+  assert.equal(description.excludedFilesAbsent, 28);
   assert.deepEqual(description.absentFiles, catalogFiles);
   assert.ok(description.catalog.every(entry => entry.present === false && typeof entry.unverified === 'string' && entry.unverified.length > 10));
   assert.ok(description.catalog.every(entry => !Object.hasOwn(entry, 'passed') && entry.result !== 'passed'));
@@ -149,7 +149,7 @@ test('DEF-126 independent: a copied public checkout keeps all absent exclusions 
   assert.ok(suites.flatMap(suite => suite.files).includes(helperFile));
   assert.ok(files.some(file => path.dirname(file) !== 'tests'));
   actualGuard(directory, copiedScope)();
-  context.diagnostic(JSON.stringify({ copiedPublicCodeFiles: files.length, absentCatalogEntries: 26, privateRecordEntries: 25,
+  context.diagnostic(JSON.stringify({ copiedPublicCodeFiles: files.length, absentCatalogEntries: 28, privateRecordEntries: 27,
     toolingEntries: 1, helperPresent: true, guardExecuted: true, fullSuiteExecuted: false }));
 });
 

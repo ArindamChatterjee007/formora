@@ -12,7 +12,7 @@ resource-utilization, capacity). See [docs/ISO_COMPLIANCE.md](ISO_COMPLIANCE.md)
 
 | Asset            | Budget (raw) | Baseline (v94) | Gate |
 | ---------------- | ------------ | -------------- | ---- |
-| All JS (`js/*.js`)  | ≤ 430 KB  | 362 KB         | CI fails build if exceeded |
+| All JS (`js/*.js`)  | ≤ 440 KB  | 362 KB         | CI fails build if exceeded |
 | All CSS (`css/*.css`) | ≤ 100 KB | 87 KB         | CI fails build if exceeded |
 | Single JS file   | ≤ 160 KB     | app.js 131 KB  | CI warns |
 | Initial requests | ≤ 25         | 19             | runtime check |

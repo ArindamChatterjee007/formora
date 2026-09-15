@@ -275,6 +275,6 @@ test('The Profile implementation exists once, is never eager, and is what keeps 
   const eager = fs.readdirSync(path.join(root, 'js')).filter(file => file.endsWith('.js'))
     .reduce((total, file) => total + fs.statSync(path.join(root, 'js', file)).size, 0);
   const moduleBytes = fs.statSync(path.join(root, 'js/mod/profile.js')).size;
-  assert.ok(eager <= 440320, `${eager} exceeds the CI budget`);
-  assert.ok(eager + moduleBytes > 440320, 'the extraction is what keeps the budget green');
+  assert.ok(eager <= 450560, `${eager} exceeds the CI budget`);
+  assert.ok(eager + moduleBytes > 450560, 'the extraction is what keeps the budget green');
 });

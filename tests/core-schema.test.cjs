@@ -13,6 +13,7 @@ const security = fs.readFileSync(path.join(root, 'supabase/security.sql'), 'utf8
 const requestActions = fs.readFileSync(path.join(root, 'supabase/request-actions.sql'), 'utf8');
 const requestLegacyCompatibility = fs.readFileSync(path.join(root, 'supabase/request-legacy-compatibility.sql'), 'utf8');
 const notificationAdmission = fs.readFileSync(path.join(root, 'supabase/notification-admission.sql'), 'utf8');
+const socialMaintenancePrivileges = fs.readFileSync(path.join(root, 'supabase/social-maintenance-privileges.sql'), 'utf8');
 const legacyRequestUpgrade = 'BEGIN;\n' + [requestActions, requestLegacyCompatibility, notificationAdmission]
   .map(source => source.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '')).join('\n') + '\nCOMMIT;';
 const owner = '11111111-1111-4111-8111-111111111111';
@@ -359,7 +360,7 @@ test('Legacy maintenance grants are removed before request compatibility and not
   assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, before);
   await asMember(owner, instance);
   for (const table of ['requests', 'notifications']) {
-    assert.equal((await instance.query('SELECT has_table_privilege(current_user,$1,$2) AS allowed', [table, 'TRIGGER,TRUNCATE'])).rows[0].allowed, false);
+    assert.equal((await instance.query('SELECT has_table_privilege(current_user,$1,$2) AS allowed', [table, 'TRIGGER,TRUNCATE,MAINTAIN'])).rows[0].allowed, false);
     await assert.rejects(instance.query('TRUNCATE ' + table), { code: '42501' });
   }
   await instance.exec('RESET ROLE');
@@ -383,7 +384,7 @@ test('Inherited maintenance grants abort the combined upgrade and restore rows, 
   });
   for (const role of ['anon', 'authenticated']) {
     await instance.exec('GRANT legacy_maintenance TO ' + role);
-    for (const table of ['requests', 'notifications']) for (const privilege of ['TRIGGER', 'TRUNCATE']) {
+    for (const table of ['requests', 'notifications']) for (const privilege of ['TRIGGER', 'TRUNCATE', 'MAINTAIN']) {
       await context.test(role + ' inherits ' + privilege + ' on ' + table, async () => {
         await instance.exec('GRANT ' + privilege + ' ON ' + table + ' TO legacy_maintenance');
         assert.equal((await instance.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [role, table, privilege])).rows[0].allowed, true);
@@ -396,6 +397,36 @@ test('Inherited maintenance grants abort the combined upgrade and restore rows, 
     }
     await instance.exec('REVOKE legacy_maintenance FROM ' + role);
   }
+});
+
+test('Installed social maintenance follow-up removes MAINTAIN without changing rows or member actions', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  await instance.exec(legacyRequestUpgrade);
+  await instance.exec('GRANT MAINTAIN ON requests,notifications TO authenticated');
+  const before = (await instance.query('SELECT * FROM requests ORDER BY id')).rows;
+  const policies = (await instance.query("SELECT * FROM pg_policies WHERE schemaname='public' ORDER BY tablename,policyname")).rows;
+  await instance.exec(socialMaintenancePrivileges);
+  for (const role of ['anon', 'authenticated']) for (const table of ['requests', 'notifications']) {
+    assert.equal((await instance.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [role, table, 'TRIGGER,TRUNCATE,MAINTAIN'])).rows[0].allowed, false);
+  }
+  assert.deepEqual((await instance.query('SELECT * FROM requests ORDER BY id')).rows, before);
+  assert.deepEqual((await instance.query("SELECT * FROM pg_policies WHERE schemaname='public' ORDER BY tablename,policyname")).rows, policies);
+  assert.equal((await instance.query("SELECT has_column_privilege('authenticated','requests','status','UPDATE') AND has_column_privilege('authenticated','notifications','read','UPDATE') AS allowed")).rows[0].allowed, true);
+  await instance.exec(socialMaintenancePrivileges);
+});
+
+test('Installed social maintenance follow-up refuses unexpected baselines and inherited MAINTAIN atomically', async context => {
+  const instance = await legacyRequestCore();
+  context.after(() => instance.close());
+  await assert.rejects(instance.exec(socialMaintenancePrivileges), { code: '55000' });
+  await instance.exec('ROLLBACK');
+  await instance.exec(legacyRequestUpgrade);
+  await instance.exec('CREATE ROLE inherited_maintain; GRANT MAINTAIN ON notifications TO inherited_maintain; GRANT inherited_maintain TO authenticated; GRANT MAINTAIN ON requests TO authenticated');
+  const before = (await instance.query("SELECT relname,relacl::text FROM pg_class WHERE oid IN ('requests'::regclass,'notifications'::regclass) ORDER BY relname")).rows;
+  await assert.rejects(instance.exec(socialMaintenancePrivileges), { code: '42501' });
+  await instance.exec('ROLLBACK');
+  assert.deepEqual((await instance.query("SELECT relname,relacl::text FROM pg_class WHERE oid IN ('requests'::regclass,'notifications'::regclass) ORDER BY relname")).rows, before);
 });
 
 test('Notification source triggers fan out comments once per actual recipient and reject forged targets', async context => {

@@ -20,10 +20,12 @@ const PRIVATE_RECORD_TESTS = [
   { file: 'tests/office-dashboard.test.cjs', records: ['office/dashboard-model.js', 'office/board.json', 'office/dashboard.html', 'office/dashboard.js'], gap: 'Office dashboard model and board validation' },
   { file: 'tests/office-hosting.test.cjs', records: ['office/hosting/worker.mjs', 'office/hosting/wrangler.json'], gap: 'Private office hosting worker authorization' },
   { file: 'tests/office-launch-planning.test.cjs', records: ['office/planning-2026-09-06.json', 'office/board.json', 'office/dashboard-model.js'], gap: 'Launch planning/release-gate bookkeeping' },
+  { file: 'tests/office-official-website.test.cjs', records: ['office/board.json', 'office/production-hosting-rollout.json'], gap: 'Official website designation and production hosting evidence bookkeeping' },
   { file: 'tests/office-operations.test.cjs', records: ['office/operations-2026-09-05.json'], gap: 'Office operations record integrity' },
   { file: 'tests/office-planning.test.cjs', records: ['office/planning-2026-09-05.json', 'office/revenue-model.cjs', 'office/board.json'], gap: 'Office planning and revenue-model arithmetic' },
   { file: 'tests/office-private-snapshot.test.cjs', records: ['office/board.json', 'office/dashboard.js'], gap: 'Private snapshot allowlisting and secret exclusion' },
   { file: 'tests/office-review-coverage.test.cjs', records: ['office/qa-review-2026-09-07.json', 'office/board.json'], gap: 'Office review-coverage bookkeeping against the private QA review record' },
+  { file: 'tests/office-strategy.test.cjs', records: ['office/board.json', 'office/planning-2026-09-09.json'], gap: 'Office strategy/company review bookkeeping' },
   { file: 'tests/office-workflow.test.cjs', records: ['office/dashboard-model.js', 'office/board.json'], gap: 'Office workflow state transitions' },
   { file: 'tests/push-subscriptions.test.cjs', records: ['office/push-rollout.json'], gap: 'Push subscription conformance to the private push rollout record' },
   { file: 'tests/qa-conventions-report.test.cjs', records: ['office/qa-conventions-2026-09-06.json', 'office/board.json'], gap: 'QA conventions report conformance to the private QA record' },
@@ -41,7 +43,7 @@ const OFFICE_TOOLING_TESTS = [
 ];
 
 // Office-path literals used only in throwaway fixtures or excluded-path metadata, never to read a repository office record.
-const FIXTURE_ONLY_OFFICE_LITERALS = ['tests/native-bundle.test.cjs', 'tests/product-lifecycle-independent.test.cjs', 'tests/public-test-scope.test.cjs', 'tests/stage-site.test.cjs'];
+const FIXTURE_ONLY_OFFICE_LITERALS = ['tests/native-bundle.test.cjs', 'tests/product-lifecycle-independent.test.cjs', 'tests/production-site.test.cjs', 'tests/public-test-scope.test.cjs', 'tests/stage-site.test.cjs'];
 
 const EXCLUDED_TESTS = [...PRIVATE_RECORD_TESTS, ...OFFICE_TOOLING_TESTS].sort((a, b) => a.file < b.file ? -1 : 1);
 const EXCLUDED_FILES = new Set(EXCLUDED_TESTS.map(entry => entry.file));
