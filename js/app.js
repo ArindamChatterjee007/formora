@@ -1089,7 +1089,8 @@ const App = {
     document.querySelectorAll("#wrap > .view").forEach((v) => v.classList.toggle("active", v.id === viewId));
     this.curTab = tab;
     document.querySelector(".wrap").scrollTo ? window.scrollTo({ top: 0, behavior: "instant" }) : window.scrollTo(0, 0);
-    this.renderTab(tab);
+    this._enteringTab = true;
+    try { this.renderTab(tab); } finally { this._enteringTab = false; }
     // replay the slide animation even when the target section element is unchanged (e.g. home↔search share view-feed)
     const av = document.getElementById(viewId);
     if (av) { av.style.animation = "none"; void av.offsetWidth; av.style.animation = ""; }
@@ -1522,20 +1523,36 @@ const App = {
   // route legacy/deep-link targets (feed, today, progress, nutrition, overview) to the new nav
   goTab(tab) {
     const coachSubs = { overview: 1, today: 1, progress: 1, nutrition: 1 };
-    if (coachSubs[tab]) { this.selectTab("coach"); this.renderCoach(tab); return; }
+    if (coachSubs[tab]) {
+      // entering Coach from another tab shows the target pane directly, so only one slide plays
+      if (this.curTab !== "coach") { this.coachSub = tab; this.selectTab("coach"); return; }
+      this.renderCoach(tab); return;
+    }
     if (tab === "feed") tab = "home";
     this.selectTab(tab);
   },
 
   // Coach hub — dashboard + workout + progress + nutrition under one sub-nav
+  _coachOrder: ["overview", "today", "progress", "nutrition"],
   renderCoach(sub) {
-    this.coachSub = sub || this.coachSub || "overview";
+    const prev = this.coachSub;
+    this.coachSub = this._coachOrder.includes(sub) ? sub : (this._coachOrder.includes(this.coachSub) ? this.coachSub : "overview");
     const s = this.coachSub;
     const nav = [["overview", this.ic("home", { size: 15 }) + " Overview"], ["today", this.ic("dumbbell", { size: 15 }) + " Today"], ["progress", this.ic("chart", { size: 15 }) + " Progress"], ["nutrition", this.ic("apple", { size: 15 }) + " Nutrition"]];
     const sn = document.getElementById("coach-subnav");
     if (sn) sn.innerHTML = nav.map(([n, l]) => `<button type="button" class="ssub ${n === s ? "active" : ""}"${n === s ? ` aria-current="page"` : ""} onclick="App.renderCoach('${n}')">${l}</button>`).join("");
     const views = { overview: "view-home", today: "view-today", progress: "view-progress", nutrition: "view-nutrition" };
-    Object.entries(views).forEach(([k, id]) => { const el = document.getElementById(id); if (el) el.style.display = k === s ? "block" : "none"; });
+    // a real sub-tab change slides the pane in the direction of travel; entering the Coach tab or
+    // re-rendering the current pane keeps the existing content still
+    const slide = !this._enteringTab && this._coachOrder.includes(prev) && prev !== s
+      ? (this._coachOrder.indexOf(s) > this._coachOrder.indexOf(prev) ? "pane-in-r" : "pane-in-l") : null;
+    Object.entries(views).forEach(([k, id]) => {
+      const el = document.getElementById(id); if (!el) return;
+      el.classList.remove("pane-in", "pane-in-r", "pane-in-l");
+      el.style.display = k === s ? "block" : "none";
+      if (k === s && slide) el.classList.add(slide);
+    });
+    if (slide) { const top = document.getElementById("view-coach"); if (top && top.getBoundingClientRect().top < 0) window.scrollTo({ top: 0, behavior: "instant" }); }
     if (s === "overview") this.renderHome();
     else if (s === "today") this.renderToday();
     else if (s === "progress") this.renderProgress();
@@ -2569,6 +2586,11 @@ const App = {
           method: "POST", headers: { "Content-Type": "application/json", apikey: window.SUPABASE_ANON_KEY || "", Authorization: "Bearer " + token },
           body: JSON.stringify({ tier }), signal: AbortSignal.timeout(15000),
         });
+        if (response.status === 404) {
+          // the card checkout API is not deployed on this backend yet: keep the honest waitlist instead of an error
+          this._saveUpgradeInterest(tier); this.closeModal();
+          this.toast("Card checkout opens soon — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + ". UPI works now."); return;
+        }
         const result = await response.json();
         if (!response.ok || typeof result.url !== "string") throw new Error("checkout_unavailable");
         const url = new URL(result.url);
@@ -2581,9 +2603,12 @@ const App = {
       return;
     }
     // Fallback (no link configured for this tier): capture interest locally.
-    try { const d = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); d[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(d)); } catch (_) {}
+    this._saveUpgradeInterest(tier);
     this.closeModal();
     this.toast("Saved — you're first in line for " + (tier === "elite" ? "Elite" : "Pro") + " ✨");
+  },
+  _saveUpgradeInterest(tier) {
+    try { const d = JSON.parse(localStorage.getItem("fm_upgrade_interest") || "{}"); d[tier] = Date.now(); localStorage.setItem("fm_upgrade_interest", JSON.stringify(d)); } catch (_) {}
   },
 
   // After a successful payment: the webhook grants the entitlement server-side, which can
@@ -3778,7 +3803,7 @@ const App = {
   // caches it for the launch screen, and publishes it to their public profile so others see it.
   applyTierTheme() {
     const t = typeof Entitlements !== "undefined" ? Entitlements.tier() : "free";
-    if (typeof Entitlements !== "undefined" && !Entitlements.ready()) {
+    if (typeof Entitlements !== "undefined" && !Entitlements.ready() && !Entitlements.known()) {
       document.documentElement.setAttribute("data-tier", "free");
       const pending = document.getElementById("la-tier"); if (pending) pending.textContent = "Checking membership";
       return "free";
@@ -3797,7 +3822,7 @@ const App = {
     const shell = document.getElementById("app-shell");
     if (!shell || typeof Entitlements === "undefined") return;
     let notice = document.getElementById("membership-status");
-    if (Entitlements.ready() && !this._accountSyncError && !this._membershipRetry) { if (notice) notice.remove(); return; }
+    if (Entitlements.ready() && !Entitlements.stale() && !this._accountSyncError && !this._membershipRetry) { if (notice) notice.remove(); return; }
     if (!notice) {
       notice = document.createElement("div");
       notice.id = "membership-status";
@@ -3807,7 +3832,8 @@ const App = {
     }
     const messages = [];
     if (this._accountSyncError) messages.push("Cloud restore unavailable. Changes stay on this device until sync resumes.");
-    if (!Entitlements.ready()) messages.push("Membership unavailable. Paid features are temporarily locked; no billing changes were made.");
+    if (Entitlements.stale()) messages.push("Couldn't re-check your membership just now — showing your last confirmed status.");
+    else if (!Entitlements.ready()) messages.push("Membership unavailable. Paid features are temporarily locked; no billing changes were made.");
     notice.innerHTML = `<span role="status" style="flex:1;min-width:180px">${this._membershipRetry ? "Checking account..." : messages.join(" ")}</span><button class="btn ghost" onclick="App.retryMembership()"${this._membershipRetry ? " disabled" : ""}>${this.ic("undo", { size: 16 })} Retry</button>`;
   },
   async retryMembership() {
@@ -3871,7 +3897,19 @@ const App = {
     if (typeof Cloud === "undefined" || !Cloud.active()) return;
     const entry = this._entry;
     Cloud._ensureIdentity(u.email);
-    if (typeof Entitlements !== "undefined") await Entitlements.load();
+    if (typeof Entitlements !== "undefined") {
+      // a background re-check that changes the answer re-opens paid gates without disturbing an open dialog
+      let lastTier = null;
+      Entitlements.onChange = () => {
+        if (!this._isCurrentEntry(entry, u)) return;
+        const t = this.applyTierTheme();
+        this.renderMembershipStatus();
+        const modal = document.getElementById("modal");
+        if (lastTier !== null && t !== lastTier && this.curTab && (!modal || modal.classList.contains("hidden"))) this.selectTab(this.curTab);
+        lastTier = t;
+      };
+      await Entitlements.load();
+    }
     if (!this._isCurrentEntry(entry, u)) return;
     Cloud.registerMe(Store.state.profile);
     let last = "";

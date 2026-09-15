@@ -486,10 +486,14 @@ test('paid feature entry during a retry never opens a purchase paywall', async t
   await page.evaluate(() => { window.pendingMembership = App.retryMembership(); });
   await state.membershipSeen.promise;
   await page.evaluate(() => App.openProgram());
-  assert.equal(await page.locator('#modal').isVisible(), false);
+  // the confirmed Elite member keeps the paid program while the re-check is in flight; a paywall never appears
+  assert.equal(await page.locator('#modal .pt-foot').count(), 0);
+  assert.equal(await page.evaluate(() => Entitlements.isElite()), true);
+  assert.equal(await page.locator('#modal').isVisible(), true, 'the owned program opens without waiting for the re-check');
   state.membershipGate.resolve();
   await page.evaluate(() => window.pendingMembership);
   assert.equal(await page.evaluate(() => Entitlements.isElite()), true);
+  assert.equal(await page.locator('#modal .pt-foot').count(), 0);
 });
 
 test('combined restore and membership failure never consumes Free credits or offers an upgrade', async t => {

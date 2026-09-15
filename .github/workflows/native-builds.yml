@@ -1,0 +1,137 @@
+name: Native builds
+
+# Manual, free-tier rebuild of the native shells from ONE exact commit of the web app.
+# Android: debug-signed APK with the supplied debug keystore so it installs over the existing download.
+# iOS: unsigned Release archive proving the project builds; store/TestFlight distribution still needs the
+# founder's Apple Developer signing, which is never stored here.
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Android versionCode / iOS build number (integer, must increase)
+        required: true
+        default: "2"
+      version_name:
+        description: Marketing version shown to members
+        required: true
+        default: "1.1.0"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: android-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ inputs.version_code }}" | grep -qE '^[1-9][0-9]{0,8}$' || { echo "::error::version_code must be a positive integer"; exit 1; }
+          printf '%s' "${{ inputs.version_name }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::version_name must be x.y.z"; exit 1; }
+      - name: Install and sync the web app into the native shell
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run www
+          npx cap sync android
+      - name: Stamp the version
+        run: |
+          set -euo pipefail
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ inputs.version_code }}/; s/versionName \"[^\"]+\"/versionName \"${{ inputs.version_name }}\"/" android/app/build.gradle
+          grep -nE 'versionCode|versionName' android/app/build.gradle
+      - name: Restore the existing debug signing key when provided
+        # Members can only update over the served APK if the signature matches; without the secret the
+        # runner's fresh debug key is used and the APK is labelled as a new-install build.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.android
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+            echo "signing=existing-debug-key" >> "$GITHUB_ENV"
+          else
+            echo "signing=runner-debug-key" >> "$GITHUB_ENV"
+          fi
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew --no-daemon --console=plain assembleDebug
+      - name: Record the build identity
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p dist/native
+          cp "$apk" dist/native/Formora.apk
+          node -e '
+            const fs=require("node:fs"),crypto=require("node:crypto");
+            const bytes=fs.readFileSync("dist/native/Formora.apk");
+            fs.writeFileSync("dist/native/android-build.json",JSON.stringify({commit:process.env.GITHUB_SHA,versionCode:process.env.VC,versionName:process.env.VN,signing:process.env.signing,bytes:bytes.length,sha256:crypto.createHash("sha256").update(bytes).digest("hex"),builtAt:new Date().toISOString(),webFiles:fs.readdirSync("www",{recursive:true}).length},null,2)+"\n");
+            console.log(fs.readFileSync("dist/native/android-build.json","utf8"));'
+        env:
+          VC: ${{ inputs.version_code }}
+          VN: ${{ inputs.version_name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formora-android-${{ github.sha }}
+          path: dist/native/
+          retention-days: 14
+          if-no-files-found: error
+
+  ios:
+    name: ios-archive-unsigned
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install and sync the web app into the native shell
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run www
+          npx cap sync ios
+      - name: Stamp the version
+        run: |
+          set -euo pipefail
+          sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${{ inputs.version_code }};/g; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = ${{ inputs.version_name }};/g" ios/App/App.xcodeproj/project.pbxproj
+          grep -nE 'CURRENT_PROJECT_VERSION|MARKETING_VERSION' ios/App/App.xcodeproj/project.pbxproj | head -4
+      - name: Archive without signing
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Formora.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -skipPackagePluginValidation -skipMacroValidation | tail -n 40
+      - name: Record the build identity
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native
+          ditto -c -k --keepParent "$RUNNER_TEMP/Formora.xcarchive" dist/native/Formora-unsigned.xcarchive.zip
+          node -e '
+            const fs=require("node:fs"),crypto=require("node:crypto");
+            const bytes=fs.readFileSync("dist/native/Formora-unsigned.xcarchive.zip");
+            fs.writeFileSync("dist/native/ios-build.json",JSON.stringify({commit:process.env.GITHUB_SHA,buildNumber:process.env.VC,marketingVersion:process.env.VN,signed:false,distribution:"Requires founder Apple Developer signing/TestFlight; not produced here",bytes:bytes.length,sha256:crypto.createHash("sha256").update(bytes).digest("hex"),builtAt:new Date().toISOString()},null,2)+"\n");
+            console.log(fs.readFileSync("dist/native/ios-build.json","utf8"));'
+        env:
+          VC: ${{ inputs.version_code }}
+          VN: ${{ inputs.version_name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formora-ios-unsigned-${{ github.sha }}
+          path: dist/native/
+          retention-days: 14
+          if-no-files-found: error

@@ -106,6 +106,20 @@ test('Global checkout uses authenticated server creation, not editable hosted-li
   assert.equal(state.closes, 0);
 });
 
+test('A card checkout API that is not deployed yet keeps the waitlist instead of an error or a hosted link', async () => {
+  const { app, state, context } = harness(), navigations = [], storage = new Map();
+  context.window.LEMONSQUEEZY = { buy: { pro: 'https://formora.lemonsqueezy.com/checkout/buy/unsigned' } };
+  context.window.location = { assign: url => navigations.push(url) };
+  context.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
+  context.fetch = async (url, options) => { state.requests.push({ url, options }); return { ok: false, status: 404, json: async () => ({ code: 'NOT_FOUND' }) }; };
+  await app.choosePlan('pro');
+  assert.deepEqual(navigations, []);
+  assert.equal(state.closes, 1);
+  assert.match(state.messages.at(-1), /first in line for Pro/);
+  assert.ok(JSON.parse(storage.get('fm_upgrade_interest')).pro > 0);
+  assert.equal(app._checkoutBusy, false);
+});
+
 test('Global checkout rejects untrusted URLs, denied orders and account-switch responses', async () => {
   for (const url of ['javascript:alert(1)', 'https://lemonsqueezy.com.attacker.test/pay', 'https://user:pass@formora.lemonsqueezy.com/pay', 'http://formora.lemonsqueezy.com/pay']) {
     const { app, context } = harness(), navigations = [];

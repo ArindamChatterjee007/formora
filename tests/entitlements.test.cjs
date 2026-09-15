@@ -8,16 +8,20 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../js/entitlements.js'), 'utf8');
 const now = Date.parse('2026-09-05T12:00:00Z');
 
-function setup() {
+function setup(stored = {}) {
+  const storage = new Map(Object.entries(stored));
+  const timers = [];
   const context = vm.createContext({
     Cloud: { me: 'account-a', base: 'https://example.test/rest/v1', active: () => true, _headers: () => ({}) },
     Date: class extends Date { static now() { return now; } },
-    AbortController, setTimeout, clearTimeout,
+    AbortController, clearTimeout,
+    setTimeout: (callback, delay) => { const timer = setTimeout(callback, delay); timer.unref(); timers.push({ timer, delay }); return timer; },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     fetch: async () => ({ ok: true, json: async () => [] })
   });
   vm.runInContext(source + '\nglobalThis.entitlements = Entitlements;', context);
   const reply = rows => { context.fetch = async () => ({ ok: true, json: async () => rows }); };
-  return { context, entitlements: context.entitlements, reply };
+  return { context, entitlements: context.entitlements, reply, storage, timers };
 }
 const paid = end => ({ tier: 'elite', status: 'active', current_period_end: end });
 
@@ -57,21 +61,89 @@ test('Account change fails closed immediately, before the next lookup', async ()
   assert.equal(entitlements.isElite(), false);
 });
 
-test('Empty, malformed, rejected and offline reads clear previous access', async () => {
+test('Empty, malformed and explicitly denied reads clear previous access', async () => {
   const responses = [
     async () => ({ ok: true, json: async () => [] }),
     async () => ({ ok: true, json: async () => ({ tier: 'elite' }) }),
     async () => ({ ok: true, json: async () => [null] }),
-    async () => ({ ok: false, status: 403 }),
-    async () => { throw new Error('offline'); }
+    async () => ({ ok: false, status: 403 })
   ];
   for (const fetch of responses) {
-    const { entitlements, context, reply } = setup();
+    const { entitlements, context, reply, storage } = setup();
     reply([paid(null)]); await entitlements.load();
+    assert.equal(storage.has('fm_membership:account-a'), true);
     context.fetch = fetch; await entitlements.load();
     assert.equal(entitlements.isPro(), false);
     assert.equal(entitlements.tier(), 'free');
+    assert.equal(entitlements.ready(), true);
+    assert.equal(storage.has('fm_membership:account-a'), false, 'a definitive answer clears the device copy');
   }
+});
+
+test('A dropped connection or server outage keeps the confirmed membership and re-checks in the background', async () => {
+  for (const fetch of [async () => { throw new Error('offline'); }, async () => ({ ok: false, status: 503 }), async () => ({ ok: false, status: 429 })]) {
+    const { entitlements, context, reply, timers } = setup();
+    reply([paid('2026-09-06T12:00:00Z')]); await entitlements.load();
+    context.fetch = fetch; await entitlements.load();
+    assert.equal(entitlements.isElite(), true);
+    assert.equal(entitlements.ready(), true);
+    assert.equal(entitlements.stale(), true);
+    assert.equal(entitlements.error, 'unavailable');
+    assert.deepEqual(timers.map(item => item.delay).filter(delay => delay !== 10000), [4000]);
+    reply([]); await entitlements.load();
+    assert.equal(entitlements.isElite(), false, 'the next definitive read still wins');
+    assert.equal(entitlements.stale(), false);
+  }
+});
+
+test('A missing session token defers the check without downgrading a confirmed member', async () => {
+  const { entitlements, context, reply } = setup();
+  context.SupaAuth = { active: () => true, uid: () => 'account-a', token: async () => 'token' };
+  reply([paid(null)]); await entitlements.load();
+  context.SupaAuth.token = async () => null; await entitlements.load();
+  assert.equal(entitlements.error, 'auth');
+  assert.equal(entitlements.isElite(), true);
+  assert.equal(entitlements.ready(), true);
+  assert.equal(entitlements.stale(), true);
+});
+
+test('The device remembers a confirmed membership per account and never lends it to another account', async () => {
+  const saved = JSON.stringify({ tier: 'elite', status: 'active', current_period_end: '2026-10-06T12:57:37Z', confirmedAt: now - 3600000 });
+  const offline = setup({ 'fm_membership:account-a': saved });
+  offline.context.fetch = async () => { throw new Error('offline'); };
+  assert.equal(offline.entitlements.known(), false);
+  await offline.entitlements.load();
+  assert.equal(offline.entitlements.isElite(), true, 'the cached answer covers the first failed read');
+  assert.equal(offline.entitlements.stale(), true);
+  const other = setup({ 'fm_membership:account-a': saved });
+  other.context.Cloud.me = 'account-b'; other.context.fetch = async () => { throw new Error('offline'); };
+  await other.entitlements.load();
+  assert.equal(other.entitlements.isElite(), false);
+  assert.equal(other.entitlements.ready(), false);
+  for (const expired of [
+    { tier: 'elite', status: 'active', current_period_end: '2026-09-04T12:00:00Z', confirmedAt: now - 3600000 },
+    { tier: 'elite', status: 'active', current_period_end: null, confirmedAt: now - 31 * 86400000 },
+    { tier: 'elite', status: 'active', current_period_end: null, confirmedAt: now + 60000 },
+    { tier: 'elite', status: 'inactive', current_period_end: null, confirmedAt: now - 60000 },
+    { tier: 'admin', status: 'active', current_period_end: null, confirmedAt: now - 60000 }
+  ]) {
+    const stale = setup({ 'fm_membership:account-a': JSON.stringify(expired) });
+    stale.context.fetch = async () => { throw new Error('offline'); };
+    await stale.entitlements.load();
+    assert.equal(stale.entitlements.isPro(), false, JSON.stringify(expired));
+  }
+});
+
+test('Background re-checks are bounded and stop after the account changes', async () => {
+  const { entitlements, context, timers } = setup();
+  context.fetch = async () => { throw new Error('offline'); };
+  await entitlements.load();
+  assert.deepEqual(timers.map(item => item.delay).filter(delay => delay !== 10000), [4000]);
+  entitlements._retries = 3; entitlements._scheduleRetry();
+  assert.equal(entitlements._retry, null, 'no further retries after the bounded schedule');
+  entitlements._retries = 0; entitlements._scheduleRetry(); assert.ok(entitlements._retry);
+  context.Cloud.me = 'account-b'; entitlements.reset();
+  assert.equal(entitlements._retry, null);
 });
 
 test('Logging out or disabling cloud clears entitlement access', async () => {

@@ -677,11 +677,12 @@ const Social = {
         </div>
         ${(this.pendingPhotos && this.pendingPhotos.length) ? `<div class="composer-photos">${this.pendingPhotos.map((src, i) => `<div class="cp-thumb"><img src="${esc(src)}" alt="preview" draggable="false"><button class="cp-x" onclick="Social.removePending(${i})">✕</button></div>`).join("")}</div>` : ""}
         ${this.pendingVideo ? `<div class="composer-video"><video src="${esc(this.pendingVideo)}" controls playsinline></video><button class="cp-x" onclick="Social.removeVideo()">✕</button></div>` : (this.pendingVideoUploading ? `<div class="sub upl">⏳ Uploading video…</div>` : "")}
-        ${this.pendingMusic ? `<div class="composer-music">🎵 <b>${esc(this.pendingMusic.title)}</b> · ${esc(this.pendingMusic.artist)}<button class="cp-x" onclick="Social.removeMusic()">✕</button></div>` : ""}
+        ${this.pendingMusic ? `<div class="composer-music">🎵 <b>${esc(this.pendingMusic.title)}</b> · ${esc(this.pendingMusic.artist)}<button class="cp-x" onclick="Social.removeMusic()" aria-label="Remove music">✕</button></div>` : ""}
+        ${this.musicOffered() ? `<div class="composer-ask" role="group" aria-label="Add music"><span>🎵 Add music to this ${this.pendingVideo ? "Flex" : "photo"}?</span><button type="button" class="btn sm" onclick="Social.pickMusic()">Add music</button><button type="button" class="btn ghost sm" onclick="Social.skipMusic()">No music</button></div>` : ""}
         <div class="composer-actions">
           <button class="photo-btn" onclick="Social.pickPhotos()">${App.ic("camera", { size: 16 })} Photo</button>
           <button class="photo-btn" onclick="Social.pickReel()">${App.ic("film", { size: 16 })} Flex</button>
-          <button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">${App.ic("music", { size: 16 })} Music</button>
+          ${this.hasPendingMedia() && !this.musicOffered() ? `<button class="photo-btn ${this.pendingMusic ? "on" : ""}" onclick="Social.pickMusic()">${App.ic("music", { size: 16 })} ${this.pendingMusic ? "Music" : "Add music"}</button>` : ""}
           <button id="post-publish" class="btn" onclick="Social.publishPost()" ${this._actionPending("create-post", "composer") || this.pendingVideoUploading ? 'disabled aria-busy="true"' : ""}>${this._actionPending("create-post", "composer") ? "Posting..." : this._postRequest ? "Retry post" : "Post"}</button>
         </div>
       </div>`;
@@ -789,10 +790,14 @@ const Social = {
     const scope = this._actionScope();
     return Promise.all(files.slice(0, slots).map((f) => resizeImage(f, 1080, 0.8))).then((datas) => {
       if (this._actionScope() !== scope) return;
-      this.pendingPhotos.push(...datas.slice(0, Math.max(0, 6 - this.pendingPhotos.length))); this.render();
+      this.pendingPhotos.push(...datas.slice(0, Math.max(0, 6 - this.pendingPhotos.length))); this._musicSkipped = false; this.render();
     }).catch(() => { if (this._actionScope() === scope) alert("Couldn't read one of those images."); });
   },
-  removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); this.render(); } },
+  removePending(i) { if (this.pendingPhotos) { this.pendingPhotos.splice(i, 1); if (!this.hasPendingMedia()) this._musicSkipped = false; this.render(); } },
+  // music is an add-on to a photo or Flex, not a post type: offer it once media is attached until chosen or declined
+  hasPendingMedia() { return !!((this.pendingPhotos && this.pendingPhotos.length) || this.pendingVideo); },
+  musicOffered() { return this.hasPendingMedia() && !this.pendingMusic && !this._musicSkipped; },
+  skipMusic() { this._musicSkipped = true; this.render(); },
   async postVideo(e) {
     const f = e.target && e.target.files && e.target.files[0]; if (!f) return;
     if (!this.cloudActive()) { alert("Flex videos need you to be signed in and online."); return; }
@@ -804,9 +809,9 @@ const Social = {
     if (this._actionScope() !== scope || this._videoUpload !== upload) return;
     this.pendingVideoUploading = false;
     if (!url) { alert("Couldn't upload that video — check your connection and try again."); this.render(); return; }
-    this.pendingVideo = url; this.render();
+    this.pendingVideo = url; this._musicSkipped = false; this.render();
   },
-  removeVideo() { this._videoUpload = null; this.pendingVideoUploading = false; this.pendingVideo = null; this.render(); },
+  removeVideo() { this._videoUpload = null; this.pendingVideoUploading = false; this.pendingVideo = null; if (!this.hasPendingMedia()) this._musicSkipped = false; this.render(); },
 
   // ---- stories (Instagram-style, 24h) ----
   storyGroups() {
@@ -872,7 +877,7 @@ const Social = {
     return resizeImage(file, 1080, 0.82).then((dataUrl) => {
       if (this._actionScope() !== scope) return;
       if (!this.pendingPhotos) this.pendingPhotos = [];
-      if (this.pendingPhotos.length < 6) this.pendingPhotos.push(dataUrl);
+      if (this.pendingPhotos.length < 6) { this.pendingPhotos.push(dataUrl); this._musicSkipped = false; }
       if (typeof App !== "undefined" && App.selectTab) App.selectTab("home");
       this.sub = "feed"; this.render();
     }).catch(() => { if (this._actionScope() === scope) alert("Couldn't process that photo."); });
@@ -1108,7 +1113,7 @@ const Social = {
           const current = this._postData({ text: currentText.trim(), photo: currentPhotos[0] || null, photos: currentPhotos.length ? currentPhotos : null, video: this.pendingVideo, gradient: this.me().colors, music: this.pendingMusic });
           if (currentText === request.text && Cloud._samePayload(current, request.data)) {
             this._postText = ""; if (input) input.value = "";
-            this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null;
+            this.pendingPhotos = []; this.pendingVideo = null; this.pendingMusic = null; this._musicSkipped = false;
           } else this._postText = currentText;
           window.Track && Track.event("post_created", { has_photo: !!request.data.photo, has_video: !!request.data.video, has_music: !!request.data.music });
           if (App.toast) App.toast(request.data.video ? "Flex posted" : "Posted to the feed");
@@ -1121,7 +1126,7 @@ const Social = {
         }
       }
     }
-    this.createPost({ text, photo: photos[0] || null, music: this.pendingMusic || null }); this._postText = ""; this.pendingPhotos = []; this.pendingMusic = null; this.render(); return true;
+    this.createPost({ text, photo: photos[0] || null, music: this.pendingMusic || null }); this._postText = ""; this.pendingPhotos = []; this.pendingMusic = null; this._musicSkipped = false; this.render(); return true;
   },
   async removePost(id) {
     if (!this._isMine(this._postById(id)) || this._actionPending("delete-post", id)) return false;

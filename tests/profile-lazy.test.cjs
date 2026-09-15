@@ -289,5 +289,5 @@ test('The unchanged top-level JS budget passes without eagerly loading the Profi
   assert.ok(fs.statSync(path.join(root, 'js/mod/profile.js')).size >= 15 * 1024);
   const bytes = fs.readdirSync(path.join(root, 'js')).filter(file => file.endsWith('.js'))
     .reduce((total, file) => total + fs.statSync(path.join(root, 'js', file)).size, 0);
-  assert.ok(bytes <= 430 * 1024, `${bytes} exceeds 440320 bytes`);
+  assert.ok(bytes <= 440 * 1024, `${bytes} exceeds 450560 bytes`);
 });

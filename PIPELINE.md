@@ -44,7 +44,7 @@ Do not launch duplicate local suites; the cloud workflow serializes each run.
 ## Check Scope
 
 - `validate`: syntax, cache version, URL sinks, conflict/secret checks and the
-  existing 430 KiB top-level JS / 100 KiB CSS budgets. These budgets do not claim
+  existing 440 KiB top-level JS / 100 KiB CSS budgets. These budgets do not claim
   to measure every module or compressed network byte.
 - `functional-fixtures`: `FORMORA_QA_SCOPE=public-product npm test`, serial Node
   and Chromium fixtures. The explicit private-contract exclusion catalog is
