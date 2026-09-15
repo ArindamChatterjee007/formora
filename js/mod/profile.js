@@ -87,7 +87,9 @@ window.AppProfile = {
       </div>
       ${(() => {
         const isPro = typeof Entitlements !== "undefined" && Entitlements.isPro();
-        if (typeof Entitlements !== "undefined" && (Entitlements.error || Entitlements.loading)) return "";
+        // a failing or pending re-check hides the upgrade prompt; a last-confirmed paid membership stays visible with a stale hint
+        const stale = typeof Entitlements !== "undefined" && !!Entitlements.error && Entitlements.known() && isPro;
+        if (typeof Entitlements !== "undefined" && (Entitlements.error || Entitlements.loading) && !stale) return "";
         if (!isPro) {
           return `<div class="card upgrade-card" onclick="App.openPricing()">
         <div class="uc-glow"></div>
@@ -100,10 +102,11 @@ window.AppProfile = {
         const elite = Entitlements.isElite();
         const pe = (Entitlements._e && Entitlements._e.current_period_end) ? new Date(Entitlements._e.current_period_end) : null;
         const renew = pe && !isNaN(pe.getTime()) ? pe.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
-        return `<div class="card member-card" data-tier="${elite ? "elite" : "pro"}">
-        <div class="mc-row"><span class="tier-badge ${elite ? "tb-elite" : "tb-pro"}">${elite ? "★ Elite" : "◆ Pro"}</span><span class="mc-status">Active${renew ? " · access until " + esc(renew) : ""}</span></div>
+        return `<div class="card member-card" data-tier="${elite ? "elite" : "pro"}"${stale ? ' data-stale="true"' : ""}>
+        <div class="mc-row"><span class="tier-badge ${elite ? "tb-elite" : "tb-pro"}">${elite ? "★ Elite" : "◆ Pro"}</span><span class="mc-status">${stale ? "Last confirmed" : "Active"}${renew ? " · access until " + esc(renew) : ""}</span></div>
         <div class="mc-title">You're a Formora ${elite ? "Elite" : "Pro"} member 🎉</div>
         <div class="mc-sub">${elite ? "Pro benefits, Elite filters, frames and a rules-based progress review." : "Training programs, Pro filters, meal plans and advanced analytics are yours."}</div>
+        ${stale ? `<div class="mc-stale" role="status" style="margin:8px 0 2px;font-size:12px;color:var(--sub)">We couldn't re-check your membership just now — showing your last confirmed status.</div>` : ""}
         ${elite ? "" : `<button class="btn wide" onclick="App.upgradeToElite()">Upgrade to Elite →</button>`}
         <button class="btn ghost wide" style="margin-top:6px" onclick="App.openSupport()">Help &amp; support</button>
       </div>`;
