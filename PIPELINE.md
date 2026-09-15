@@ -539,6 +539,41 @@ An authorized operator must:
 5. Verify each published manifest, headers, denied private routes and browser
    isolation. Retest QAT/beta on the actual authorized test backend when ready.
 
+## Merging Promotion Pull Requests
+
+Promotion PRs are opened by `promote.yml` under the Actions bot, so GitHub holds
+their `pull_request` CI run as `action_required` until a maintainer approves it.
+The strict up-to-date rule is satisfied by that PR-event run (it tests the merge
+with the current base), not by the earlier `push` run on the same commit: until
+the approved run finishes, `gh pr merge` reports "the head branch is not up to
+date with the base branch" even when the trees are identical. On 2026-09-15 this
+was misread as a missing back-merge; the merge succeeded normally once the
+PR-event checks completed.
+
+Sequence for every stage:
+
+1. Wait for the exact head's `push` CI to pass.
+2. Approve the held run (`gh api --method POST repos/<repo>/actions/runs/<id>/approve`)
+   and wait for its `promotion-gate` job, which checks the stage acceptance
+   deployment for the exact head SHA.
+3. Wait for the PR merge state to become `CLEAN`, then merge with
+   `gh pr merge <n> --merge --match-head-commit <sha>`. Never `--admin`, never
+   relax `strict`, never use the update-branch API on a protected head.
+4. Merge `main` back into `dev` after each production release (no tree change)
+   so branch history stays aligned; it is hygiene, not a merge prerequisite.
+
+## Native Build Signing
+
+`native-builds.yml` restores the shared debug keystore from the
+`ANDROID_DEBUG_KEYSTORE_BASE64` secret into `FORMORA_DEBUG_KEYSTORE`, which
+`android/app/build.gradle` uses for the debug signing config. The job then fails
+unless the APK signer certificate equals the repository variable
+`ANDROID_DEBUG_CERT_SHA256` (the signer of the served `download/Formora.apk`), so
+installed members can always update in place. A runner-generated key is only
+accepted when the secret is absent, and such a build is labelled
+`runner-debug-key` and must not be served.
+
+
 `promote.yml` is a `workflow_run` workflow, so its hardened PR-creation guard
 only becomes active when the workflow and helper reach the default branch through
 an authorized promotion. A `dev`-only push does not update `main` or production.
