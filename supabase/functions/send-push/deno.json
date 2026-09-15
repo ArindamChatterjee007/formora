@@ -1,0 +1,8 @@
+{
+  "lock": true,
+  "nodeModulesDir": "none",
+  "imports": {
+    "web-push": "npm:web-push@3.6.7",
+    "http_ece": "npm:http_ece@1.2.0"
+  }
+}
