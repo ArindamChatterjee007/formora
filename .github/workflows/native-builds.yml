@@ -57,9 +57,10 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.android
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+            test -s "$RUNNER_TEMP/debug.keystore"
+            echo "FORMORA_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
             echo "signing=existing-debug-key" >> "$GITHUB_ENV"
           else
             echo "signing=runner-debug-key" >> "$GITHUB_ENV"
@@ -67,6 +68,21 @@ jobs:
       - name: Build the APK
         working-directory: android
         run: ./gradlew --no-daemon --console=plain assembleDebug
+      - name: Verify the APK signer
+        # The build must be signed by the key the served APK uses (repository variable ANDROID_DEBUG_CERT_SHA256),
+        # otherwise installed members could not update in place. A runner-key build is only allowed without the secret.
+        env:
+          EXPECTED_CERT: ${{ vars.ANDROID_DEBUG_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          apksigner="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          cert=$("$apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})$/\1/p')
+          echo "signer=$cert"
+          echo "signer=$cert" >> "$GITHUB_ENV"
+          if [ "${signing}" = "existing-debug-key" ]; then
+            [ -n "${EXPECTED_CERT:-}" ] || { echo "::error::ANDROID_DEBUG_CERT_SHA256 repository variable is not set"; exit 1; }
+            [ "$cert" = "$EXPECTED_CERT" ] || { echo "::error::APK signer $cert does not match the served signer $EXPECTED_CERT"; exit 1; }
+          fi
       - name: Record the build identity
         run: |
           set -euo pipefail
@@ -76,7 +92,7 @@ jobs:
           node -e '
             const fs=require("node:fs"),crypto=require("node:crypto");
             const bytes=fs.readFileSync("dist/native/Formora.apk");
-            fs.writeFileSync("dist/native/android-build.json",JSON.stringify({commit:process.env.GITHUB_SHA,versionCode:process.env.VC,versionName:process.env.VN,signing:process.env.signing,bytes:bytes.length,sha256:crypto.createHash("sha256").update(bytes).digest("hex"),builtAt:new Date().toISOString(),webFiles:fs.readdirSync("www",{recursive:true}).length},null,2)+"\n");
+            fs.writeFileSync("dist/native/android-build.json",JSON.stringify({commit:process.env.GITHUB_SHA,versionCode:process.env.VC,versionName:process.env.VN,signing:process.env.signing,signerSha256:process.env.signer||null,bytes:bytes.length,sha256:crypto.createHash("sha256").update(bytes).digest("hex"),builtAt:new Date().toISOString(),webFiles:fs.readdirSync("www",{recursive:true}).length},null,2)+"\n");
             console.log(fs.readFileSync("dist/native/android-build.json","utf8"));'
         env:
           VC: ${{ inputs.version_code }}
