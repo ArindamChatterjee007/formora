@@ -324,7 +324,7 @@ test('first visible app render uses the loaded membership without a refresh', as
   const membership = deferred(), seen = [];
   Object.assign(app, {
     isBanned: () => false, applyAccount() {}, ensureUsername() {},
-    syncAccountFromCloud: async () => {}, bindTabs() {}, renderChips() {},
+    syncAccountFromCloud: async () => {}, bindTabs() {}, bindHistory() {}, renderChips() {},
     initCloud: async () => { await membership.promise; await ent.load(); },
     applyTierTheme() { seen.push(ent.isElite() ? 'elite' : 'free'); },
     selectTab() { seen.push('visible:' + ent.tier()); }
