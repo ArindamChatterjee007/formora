@@ -566,7 +566,13 @@ Sequence for every stage:
    `gh pr merge <n> --merge --match-head-commit <sha>`. Never `--admin`, never
    relax `strict`, never use the update-branch API on a protected head.
 4. Merge `main` back into `dev` after each production release (no tree change)
-   so branch history stays aligned; it is hygiene, not a merge prerequisite.
+   **before** starting the next cycle. This is a prerequisite, not hygiene: the
+   stage heads are pull-request merge commits, and the strict up-to-date rule
+   requires the head branch to *contain* the base head. Without the back-merge
+   the next `dev → release` PR reports `BEHIND` (observed 2026-09-16, PR #364)
+   and cannot be merged without weakening protection. The back-merge must leave
+   the `dev` tree unchanged (`git rev-parse HEAD^{tree}` equal before and after);
+   `dist/launch-cycle6-20260916.cjs` shows the checked sequence.
 
 ## Native Build Signing
 
