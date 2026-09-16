@@ -492,17 +492,13 @@ const Camera = {
     }
     const isVid = d.isVid;
     const ext = isVid ? ((finalBlob.type.includes("mp4")) ? "mp4" : "webm") : "jpg";
-    const file = new File([finalBlob], (isVid ? "clip." : "shot.") + ext, { type: finalBlob.type || (isVid ? "video/webm" : "image/jpeg") });
-    const url = URL.createObjectURL(finalBlob);
+    // MediaRecorder types carry ";codecs=..." which Storage and the Story type check do not expect
+    const type = String(finalBlob.type || "").split(";")[0].trim() || (isVid ? "video/webm" : "image/jpeg");
+    const file = new File([finalBlob], (isVid ? "clip." : "shot.") + ext, { type });
     this.hardClose();
-    if (this.target === "story") {
-      if (Social._storyDraft && Social._storyDraft.url) URL.revokeObjectURL(Social._storyDraft.url);
-      Social._storyDraft = { file, isVid, url };
-      Social.storyPreview();
-    } else {
-      if (isVid) Social.attachReel(file, url);
-      else Social.attachPhoto(file);
-    }
+    if (this.target === "story") { Social.startStoryDraft(file); return; }
+    if (isVid) Social.attachReel(file);
+    else Social.attachPhoto(file);
   },
   hardClose() { this.stop(); if (this.recording) { this.recording = false; clearInterval(this.recTimer); } const ov = document.getElementById("camera-ov"); if (ov) ov.remove(); },
   close() { const d = this._draft; if (d && d.url) URL.revokeObjectURL(d.url); this._draft = null; this.hardClose(); },
