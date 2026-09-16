@@ -71,18 +71,24 @@ jobs:
       - name: Verify the APK signer
         # The build must be signed by the key the served APK uses (repository variable ANDROID_DEBUG_CERT_SHA256),
         # otherwise installed members could not update in place. A runner-key build is only allowed without the secret.
-        env:
-          EXPECTED_CERT: ${{ vars.ANDROID_DEBUG_CERT_SHA256 }}
+        # This step only records what apksigner reports (raw output kept in the artifact); the enforcement step below
+        # fails the job after the artifact is uploaded so a mismatching APK can still be inspected.
         run: |
           set -euo pipefail
-          apksigner="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
-          cert=$("$apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})$/\1/p')
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          ls -la "$(dirname "$apk")"
+          echo "build-tools: $(ls "$ANDROID_HOME/build-tools" | tr '\n' ' ')"
+          apksigner=""
+          for dir in $(ls "$ANDROID_HOME/build-tools" | sort -rV); do
+            if [ -x "$ANDROID_HOME/build-tools/$dir/apksigner" ]; then apksigner="$ANDROID_HOME/build-tools/$dir/apksigner"; break; fi
+          done
+          [ -n "$apksigner" ] || { echo "::error::no apksigner under $ANDROID_HOME/build-tools"; exit 1; }
+          echo "apksigner=$apksigner ($("$apksigner" --version))"
+          mkdir -p dist/native
+          "$apksigner" verify --verbose --print-certs "$apk" 2>&1 | tee dist/native/apksigner-verify.txt || true
+          cert=$(sed -nE 's/^Signer( #1| \(minSdkVersion=[0-9]+, maxSdkVersion=[0-9]+\)) certificate SHA-256 digest: ([0-9a-f]{64})$/\2/p' dist/native/apksigner-verify.txt | head -1)
           echo "signer=$cert"
           echo "signer=$cert" >> "$GITHUB_ENV"
-          if [ "${signing}" = "existing-debug-key" ]; then
-            [ -n "${EXPECTED_CERT:-}" ] || { echo "::error::ANDROID_DEBUG_CERT_SHA256 repository variable is not set"; exit 1; }
-            [ "$cert" = "$EXPECTED_CERT" ] || { echo "::error::APK signer $cert does not match the served signer $EXPECTED_CERT"; exit 1; }
-          fi
       - name: Record the build identity
         run: |
           set -euo pipefail
@@ -103,6 +109,17 @@ jobs:
           path: dist/native/
           retention-days: 14
           if-no-files-found: error
+      - name: Enforce the served signer
+        env:
+          EXPECTED_CERT: ${{ vars.ANDROID_DEBUG_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          if [ "${signing}" = "existing-debug-key" ]; then
+            [ -n "${EXPECTED_CERT:-}" ] || { echo "::error::ANDROID_DEBUG_CERT_SHA256 repository variable is not set"; exit 1; }
+            [ "${signer}" = "$EXPECTED_CERT" ] || { echo "::error::APK signer '${signer}' does not match the served signer $EXPECTED_CERT (see apksigner-verify.txt in the artifact)"; exit 1; }
+          else
+            echo "runner-debug-key build: not for serving"
+          fi
 
   ios:
     name: ios-archive-unsigned
