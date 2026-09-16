@@ -598,6 +598,66 @@ const screens = [
   },
 ];
 
+// T-61 continuation: the screens the DEF-004 slice did not cover. Opt-in so the CI fixture set stays byte-stable.
+const continuationScreens = [
+  {
+    id: 'home', label: 'Home → daily plan and quick actions', rootSelector: '#view-home', panelSelector: '.card',
+    minText: 120,
+    required: [{ selector: '.quick', count: 4 }],
+    async open(page) {
+      await page.evaluate(() => App.goTab('overview'));
+      await page.locator('#view-home .quick').first().waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+  },
+  {
+    id: 'today', label: 'Coach → Today workout', rootSelector: '#view-today', panelSelector: '.card',
+    minText: 120,
+    required: [{ selector: 'button.btn' }],
+    async open(page) {
+      await page.evaluate(() => App.goTab('today'));
+      await page.locator('#view-today button.btn').first().waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+  },
+  {
+    id: 'feed', label: 'Feed → composer and posts', rootSelector: '#view-feed', panelSelector: '.card,.post',
+    minText: 80,
+    required: [{ selector: '.ssub', count: 4 }, { selector: '.composer' }],
+    async open(page) {
+      await page.evaluate(() => App.selectTab('feed'));
+      await page.locator('#view-feed .composer').waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+  },
+  {
+    id: 'flex', label: 'Flex → reels', rootSelector: '#view-flex', panelSelector: '.card,.reel',
+    minText: 20,
+    required: [],
+    async open(page) {
+      await page.evaluate(() => App.selectTab('flex'));
+      await page.locator('#view-flex').waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+  },
+  {
+    id: 'coach', label: 'Coach → hub', rootSelector: '#view-coach', panelSelector: '.card',
+    minText: 80,
+    required: [{ selector: 'button' }],
+    async open(page) {
+      await page.evaluate(() => App.selectTab('coach'));
+      await page.locator('#view-coach button').first().waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+  },
+  {
+    id: 'pricing', label: 'Pricing modal', rootSelector: '#modal-card', panelSelector: '.tier,.card',
+    minText: 120,
+    required: [{ selector: '.modal-head .icon-btn' }, { selector: 'button.btn' }],
+    async open(page) {
+      await page.evaluate(() => App.openPricing());
+      await page.locator('#modal-card button.btn').first().waitFor({ timeout: REQUEST_TIMEOUT });
+    },
+    async close(page) { await page.evaluate(() => App.closeModal()); },
+  },
+];
+if (process.env.FORMORA_QA_SCREENS === 'all') screens.push(...continuationScreens);
+
 function addFindings(screen, viewport, result, shot) {
   const findings = [];
   if (result.documentOverflowPx > 1) {
