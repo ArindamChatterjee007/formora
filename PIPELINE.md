@@ -137,12 +137,18 @@ guard while its retry grants are present. Direct privileged/replica writes are
 not member-facing compatibility; this trigger is not an administrative boundary.
 
 The request-actions and notification-admission migrations remove legacy
-`TRIGGER` and `TRUNCATE` grants from PUBLIC, anonymous and member roles on their
+`TRIGGER`, `TRUNCATE` and PostgreSQL 17 `MAINTAIN` grants from PUBLIC, anonymous and member roles on their
 respective tables. Installed triggers still fire without member `TRIGGER`
 privileges. Effective maintenance rights inherited through another role abort
 the transaction rather than silently leaving a bypass; resolve such drift
 explicitly before retrying. Rehearse the combined transaction with the actual
 legacy broad grants and populated synthetic rows, including rollback checks.
+
+For databases already upgraded before the `MAINTAIN` correction, apply
+`supabase/social-maintenance-privileges.sql` after the compatibility adapter and
+notification admission. It only revokes maintenance rights on those two tables,
+preserves member actions and rows, and refuses inherited rights or an unexpected
+policy baseline. Do not reapply the one-time request or notification migrations.
 
 Notification admission can precede the matched client: source triggers provide
 the verified alert even when an older client's now-denied direct notification
