@@ -1185,8 +1185,8 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .story-ring.has .sr-halo { background: conic-gradient(from 210deg, #ff9d4d, #ff3d7f, #a04dff, #ff9d4d); }
 .sr-halo .av { width: 60px !important; height: 60px !important; border: 2px solid var(--bg); }
 .sr-halo.up { font-size: 24px; background: var(--card2); }
-.sr-plus{position:absolute;right:-13px;bottom:-13px;width:44px;height:44px;display:grid;place-items:center;color:#111;font-size:15px;font-weight:700;line-height:1;isolation:isolate}
-.sr-plus::before{content:"";position:absolute;inset:11px;z-index:-1;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:2px solid var(--bg);box-sizing:border-box}
+/* transparent border = 44px hit box; gradient stays on the element for the contrast probe */
+.sr-plus{position:absolute;right:-13px;bottom:-13px;box-sizing:border-box;width:44px;height:44px;border:11px solid transparent;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));background-clip:padding-box;box-shadow:inset 0 0 0 2px var(--bg);color:#111;display:grid;place-items:center;font-size:15px;font-weight:700;line-height:1}
 .sr-name { font-size: 11px; color: var(--muted); max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== story viewer (full-screen) ===== */
