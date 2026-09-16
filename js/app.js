@@ -198,7 +198,7 @@ const App = {
     if (!this._isCurrentEntry(entry, u)) return;
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("app-shell").classList.remove("hidden");
-    if (!this.tabsBound) { this.bindTabs(); this.tabsBound = true; }
+    if (!this.tabsBound) { this.bindTabs(); this.bindHistory(); this.tabsBound = true; }
     this.renderChips();
     this.applyTierTheme();
     this.renderMembershipStatus();
@@ -255,6 +255,7 @@ const App = {
   },
 
   _invalidateAccount() {
+    this._historyTab = null;
     this._accountRights?.reset();
     if (typeof SupportReceipts !== "undefined") SupportReceipts.reset();
     if (typeof Preferences !== "undefined") Preferences.reset();
@@ -1063,6 +1064,37 @@ const App = {
     });
   },
 
+  // DEF-059: each top-level tab is a history entry, so browser/hardware Back returns to the previous tab
+  // (or first closes an open sheet, dialog, Story or comment panel) instead of leaving the app.
+  _historyTab: null,
+  _pushTabHistory(tab) {
+    if (this._historyTab === tab) return;
+    try { history[this._historyTab === null ? "replaceState" : "pushState"]({ fmTab: tab }, "", location.pathname + location.search); } catch (_) {}
+    this._historyTab = tab;
+  },
+  _closeTopOverlay() {
+    if (document.getElementById("sheet-wrap")) { this.closeSheet(); return true; }
+    if (document.getElementById("story-viewer") && typeof Social !== "undefined") { Social.closeStory(); return true; }
+    if (document.getElementById("reel-comments")?.classList.contains("open")) { this.closeReelComments(); return true; }
+    const modal = document.getElementById("modal");
+    if (modal && !modal.classList.contains("hidden")) { this.closeModal(); return true; }
+    return false;
+  },
+  bindHistory() {
+    window.addEventListener("popstate", (event) => {
+      const tab = event.state && event.state.fmTab;
+      if (!tab || !this._tabView[tab] || document.getElementById("app-shell").classList.contains("hidden")) return;
+      if (this._closeTopOverlay()) {
+        // Back consumed by the overlay: history now sits on the previous entry, so re-add the current tab
+        this._historyTab = tab;
+        this._pushTabHistory(this.curTab || tab);
+        return;
+      }
+      this._historyTab = tab;
+      if (tab !== this.curTab) this.selectTab(tab);
+    });
+  },
+
   // maps a top-level tab to the section element it activates
   _tabView: { home: "feed", search: "feed", flex: "flex", coach: "coach", alerts: "alerts", profile: "profile" },
   _tabOrder: ["home", "search", "flex", "coach", "alerts", "profile"],
@@ -1091,6 +1123,7 @@ const App = {
     document.querySelector(".wrap").scrollTo ? window.scrollTo({ top: 0, behavior: "instant" }) : window.scrollTo(0, 0);
     this._enteringTab = true;
     try { this.renderTab(tab); } finally { this._enteringTab = false; }
+    this._pushTabHistory(tab);
     // replay the slide animation even when the target section element is unchanged (e.g. home↔search share view-feed)
     const av = document.getElementById(viewId);
     if (av) { av.style.animation = "none"; void av.offsetWidth; av.style.animation = ""; }
