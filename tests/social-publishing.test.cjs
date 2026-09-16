@@ -371,6 +371,38 @@ test('Story photos upload decoded bytes without fetching a data URL and await th
   assert.equal(social.cloud.stories.length, 1); assert.equal(social._storyDraft, null);
 });
 
+test('Formora Camera hand-off builds a fenced Story draft that shares (previously an unfenced draft made Share a dead button)', async () => {
+  const { social, context, cloud, elements, state } = socialHarness();
+  let previews = 0, revoked = 0;
+  Object.assign(context, { File, Uint8Array, atob, resizeImage: async () => 'data:image/jpeg;base64,AQIDBA==',
+    URL: { createObjectURL: () => 'blob:fixture', revokeObjectURL: () => { revoked++; } } });
+  social.storyPreview = () => previews++;
+  // the exact shape Camera.finish() used to hand over: no owner/scope/id fences
+  social._storyDraft = { file: new File([Uint8Array.of(1)], 'shot.jpg', { type: 'image/jpeg' }), isVid: false, url: 'blob:old' };
+  cloud.uploadMedia = async () => { throw new Error('An unfenced draft must never upload'); };
+  assert.equal(await social.shareStory(), false);
+  assert.ok(/[Rr]etake/.test(state.toasts.at(-1) || ''), 'A draft without a request id must tell the member what to do');
+  const capture = new File([Uint8Array.of(9)], 'shot.jpg', { type: 'image/jpeg' });
+  assert.equal(social.startStoryDraft(capture), true);
+  assert.equal(previews, 1); assert.equal(revoked, 1);
+  const draft = social._storyDraft;
+  assert.equal(draft.file, capture); assert.equal(draft.isVid, false); assert.equal(draft.owner, owner);
+  assert.equal(draft.scope, social._actionScope()); assert.match(draft.id, /^[0-9a-f-]{36}$/); assert.equal(draft.v2, false);
+  const button = { textContent: 'Share to your story', disabled: false };
+  elements.set('story-preview', { querySelector: selector => selector === '.sp-share' ? button : null, remove: () => elements.delete('story-preview') });
+  cloud.uploadMedia = async (file, folder) => { assert.equal(file.type, 'image/jpeg'); assert.equal(folder, 'stories'); return 'https://fixture.invalid/shot.jpg'; };
+  cloud.addStory = async (url, kind, id) => ({ id, author: owner, photo: url, kind });
+  assert.equal(await social.shareStory(), true);
+  assert.equal(social._storyDraft, null); assert.equal(social.cloud.stories.length, 1);
+  assert.ok(state.toasts.at(-1).startsWith('Story shared'));
+  // recorder clips arrive with codec parameters; the base type is what the Story accepts
+  assert.equal(social.startStoryDraft(new File([Uint8Array.of(7)], 'clip.webm', { type: 'video/webm;codecs=vp9,opus' })), true);
+  assert.equal(social._storyDraft.isVid, true);
+  assert.equal(social.startStoryDraft(new File([Uint8Array.of(7)], 'note.txt', { type: 'text/plain' })), false);
+  assert.equal(social._storyDraft.isVid, true, 'An unsupported file must not replace the current draft');
+  social.cancelStory();
+});
+
 test('Share menu previews a post Story and retries the same reference without uploading copied media', async () => {
   const { social, context, cloud, state } = socialHarness();
   const post = { id: 'source-post', author: peer, name: 'Member', username: 'member', text: 'A public post', photo: null, has_video: false };

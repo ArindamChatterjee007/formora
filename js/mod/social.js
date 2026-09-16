@@ -890,18 +890,25 @@ const Social = {
   // story: preview the picked media full-screen before sharing (Instagram/Snapchat-style)
   onStoryFile(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return; }
+    this.startStoryDraft(f);
+  },
+  // shared by the gallery picker and the Formora Camera hand-off; shareStory refuses drafts without these fences
+  startStoryDraft(f) {
+    if (!f) return false;
+    if (!this.cloudActive()) { alert("Stories need you to be signed in and online."); return false; }
     const owner = Cloud._publishingUid();
-    if (!owner || !/^(image\/(jpeg|png|webp)|video\/(mp4|webm))$/.test(f.type)) { App.toast("Choose a supported photo or video while signed in."); return; }
-    const isVid = /^video\//.test(f.type);
+    const type = String(f.type || "").split(";")[0].trim();
+    if (!owner || !/^(image\/(jpeg|png|webp)|video\/(mp4|webm))$/.test(type)) { App.toast("Choose a supported photo or video while signed in."); return false; }
+    const isVid = /^video\//.test(type);
     if (window.STORY_MEDIA_VALIDATION === true && (window.STORY_INTERACTIONS !== true || f.size > (isVid ? 26214400 : 8388608))) {
-      App.toast("Validated Stories require a photo up to 8 MiB or a video up to 25 MiB."); return;
+      App.toast("Validated Stories require a photo up to 8 MiB or a video up to 25 MiB."); return false;
     }
-    if (isVid && f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return; }
+    if (isVid && f.size > 150 * 1024 * 1024) { alert("That clip is too large (max 150MB). Tip: record with the 🎨 Formora Camera — it auto-optimises clips to a small size."); return false; }
     this._postStorySelection = null;
     if (this._storyDraft && this._storyDraft.url) URL.revokeObjectURL(this._storyDraft.url);
     this._storyDraft = { file: f, isVid, url: URL.createObjectURL(f), owner, scope: this._actionScope(), id: Cloud._newActionId(), v2: window.STORY_INTERACTIONS === true };
     this.storyPreview();
+    return true;
   },
   storyPreview() {
     const d = this._storyDraft; if (!d) return;
@@ -919,7 +926,8 @@ const Social = {
   },
   cancelStory() { this._postStorySelection = null; const d = this._storyDraft; if (d && d.url) URL.revokeObjectURL(d.url); this._storyDraft = null; this.pendingStoryUploading = false; const ov = typeof document !== "undefined" && document.getElementById("story-preview"); if (ov) ov.remove(); },
   async shareStory() {
-    const d = this._storyDraft; if (!d || d.sending || !this.cloudActive() || !d.id) return false;
+    const d = this._storyDraft; if (!d || d.sending || !this.cloudActive()) return false;
+    if (!d.id) { App.toast("Retake this photo to share it to your story."); return false; }
     d.v2 ??= window.STORY_INTERACTIONS === true;
     d.validation ??= window.STORY_MEDIA_VALIDATION === true;
     const current = () => this._storyDraft === d && this._actionScope() === d.scope && Cloud._publishingUid() === d.owner

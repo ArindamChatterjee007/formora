@@ -71,7 +71,8 @@ before(async () => {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   origin = 'http://127.0.0.1:' + server.address().port;
   browser = await chromium.launch({ headless: true, args: ['--disable-background-networking', '--disable-component-update',
-    '--disable-domain-reliability', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost'] });
+    '--disable-domain-reliability', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost',
+    '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
 });
 
 after(async () => {
@@ -326,6 +327,30 @@ test('Story upload browser: photo conversion obeys CSP and publication waits for
   assert.equal(state.mediaWrites.length, 1); assert.equal(state.stories.size, 1);
   assert.ok([...state.media.values()].every(media => media.type === 'image/jpeg' && media.body.length > 0));
   assert.ok(!state.consoleErrors.some(error => /connect-src|Refused to connect|data:/.test(error)));
+});
+
+test('Story camera browser: a Formora Camera capture reaches the Story preview and publishes', async testContext => {
+  const { page, state } = await openApp(testContext, { width: 390, height: 844 }, { storyUpload: true });
+  await page.getByRole('button', { name: /Your story/ }).click();
+  await page.locator('#modal').getByRole('button', { name: /Formora Camera \+ filters/ }).click();
+  await page.locator('#cam-shutter').waitFor();
+  await page.waitForFunction(() => {
+    const video = document.getElementById('cam-video');
+    return Camera.stream && video?.readyState >= 2 && video.videoWidth > 0;
+  });
+  await page.locator('#cam-shutter').click();
+  await page.waitForFunction(() => document.getElementById('cam-edit-media')?.naturalWidth > 0);
+  await page.getByRole('button', { name: 'Next → Story', exact: true }).click();
+  await page.locator('#story-preview img').waitFor();
+  const draft = await page.evaluate(() => ({ camera: !!document.getElementById('camera-ov'), type: Social._storyDraft.file.type, isVid: Social._storyDraft.isVid,
+    owner: Social._storyDraft.owner, fenced: typeof Social._storyDraft.id === 'string' && Social._storyDraft.scope !== undefined }));
+  assert.deepEqual(draft, { camera: false, type: 'image/jpeg', isVid: false, owner, fenced: true });
+  await page.locator('#story-preview .sp-share').click();
+  await page.locator('#story-preview').waitFor({ state: 'detached' });
+  assert.equal(state.mediaWrites.length, 1); assert.equal(state.stories.size, 1);
+  assert.ok([...state.media.values()].every(media => media.type === 'image/jpeg' && media.body.length > 0));
+  await page.getByText(/Story shared/).waitFor();
+  assert.deepEqual(state.pageErrors, []);
 });
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
