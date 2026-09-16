@@ -44,5 +44,10 @@
     "@electric-sql/pglite": "^0.5.8",
     "parse5": "8.0.0",
     "playwright": "^1.63.0"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
   }
 }
