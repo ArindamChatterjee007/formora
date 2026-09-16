@@ -137,12 +137,18 @@ guard while its retry grants are present. Direct privileged/replica writes are
 not member-facing compatibility; this trigger is not an administrative boundary.
 
 The request-actions and notification-admission migrations remove legacy
-`TRIGGER` and `TRUNCATE` grants from PUBLIC, anonymous and member roles on their
+`TRIGGER`, `TRUNCATE` and PostgreSQL 17 `MAINTAIN` grants from PUBLIC, anonymous and member roles on their
 respective tables. Installed triggers still fire without member `TRIGGER`
 privileges. Effective maintenance rights inherited through another role abort
 the transaction rather than silently leaving a bypass; resolve such drift
 explicitly before retrying. Rehearse the combined transaction with the actual
 legacy broad grants and populated synthetic rows, including rollback checks.
+
+For databases already upgraded before the `MAINTAIN` correction, apply
+`supabase/social-maintenance-privileges.sql` after the compatibility adapter and
+notification admission. It only revokes maintenance rights on those two tables,
+preserves member actions and rows, and refuses inherited rights or an unexpected
+policy baseline. Do not reapply the one-time request or notification migrations.
 
 Notification admission can precede the matched client: source triggers provide
 the verified alert even when an older client's now-denied direct notification
@@ -538,41 +544,6 @@ An authorized operator must:
    acceptances, test projects or credentials. Verify actual API settings after it.
 5. Verify each published manifest, headers, denied private routes and browser
    isolation. Retest QAT/beta on the actual authorized test backend when ready.
-
-## Merging Promotion Pull Requests
-
-Promotion PRs are opened by `promote.yml` under the Actions bot, so GitHub holds
-their `pull_request` CI run as `action_required` until a maintainer approves it.
-The strict up-to-date rule is satisfied by that PR-event run (it tests the merge
-with the current base), not by the earlier `push` run on the same commit: until
-the approved run finishes, `gh pr merge` reports "the head branch is not up to
-date with the base branch" even when the trees are identical. On 2026-09-15 this
-was misread as a missing back-merge; the merge succeeded normally once the
-PR-event checks completed.
-
-Sequence for every stage:
-
-1. Wait for the exact head's `push` CI to pass.
-2. Approve the held run (`gh api --method POST repos/<repo>/actions/runs/<id>/approve`)
-   and wait for its `promotion-gate` job, which checks the stage acceptance
-   deployment for the exact head SHA.
-3. Wait for the PR merge state to become `CLEAN`, then merge with
-   `gh pr merge <n> --merge --match-head-commit <sha>`. Never `--admin`, never
-   relax `strict`, never use the update-branch API on a protected head.
-4. Merge `main` back into `dev` after each production release (no tree change)
-   so branch history stays aligned; it is hygiene, not a merge prerequisite.
-
-## Native Build Signing
-
-`native-builds.yml` restores the shared debug keystore from the
-`ANDROID_DEBUG_KEYSTORE_BASE64` secret into `FORMORA_DEBUG_KEYSTORE`, which
-`android/app/build.gradle` uses for the debug signing config. The job then fails
-unless the APK signer certificate equals the repository variable
-`ANDROID_DEBUG_CERT_SHA256` (the signer of the served `download/Formora.apk`), so
-installed members can always update in place. A runner-generated key is only
-accepted when the secret is absent, and such a build is labelled
-`runner-debug-key` and must not be served.
-
 
 `promote.yml` is a `workflow_run` workflow, so its hardened PR-creation guard
 only becomes active when the workflow and helper reach the default branch through

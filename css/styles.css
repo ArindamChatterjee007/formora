@@ -203,8 +203,8 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
   border: 1px solid var(--line);
 }
 .hero::after {
-  content: ""; position: absolute; right: -40px; top: -40px; width: 180px; height: 180px;
-  background: radial-gradient(circle, rgba(255, 107, 61, 0.4), transparent 70%);
+  content: ""; position: absolute; right: 0; top: 0; width: 140px; height: 140px;
+  background: radial-gradient(circle at 70% 30%, rgba(255, 107, 61, 0.4), transparent 70%);
   filter: blur(10px);
 }
 .hero-title { font-size: 22px; font-weight: 800; }
@@ -249,7 +249,7 @@ body.shot-guard .story-ring img, body.shot-guard .sv-media { filter: blur(22px);
 .slidebtn:not(.sliding):not(.done) .sb-thumb{ animation:sbNudge 1.7s ease-in-out infinite; }
 @keyframes sbNudge{ 0%,100%{transform:translateX(0)} 55%{transform:translateX(7px)} }
 .day-chip {
-  padding: 9px 14px; border: 1px solid var(--line); background: var(--card2);
+  min-height: 44px; padding: 9px 14px; border: 1px solid var(--line); background: var(--card2);
   color: var(--text); border-radius: 999px; font-weight: 600; font-size: 13px; transition: all .2s;
 }
 .day-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
@@ -844,7 +844,7 @@ input[autocomplete$=password]{padding-right:60px!important}
 
 .home-hero {position:relative;overflow:hidden;background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 26%,var(--card)),color-mix(in srgb,var(--accent2) 20%,var(--card)),var(--card));background-size:220% 220%;animation:heroShift 12s ease infinite}
 @keyframes heroShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-.home-hero::after { content: ""; position: absolute; right: -60px; top: -70px; width: 230px; height: 230px; pointer-events: none; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%); filter: blur(16px); animation: floatGlow 7s ease-in-out infinite alternate; }
+.home-hero::after { content: ""; position: absolute; right: 0; top: 0; width: 170px; height: 170px; pointer-events: none; background: radial-gradient(circle at 75% 25%, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%); filter: blur(16px); animation: floatGlow 7s ease-in-out infinite alternate; }
 @keyframes floatGlow { from { transform: translate(0,0) scale(1); opacity: .65; } to { transform: translate(-18px,16px) scale(1.14); opacity: 1; } }
 /* keep the hero's entrance AND its continuous gradient (beats the generic entrance rule) */
 .view.active > .home-hero { animation: cardIn .5s cubic-bezier(.22,.61,.36,1) backwards, heroShift 12s ease infinite; }
@@ -1185,7 +1185,8 @@ body.bg-paused .bg-particles span, body.bg-paused .bg-aurora, body.bg-paused .bg
 .story-ring.has .sr-halo { background: conic-gradient(from 210deg, #ff9d4d, #ff3d7f, #a04dff, #ff9d4d); }
 .sr-halo .av { width: 60px !important; height: 60px !important; border: 2px solid var(--bg); }
 .sr-halo.up { font-size: 24px; background: var(--card2); }
-.sr-plus{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#111;display:grid;place-items:center;font-size:15px;font-weight:700;border:2px solid var(--bg);line-height:1}
+.sr-plus{position:absolute;right:-13px;bottom:-13px;width:44px;height:44px;display:grid;place-items:center;color:#111;font-size:15px;font-weight:700;line-height:1;isolation:isolate}
+.sr-plus::before{content:"";position:absolute;inset:11px;z-index:-1;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:2px solid var(--bg);box-sizing:border-box}
 .sr-name { font-size: 11px; color: var(--muted); max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== story viewer (full-screen) ===== */
