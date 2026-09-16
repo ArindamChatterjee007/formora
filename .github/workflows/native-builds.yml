@@ -86,7 +86,7 @@ jobs:
           echo "apksigner=$apksigner ($("$apksigner" --version))"
           mkdir -p dist/native
           "$apksigner" verify --verbose --print-certs "$apk" 2>&1 | tee dist/native/apksigner-verify.txt || true
-          cert=$(sed -nE 's/^Signer( #1| \(minSdkVersion=[0-9]+, maxSdkVersion=[0-9]+\)) certificate SHA-256 digest: ([0-9a-f]{64})$/\2/p' dist/native/apksigner-verify.txt | head -1)
+          cert=$(sed -nE 's/^(Signer #1|Signer \(minSdkVersion=[0-9]+, maxSdkVersion=[0-9]+\)|V[0-9.]+ Signer:) certificate SHA-256 digest: ([0-9a-f]{64})$/\2/p' dist/native/apksigner-verify.txt | head -1)
           echo "signer=$cert"
           echo "signer=$cert" >> "$GITHUB_ENV"
       - name: Record the build identity
