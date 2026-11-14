@@ -184,7 +184,10 @@ const Social = {
         <button class="btn ghost" onclick="App.retryFeed()">${App.ic("undo", { size: 16 })} Retry</button></div>`;
     }
     if (state === "loading" || state === "idle") {
-      return `<div class="card"><div role="status" style="font-weight:700">Loading your feed…</div></div>`;
+      const line = (w, h, extra = "") => `<div class="sk" style="height:${h}px;width:${w}${extra}"></div>`;
+      return `<div class="card feed-skel" role="status" aria-live="polite"><span class="sr-only">Loading your feed…</span>
+        <div class="post-head" aria-hidden="true">${line("44px", 44, ";border-radius:50%;flex:none")}<div style="flex:1">${line("38%", 12, ";margin-bottom:8px")}${line("24%", 10)}</div></div>
+        <div aria-hidden="true">${line("100%", 12, ";margin:14px 0 8px")}${line("68%", 12)}${line("100%", 260, ";margin-top:12px;border-radius:14px")}</div></div>`;
     }
     return `<div class="card">${App.emptyState("users", "No posts yet", "Share your first update above and your crew will see it here.")}
       <div id="empty-feed-actions" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
@@ -622,7 +625,7 @@ const Social = {
     return saved;
   },
   toggleSave(id) {
-    this._setSaved(id); this.render();
+    this._setSaved(id); this._patchPost(id);
     const saved = this.isSaved(id);
     if (document.querySelectorAll) document.querySelectorAll("[data-saved-post]").forEach(button => {
       if (button.getAttribute("data-saved-post") !== id) return;
@@ -753,7 +756,7 @@ const Social = {
     const comments = (p.comments || []).map((c) => `<div class="cmt"><b>${esc(this.persona(c.by).name)}</b> ${esc(c.text)}</div>`).join("");
     const reshared = p.resharedFrom ? `<div class="reshare-note">🔁 reshared from ${esc(this.persona(p.resharedFrom).name)}</div>` : "";
     return `
-      <div class="card post">
+      <div class="card post" data-post="${esc(p.id)}">
         <div class="post-head">
           <div class="post-author" role="button" tabindex="0" aria-label="${esc('View ' + a.name + ' profile')}" onclick="Social.viewProfile('${p.author}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}">
             ${this.avatar(a, 44)}
@@ -1345,11 +1348,26 @@ const Social = {
             if (ok === true && this._actionScope() === scope && post.likes[owner] && Cloud.notify && post.author !== owner) return Cloud.notify(post.author, "like", id, undefined, id);
           }).catch(() => {});
         }
-        this.render();
+        this._patchPost(id);
         return;
       }
     }
-    this.toggleLike(id); this.render();
+    this.toggleLike(id); this._patchPost(id);
+  },
+  // refreshes one card's action row and likers line in place; rebuilding the feed would replay the entrance animation and restart media
+  _patchPost(id) {
+    const cards = typeof document.querySelectorAll === "function" ? [...document.querySelectorAll(".post[data-post]")].filter((card) => card.dataset.post === id) : [];
+    const raw = this.cloudActive() ? this.cloud.feed.find((p) => p.id === id) : this.post(id);
+    if (!cards.length || !raw) { this.render(); return; }
+    const tpl = document.createElement("template");
+    tpl.innerHTML = this.postCard(this.cloudActive() ? this._cloudPost(raw) : raw);
+    cards.forEach((card) => {
+      if (!card.querySelector(".post-actions")) return;
+      ["post-actions", "post-likers"].forEach((cls) => {
+        const cur = card.querySelector("." + cls), nxt = tpl.content.querySelector("." + cls);
+        if (cur && nxt) cur.replaceWith(nxt.cloneNode(true)); else if (cur) cur.remove(); else if (nxt) card.querySelector(".post-actions").after(nxt.cloneNode(true));
+      });
+    });
   },
   toggleComments(id) {
     const panel = document.getElementById("cmts-" + id); if (!panel) return;
