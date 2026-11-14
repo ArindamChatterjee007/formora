@@ -549,7 +549,7 @@ const App = {
             <span>${this.ic("chart", { size: 14 })} Streaks &amp; progress</span><span>${this.ic("target", { size: 14 })} Physique goals</span>
           </div>
           <div class="landing-sub" style="margin-top:12px;font-size:12.5px;opacity:.75">Free to start · no card needed · iPhone, Android &amp; web</div>
-          <div style="margin-top:10px;font-size:12.5px"><a href="guides/" style="color:#ff9d4d;text-decoration:none;display:inline-flex;align-items:center;gap:6px">${this.ic("book", { size: 14 })} Free fitness guides →</a></div>
+          <div style="margin-top:4px;font-size:12.5px"><a href="guides/" style="color:#ff9d4d;text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:12px 8px;margin:0 -8px">${this.ic("book", { size: 14 })} Free fitness guides →</a></div>
         </div>`
       : `<div class="auth-brand"><svg class="auth-mark" viewBox="0 0 44 44" fill="none" aria-hidden="true"><defs><linearGradient id="lg2" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9d4d"/><stop offset=".55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#ff3d7f"/></linearGradient></defs><rect x="2" y="2" width="40" height="40" rx="13" fill="url(#lg2)"/><path d="M15.5 31.5V16.2c0-1.5 1.2-2.7 2.7-2.7H30" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M15.5 22.4h10" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><circle cx="29.6" cy="29.6" r="2.7" fill="#fff"/></svg> FORM<span>ORA</span></div>
          <div class="auth-tag">Your aesthetic physique coach</div>`;
@@ -3618,14 +3618,12 @@ const App = {
     document.documentElement.dataset.time = t.key;
     const chip = document.getElementById("sky-chip");
     if (!chip) return;
+    // icon + label span: the label collapses on narrow phones so the header stays one row
+    const show = (icon, label, title) => { chip.textContent = icon + " "; chip.appendChild(Object.assign(document.createElement("span"), { className: "chip-l", textContent: label })); chip.title = title; };
     if (t.key === "night" || t.key === "dusk") {
       const m = this.moonPhase();
-      chip.textContent = `${m.i} ${m.n}`;
-      chip.title = `${t.label} · moon age ${m.age}d`;
-    } else {
-      chip.textContent = `${t.icon} ${t.label}`;
-      chip.title = t.label;
-    }
+      show(m.i, m.n, `${t.label} · moon age ${m.age}d`);
+    } else show(t.icon, t.label, t.label);
   },
 
   onPhoto(ev) {

@@ -45,7 +45,9 @@ test('GNU watchdog alone stops non-yielding work without the supervisor timer', 
       child.on('error', reject);
       child.on('close', (code, signal) => {
         try {
-          assert.ok(signal === 'SIGKILL' || code === 137);
+          // GNU timeout kills its own group and so reports the KILL (SIGKILL / 137); other
+          // implementations (uutils on ubuntu-26.04 runners) kill the child and report EXIT_TIMEDOUT 124.
+          assert.ok(signal === 'SIGKILL' || code === 137 || code === 124, `watchdog exit ${code} ${signal}`);
           assert.ok(outputBytes > 0);
           assert.equal(safetyFired, false);
           resolve();
